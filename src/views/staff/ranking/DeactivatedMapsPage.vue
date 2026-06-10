@@ -115,7 +115,7 @@ const rows = computed(() =>
       songAuthor: truncate(d.songAuthor, 25),
       mapper: d.mapAuthor,
       categoryName: catInfo?.name ?? '',
-      categoryAccent: catInfo?.accent ?? '#a855f7',
+      categoryAccent: categoryStore.getAccent(catCode ?? 'overall'),
       complexity: d.complexity,
       difficulty: d.difficulty,
       createdAt: d.createdAt,

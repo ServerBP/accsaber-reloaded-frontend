@@ -227,7 +227,7 @@ function handleMilestoneCoverError(event: Event) {
 }
 
 .milestone-detail__icon--completed {
-  filter: drop-shadow(0 0 4px var(--tier-color));
+  color: var(--tier-color);
 }
 
 .milestone-detail__icon--gray {
@@ -258,7 +258,7 @@ function handleMilestoneCoverError(event: Event) {
 }
 
 .milestone-detail--apex .milestone-detail__icon--completed {
-  filter: drop-shadow(0 0 6px var(--tier-color)) drop-shadow(0 0 12px color-mix(in srgb, var(--tier-color) 40%, transparent));
+  color: var(--tier-color);
 }
 
 .milestone-detail--apex .milestone-detail__title {

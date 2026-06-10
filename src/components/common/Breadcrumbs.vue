@@ -38,10 +38,9 @@ defineProps<{
   align-items: center;
   gap: var(--space-xs);
   padding: var(--space-xs) var(--space-md);
-  background: color-mix(in srgb, var(--bg-surface) 60%, transparent);
+  background: var(--bg-surface);
   border: 1px solid var(--bg-overlay);
   border-radius: var(--radius-pill);
-  backdrop-filter: blur(8px);
 }
 
 .breadcrumbs__crumb {

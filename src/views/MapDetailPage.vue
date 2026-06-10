@@ -6,21 +6,20 @@ import StatBlock from '@/components/common/StatBlock.vue'
 import ApTweaker from '@/components/domain/ApTweaker.vue'
 import ComplexityBadge from '@/components/domain/ComplexityBadge.vue'
 import DifficultyBadge from '@/components/domain/DifficultyBadge.vue'
-import TimeSeriesChart from '@/components/domain/TimeSeriesChart.vue'
 import { useColorExtract } from '@/composables/useColorExtract'
 import { usePageMeta } from '@/composables/usePageMeta'
 import { useCategoryStore } from '@/stores/categories'
 import { useThemeStore } from '@/stores/theme'
-import type { MapComplexityHistoryResponse, MapDifficultyStatisticsResponse, PublicMapDifficultyResponse, PublicMapResponse, TopScoreSnapshot } from '@/types/api/maps'
-import type { DifficultyScoreDisplay, MetricType, TimeRange, TimeSeriesPoint } from '@/types/display'
+import type { MapDifficultyStatisticsResponse, PublicMapDifficultyResponse, PublicMapResponse } from '@/types/api/maps'
+import type { DifficultyScoreDisplay } from '@/types/display'
 import { brightenRgb } from '@/utils/color'
-import { DIFFICULTY_ORDER, MAP_STATS_METRICS, TIME_RANGE_PARAMS } from '@/utils/constants'
-import { formatRelativeDate } from '@/utils/formatters'
+import { DIFFICULTY_ORDER } from '@/utils/constants'
 import { formatDifficulty } from '@/utils/mappers'
 import { buildMapRoute, isUuid, slugToDifficulty } from '@/utils/mapRoute'
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import MapScoresSection from './maps/MapScoresSection.vue'
+import MapStatisticsSection from './maps/MapStatisticsSection.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -30,12 +29,9 @@ const categoryStore = useCategoryStore()
 const map = ref<PublicMapResponse | null>(null)
 const activeDifficultyId = ref<string>('')
 const diffStats = ref<MapDifficultyStatisticsResponse | null>(null)
-const complexityHistory = ref<MapComplexityHistoryResponse[]>([])
-const historicStats = ref<MapDifficultyStatisticsResponse[]>([])
 const topScoresFirstPage = ref<DifficultyScoreDisplay[]>([])
 
 const routeParam = computed(() => route.params.mapId as string)
-const mapId = computed(() => map.value?.id ?? (isUuid(routeParam.value) ? routeParam.value : ''))
 
 function onTopScoresLoaded(scores: DifficultyScoreDisplay[]) {
   topScoresFirstPage.value = scores
@@ -147,136 +143,8 @@ const metaTitle = computed(() => {
 
 usePageMeta({ title: metaTitle })
 
-const selectedStatsMetric = ref<MetricType>('ap')
-const selectedStatsRange = ref<TimeRange>('all')
-
-
-const statsChartPoints = computed<TimeSeriesPoint[]>(() => {
-  return historicStats.value
-    .filter((s) => s.totalScores > 0)
-    .map((s) => ({
-      timestamp: new Date(s.createdAt).getTime(),
-      value: selectedStatsMetric.value === 'ap'
-        ? s.maxAp
-        : selectedStatsMetric.value === 'avgAccuracy'
-          ? s.averageAp
-          : s.totalScores,
-    }))
-    .filter((p) => p.value != null && Number.isFinite(p.value))
-    .sort((a, b) => a.timestamp - b.timestamp)
-})
-
-function findScoreByExactAp(maxAp: number): DifficultyScoreDisplay | null {
-  if (!topScoresFirstPage.value.length) return null
-  return topScoresFirstPage.value.find((s) => Math.abs(s.ap - maxAp) < 0.005) ?? null
-}
-
-function handleTopAvatarError(entry: TopScoreSnapshot, event: Event) {
-  const img = event.currentTarget as HTMLImageElement
-  if (entry.cdnAvatarUrl && entry.avatarUrl && img.src !== entry.avatarUrl) {
-    img.src = entry.avatarUrl
-  }
-}
-
-function snapshotFromScore(score: DifficultyScoreDisplay): TopScoreSnapshot {
-  return {
-    scoreId: score.id,
-    userId: score.userId,
-    userName: score.userName,
-    avatarUrl: score.avatarFallbackUrl ?? score.avatarUrl,
-    cdnAvatarUrl: score.avatarFallbackUrl ? score.avatarUrl : null,
-    score: score.score,
-    accuracy: score.accuracy,
-    ap: score.ap,
-    timeSet: score.date,
-  }
-}
-
-const topScoreHistory = computed<TopScoreSnapshot[]>(() => {
-  const seen = new Set<string>()
-  const entries: TopScoreSnapshot[] = []
-  const sorted = [...historicStats.value].sort(
-    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-  )
-
-  const knownAps: number[] = []
-  for (const stat of sorted) {
-    const snapshot = stat.topScore
-    if (snapshot && !seen.has(snapshot.scoreId)) {
-      seen.add(snapshot.scoreId)
-      knownAps.push(snapshot.ap)
-      entries.push(snapshot)
-    }
-  }
-
-  const triedAps: number[] = []
-  for (const stat of sorted) {
-    if (stat.topScore || stat.maxAp == null) continue
-    const ap = stat.maxAp
-    if (triedAps.some((t) => Math.abs(t - ap) < 0.005)) continue
-    triedAps.push(ap)
-    if (knownAps.some((k) => Math.abs(k - ap) < 0.005)) continue
-    const matched = findScoreByExactAp(ap)
-    if (matched && !seen.has(matched.id)) {
-      seen.add(matched.id)
-      entries.push(snapshotFromScore(matched))
-    }
-  }
-
-  entries.sort((a, b) => new Date(a.timeSet).getTime() - new Date(b.timeSet).getTime())
-  return entries.reverse()
-})
-
-const activeComplexityHistory = computed(() =>
-  complexityHistory.value.filter((h) => h.mapDifficultyId === activeDifficultyId.value)
-)
-
-interface ComplexityChange {
-  date: string
-  from: number
-  to: number
-  type: 'BUFF' | 'NERF' | 'INITIAL'
-}
-
-
-const complexityChanges = computed<ComplexityChange[]>(() => {
-  if (activeComplexityHistory.value.length === 0) return []
-  const sorted = [...activeComplexityHistory.value].sort(
-    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-  )
-  const changes: ComplexityChange[] = []
-  for (let i = 0; i < sorted.length; i++) {
-    const entry = sorted[i]
-    if (i === 0) {
-      changes.push({
-        date: entry.createdAt,
-        from: entry.complexity,
-        to: entry.complexity,
-        type: 'INITIAL',
-      })
-    } else {
-      const prev = sorted[i - 1]
-      changes.push({
-        date: entry.createdAt,
-        from: prev.complexity,
-        to: entry.complexity,
-        type: entry.complexity > prev.complexity ? 'BUFF' : 'NERF',
-      })
-    }
-  }
-  return changes.reverse()
-})
-
 function goToPlayer(userId: string) {
   window.open(router.resolve({ name: 'player-profile', params: { userId } }).href, '_self')
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString('en-US', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  })
 }
 
 function resolveQueryDifficulty(
@@ -356,34 +224,12 @@ async function fetchDifficultyStats() {
   }
 }
 
-async function fetchComplexityHistory() {
-  if (!mapId.value) return
-  try {
-    const { getComplexityHistory } = await import('@/api/maps')
-    complexityHistory.value = await getComplexityHistory(mapId.value)
-  } catch {
-    complexityHistory.value = []
-  }
-}
-
-async function fetchHistoricStats() {
-  if (!activeDifficultyId.value) return
-  try {
-    const { getDifficultyStatisticsHistoric } = await import('@/api/maps')
-    const params = TIME_RANGE_PARAMS[selectedStatsRange.value]
-    historicStats.value = await getDifficultyStatisticsHistoric(activeDifficultyId.value, params)
-  } catch {
-    historicStats.value = []
-  }
-}
-
 watch(routeParam, () => fetchMap(), { immediate: true })
 
 watch(activeDifficultyId, (newId) => {
   if (!newId || !map.value) return
   topScoresFirstPage.value = []
   fetchDifficultyStats()
-  fetchHistoricStats()
 
   const diff = map.value.difficulties.find((d) => d.id === newId)
   if (!diff) return
@@ -406,12 +252,6 @@ function sameQuery(a: Record<string, string>, b: Record<string, unknown>): boole
   if (aKeys.length !== Object.keys(b).length) return false
   return aKeys.every((k) => a[k] === b[k])
 }
-
-watch(() => map.value?.id, () => {
-  if (map.value) fetchComplexityHistory()
-})
-
-watch(selectedStatsRange, () => fetchHistoricStats())
 </script>
 
 <template>
@@ -452,7 +292,6 @@ watch(selectedStatsRange, () => fetchHistoricStats())
         <div class="map-detail__cover-wrap">
           <img class="map-detail__cover" :src="coverUrl" :alt="map.songName" fetchpriority="high" decoding="async"
             @error="handleMapCoverError" />
-          <div class="map-detail__cover-glow" :style="{ backgroundImage: `url(${coverUrl})` }" />
         </div>
 
         <div class="map-detail__details">
@@ -543,54 +382,9 @@ watch(selectedStatsRange, () => fetchHistoricStats())
             :accent-color="resolvedAccent" @top-scores-loaded="onTopScoresLoaded" />
         </div>
 
-        <template v-if="activeTab === 'statistics'">
-          <div v-if="topScoreHistory.length > 0" class="map-detail__section">
-            <h2 class="map-detail__section-heading">#1 History</h2>
-            <div class="map-detail__top-history">
-              <div v-for="(entry, i) in topScoreHistory" :key="entry.scoreId" class="map-detail__top-history-row"
-                :class="{ 'map-detail__top-history-row--current': i === 0 }" tabindex="0" role="button"
-                @click="goToPlayer(entry.userId)"
-                @keydown.enter="goToPlayer(entry.userId)">
-                <img class="map-detail__top-avatar" :src="entry.cdnAvatarUrl ?? entry.avatarUrl" :alt="entry.userName"
-                  loading="lazy" decoding="async"
-                  @error="handleTopAvatarError(entry, $event)" />
-                <span class="map-detail__top-name">{{ entry.userName }}</span>
-                <span class="map-detail__top-acc">{{ (entry.accuracy * 100).toFixed(2) }}%</span>
-                <span class="map-detail__top-ap">{{ entry.ap.toFixed(2) }} AP</span>
-                <span class="map-detail__top-date">{{ formatRelativeDate(entry.timeSet) }}</span>
-              </div>
-            </div>
-          </div>
-
-          <div v-if="complexityChanges.length > 0" class="map-detail__section">
-            <h2 class="map-detail__section-heading">Complexity History</h2>
-            <div class="map-detail__complexity-list">
-              <div v-for="(change, i) in complexityChanges" :key="i" class="map-detail__complexity-entry">
-                <span class="map-detail__complexity-date">{{ formatDate(change.date) }}</span>
-                <template v-if="change.type === 'INITIAL'">
-                  <span class="map-detail__complexity-val">{{ change.to.toFixed(1) }}</span>
-                  <span class="map-detail__complexity-tag map-detail__complexity-tag--initial">INITIAL</span>
-                </template>
-                <template v-else>
-                  <span class="map-detail__complexity-val">{{ change.from.toFixed(1) }} → {{ change.to.toFixed(1)
-                  }}</span>
-                  <span class="map-detail__complexity-tag"
-                    :class="change.type === 'BUFF' ? 'map-detail__complexity-tag--buff' : 'map-detail__complexity-tag--nerf'">
-                    {{ change.type === 'BUFF' ? '↑ BUFF' : '↓ NERF' }}
-                  </span>
-                </template>
-              </div>
-            </div>
-          </div>
-
-          <div v-if="activeDifficultyId" class="map-detail__section">
-            <h2 class="map-detail__section-heading">Statistics Over Time</h2>
-            <TimeSeriesChart :data="statsChartPoints" :metric-label="selectedStatsMetric" :accent-color="resolvedAccent"
-              :available-metrics="MAP_STATS_METRICS" :selected-metric="selectedStatsMetric"
-              :selected-range="selectedStatsRange" @update:selected-metric="selectedStatsMetric = $event as MetricType"
-              @update:selected-range="selectedStatsRange = $event" />
-          </div>
-        </template>
+        <MapStatisticsSection v-if="activeTab === 'statistics' && activeDifficultyId"
+          :difficulty-id="activeDifficultyId" :map-id="map.id" :accent-color="resolvedAccent"
+          :top-scores-first-page="topScoresFirstPage" @navigate-player="goToPlayer" />
       </div>
     </template>
   </div>
@@ -648,8 +442,8 @@ watch(selectedStatsRange, () => fetchHistoricStats())
   display: flex;
   align-items: center;
   gap: var(--space-xs);
-  background: color-mix(in srgb, var(--bg-base) 70%, transparent);
-  backdrop-filter: blur(8px);
+  background: var(--bg-surface);
+  border: 1px solid var(--bg-overlay);
   padding: var(--space-xs) var(--space-sm);
   border-radius: var(--radius-pill);
 }
@@ -681,8 +475,8 @@ watch(selectedStatsRange, () => fetchHistoricStats())
   gap: var(--space-xl);
   padding: var(--space-xl) var(--space-lg);
   text-align: center;
-  background: color-mix(in srgb, var(--bg-base) 55%, transparent);
-  backdrop-filter: blur(12px);
+  background: var(--bg-surface);
+  border: 1px solid var(--bg-overlay);
   border-radius: var(--radius-card);
 }
 
@@ -698,21 +492,7 @@ watch(selectedStatsRange, () => fetchHistoricStats())
   height: 120px;
   border-radius: var(--radius-avatar);
   object-fit: cover;
-  position: relative;
-  z-index: 1;
   border: 1px solid var(--bg-overlay);
-}
-
-.map-detail__cover-glow {
-  position: absolute;
-  inset: -8px;
-  border-radius: var(--radius-avatar);
-  background-size: cover;
-  background-position: center;
-  filter: blur(16px) saturate(1.8);
-  opacity: 0.4;
-  z-index: 0;
-  pointer-events: none;
 }
 
 .map-detail__details {
@@ -796,133 +576,6 @@ watch(selectedStatsRange, () => fetchHistoricStats())
   min-height: 400px;
 }
 
-.map-detail__section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-  margin-bottom: var(--space-xl);
-}
-
-.map-detail__section-heading {
-  font-size: var(--text-section);
-  font-weight: 700;
-  color: var(--text-primary);
-  margin: 0;
-}
-
-.map-detail__top-history {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-}
-
-.map-detail__top-history-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  cursor: pointer;
-  padding: var(--space-xs) var(--space-md);
-  border-radius: var(--radius-btn);
-  transition: background 120ms ease;
-}
-
-.map-detail__top-history-row:hover {
-  background: var(--bg-elevated);
-}
-
-.map-detail__top-history-row--current {
-  background: var(--bg-surface);
-  border: 1px solid var(--bg-overlay);
-}
-
-.map-detail__top-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-btn);
-  object-fit: cover;
-  flex-shrink: 0;
-}
-
-.map-detail__top-name {
-  font-size: var(--text-body);
-  font-weight: 500;
-  color: var(--text-primary);
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.map-detail__top-acc {
-  font-family: var(--font-mono);
-  font-size: var(--text-body);
-  color: var(--text-primary);
-  flex-shrink: 0;
-}
-
-.map-detail__top-ap {
-  font-family: var(--font-mono);
-  font-size: var(--text-body);
-  color: var(--accent);
-  flex-shrink: 0;
-}
-
-.map-detail__top-date {
-  font-size: var(--text-caption);
-  color: var(--text-tertiary);
-  flex-shrink: 0;
-}
-
-.map-detail__complexity-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-}
-
-.map-detail__complexity-entry {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  padding: var(--space-sm) var(--space-md);
-  background: var(--bg-surface);
-  border-radius: var(--radius-btn);
-}
-
-.map-detail__complexity-date {
-  font-size: var(--text-caption);
-  color: var(--text-tertiary);
-  min-width: 100px;
-}
-
-.map-detail__complexity-val {
-  font-family: var(--font-mono);
-  font-size: var(--text-body);
-  color: var(--text-primary);
-}
-
-.map-detail__complexity-tag {
-  font-size: var(--text-caption);
-  font-weight: 600;
-  padding: 1px var(--space-sm);
-  border-radius: var(--radius-pill);
-}
-
-.map-detail__complexity-tag--initial {
-  color: var(--text-secondary);
-  background: var(--bg-elevated);
-}
-
-.map-detail__complexity-tag--buff {
-  color: var(--success);
-  background: color-mix(in srgb, var(--success) 15%, transparent);
-}
-
-.map-detail__complexity-tag--nerf {
-  color: var(--error);
-  background: color-mix(in srgb, var(--error) 15%, transparent);
-}
-
 .map-detail__error-title {
   font-size: var(--text-page-title);
   font-weight: 700;
@@ -942,8 +595,8 @@ watch(selectedStatsRange, () => fetchHistoricStats())
   align-items: center;
   gap: var(--space-md);
   padding: var(--space-xl) var(--space-lg);
-  background: color-mix(in srgb, var(--bg-base) 55%, transparent);
-  backdrop-filter: blur(12px);
+  background: var(--bg-surface);
+  border: 1px solid var(--bg-overlay);
   border-radius: var(--radius-card);
 }
 
@@ -980,9 +633,5 @@ watch(selectedStatsRange, () => fetchHistoricStats())
     justify-content: center;
   }
 
-  .map-detail__top-player,
-  .map-detail__top-history-row {
-    flex-wrap: wrap;
-  }
 }
 </style>

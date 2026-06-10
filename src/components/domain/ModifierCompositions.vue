@@ -307,7 +307,6 @@ function particleColor(c: Composition): string {
     50% 100%, 42% 58%, 0% 50%, 42% 42%
   );
   opacity: 0;
-  filter: drop-shadow(0 0 2px currentColor);
   animation: comp-sparkle-twinkle 2.2s ease-in-out infinite;
 }
 
@@ -322,7 +321,6 @@ function particleColor(c: Composition): string {
   border-radius: 50%;
   opacity: 0;
   animation: comp-particle-float 2s ease-out infinite;
-  box-shadow: 0 0 6px currentColor;
 }
 
 @keyframes comp-particle-float {

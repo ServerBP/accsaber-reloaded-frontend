@@ -5,23 +5,22 @@ import type { CategoryCode, CategoryInfo } from '@/types/display'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
-const CATEGORY_COLORS: Record<string, { accent: string; tint: string; tintLight: string }> = {
-  true_acc: { accent: '#22c55e', tint: '#0f3d1e', tintLight: '#d4f5e0' },
-  standard_acc: { accent: '#3b82f6', tint: '#162650', tintLight: '#d4e4fd' },
-  tech_acc: { accent: '#ef4444', tint: '#3d1414', tintLight: '#fdd4d4' },
-  low_mid: { accent: '#eab308', tint: '#3d3508', tintLight: '#faf0c8' },
-  overall: { accent: '#a855f7', tint: '#2d1650', tintLight: '#ead4fd' },
-  xp: { accent: '#06b6d4', tint: '#0e3640', tintLight: '#ccf2f8' },
+const ULTIMATE_FALLBACK = '#f5b800'
+
+const EXTRA_CODES = ['xp'] as const
+
+function cssVarName(prefix: string, code: string): string {
+  return `--${prefix}-${code.replace(/_/g, '-')}`
 }
 
-const DEFAULT_COLOR = { accent: '#a855f7', tint: '#2d1650', tintLight: '#ead4fd' }
+function readCssToken(prefix: string, code: string): string {
+  if (typeof document === 'undefined') return ULTIMATE_FALLBACK
+  const val = getComputedStyle(document.documentElement).getPropertyValue(cssVarName(prefix, code)).trim()
+  return val || ULTIMATE_FALLBACK
+}
 
-function readCssAccent(code: string): string {
-  const fallback = CATEGORY_COLORS[code]?.accent ?? DEFAULT_COLOR.accent
-  if (typeof document === 'undefined') return fallback
-  const cssVar = '--accent-' + code.replace(/_/g, '-')
-  const val = getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim()
-  return val || fallback
+const EXTRA_NAMES: Record<string, string> = {
+  xp: 'XP',
 }
 
 const STORAGE_KEY = 'cache:categories'
@@ -63,27 +62,21 @@ export const useCategoryStore = defineStore('categories', () => {
   const categoryInfoList = computed<CategoryInfo[]>(() => {
     void themeStore.theme
     void themeStore.activeTokens
-    const list = categories.value.map((cat) => {
-      const fallback = CATEGORY_COLORS[cat.code] ?? DEFAULT_COLOR
-      return {
-        code: cat.code,
-        name: cat.name,
-        accent: readCssAccent(cat.code),
-        tint: fallback.tint,
-        tintLight: fallback.tintLight,
-      }
-    })
-    const xpFallback = CATEGORY_COLORS.xp
-    return [
-      ...list,
-      {
-        code: 'xp',
-        name: 'XP',
-        accent: readCssAccent('xp'),
-        tint: xpFallback.tint,
-        tintLight: xpFallback.tintLight,
-      },
-    ]
+    const list = categories.value.map((cat) => ({
+      code: cat.code,
+      name: cat.name,
+      accent: readCssToken('accent', cat.code),
+      tint: readCssToken('tint', cat.code),
+      tintLight: readCssToken('tint', cat.code),
+    }))
+    const extras: CategoryInfo[] = EXTRA_CODES.map((code) => ({
+      code,
+      name: EXTRA_NAMES[code] ?? code,
+      accent: readCssToken('accent', code),
+      tint: readCssToken('tint', code),
+      tintLight: readCssToken('tint', code),
+    }))
+    return [...list, ...extras]
   })
 
   const categoryInfoByCode = computed(() => {
@@ -107,7 +100,7 @@ export const useCategoryStore = defineStore('categories', () => {
   }
 
   function getAccent(code: string): string {
-    return readCssAccent(code)
+    return readCssToken('accent', code)
   }
 
   async function fetchCategories(force = false): Promise<void> {

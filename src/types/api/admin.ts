@@ -204,23 +204,85 @@ export interface UpdatePrerequisiteRequest {
 
 export type { ActivateMilestonesRequest, AdminMilestoneListParams } from './milestones'
 
+import type {
+  CampaignCompletionMode,
+  CampaignRequirementType,
+  CampaignPrerequisiteMode,
+  CampaignTagKind,
+} from '../enums'
+
 export interface CreateCampaignRequest {
+  creatorId?: number
+  creatorAlias?: string
   name: string
-  description: string
-  difficulty: string
-  verified?: boolean
+  slug?: string
+  summary?: string
+  description?: string
+  progressionAgnostic?: boolean
+  completionMode?: CampaignCompletionMode
+  playlistExportEnabled?: boolean
+  backgroundUrl?: string
+  tagIds?: string[]
 }
 
 export interface UpdateCampaignRequest {
   name?: string
+  slug?: string
+  summary?: string
   description?: string
-  difficulty?: string
-  verified?: boolean
+  progressionAgnostic?: boolean
+  completionMode?: CampaignCompletionMode
+  playlistExportEnabled?: boolean
+  completionXp?: number
+  creatorAlias?: string
+  seekingCuration?: boolean
+  backgroundUrl?: string | null
+  tagIds?: string[]
 }
 
-export interface AddCampaignMapRequest {
+export interface AddCampaignDifficultyRequest {
   mapDifficultyId: string
-  accuracyRequirement: number
-  xp: number
-  prerequisiteMapIds?: string[]
+  requirementType: CampaignRequirementType
+  requirementValue: number
+  description?: string
+  checkpointLabel?: string
+  checkpointAvatarUrl?: string
+  checkpointColor?: string
+  checkpointSize?: string
+  borderColor?: string
+  borderShape?: string
+  size?: string
+  positionX: number
+  positionY: number
+  xp?: number
+  prerequisiteCampaignDifficultyIds?: string[]
+  prerequisiteMode?: CampaignPrerequisiteMode
+}
+
+export interface UpdateCampaignDifficultyRequest {
+  requirementType?: CampaignRequirementType
+  requirementValue?: number
+  description?: string | null
+  checkpointLabel?: string | null
+  checkpointAvatarUrl?: string | null
+  checkpointColor?: string | null
+  checkpointSize?: string | null
+  borderColor?: string | null
+  borderShape?: string | null
+  size?: string | null
+  positionX?: number
+  positionY?: number
+  xp?: number
+  prerequisiteCampaignDifficultyIds?: string[]
+  prerequisiteMode?: CampaignPrerequisiteMode
+}
+
+export interface CreateCampaignTagRequest {
+  kind: CampaignTagKind
+  name: string
+}
+
+export interface AddCampaignItemRequest {
+  itemId: string
+  quantity?: number
 }

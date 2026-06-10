@@ -212,6 +212,16 @@ const router = createRouter({
       meta: { requiresStaff: true, requiredRole: 'ADMIN' },
     },
     {
+      path: '/campaigns/new',
+      name: 'campaign-new',
+      component: () => import('@/views/staff/campaigns/CampaignEditorPage.vue'),
+    },
+    {
+      path: '/campaigns/:campaignId/edit',
+      name: 'campaign-editor',
+      component: () => import('@/views/staff/campaigns/CampaignEditorPage.vue'),
+    },
+    {
       path: '/admin/items/crates',
       name: 'admin-crates-list',
       redirect: { name: 'admin', query: { tab: 'items', itab: 'crates' } },

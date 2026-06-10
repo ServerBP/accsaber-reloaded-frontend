@@ -339,7 +339,6 @@ watch(
         </svg>
       </button>
 
-      <div class="score-detail__bleed" />
 
       <div class="score-detail__player">
         <LevelBadge
@@ -376,7 +375,6 @@ watch(
         <div v-if="score.coverUrl" class="score-detail__cover-wrap">
           <img :src="score.coverUrl" :alt="score.mapName" class="score-detail__cover" decoding="async"
             @error="handleScoreCoverError" />
-          <div class="score-detail__cover-glow" :style="{ backgroundImage: `url(${score.coverUrl})` }" />
         </div>
         <div class="score-detail__map-info">
           <h3 class="score-detail__song">
@@ -566,19 +564,6 @@ watch(
   background: var(--bg-elevated);
 }
 
-.score-detail__bleed {
-  position: absolute;
-  top: calc(-1 * var(--space-lg));
-  left: calc(-1 * var(--space-lg));
-  right: calc(-1 * var(--space-lg));
-  height: 220px;
-  background: radial-gradient(ellipse at 50% 0%,
-      color-mix(in srgb, var(--detail-accent) 22%, transparent),
-      transparent 75%);
-  pointer-events: none;
-  z-index: 0;
-}
-
 .score-detail__player {
   display: flex;
   align-items: center;
@@ -695,21 +680,7 @@ watch(
   height: 112px;
   border-radius: var(--radius-card);
   object-fit: cover;
-  position: relative;
-  z-index: 1;
   border: 1px solid var(--bg-overlay);
-}
-
-.score-detail__cover-glow {
-  position: absolute;
-  inset: -6px;
-  border-radius: var(--radius-avatar);
-  background-size: cover;
-  background-position: center;
-  filter: blur(14px) saturate(1.6);
-  opacity: 0.45;
-  z-index: 0;
-  pointer-events: none;
 }
 
 .score-detail__map-info {

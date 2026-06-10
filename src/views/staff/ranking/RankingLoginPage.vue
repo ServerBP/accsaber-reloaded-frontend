@@ -309,7 +309,6 @@ const providerMeta: Record<OAuthProvider, string> = {
   border: 1px solid var(--bg-overlay);
   border-radius: var(--radius-modal);
   padding: var(--space-xl);
-  box-shadow: 0 0 40px color-mix(in srgb, var(--accent) 6%, transparent);
   display: flex;
   flex-direction: column;
   gap: var(--space-md);

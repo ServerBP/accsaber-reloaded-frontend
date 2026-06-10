@@ -78,7 +78,6 @@ function handleDownload(categoryCode: string) {
 .queued-playlists__btn:hover,
 .queued-playlists__btn--active {
   background: color-mix(in srgb, var(--accent-overall) 22%, var(--bg-base));
-  box-shadow: 0 0 12px color-mix(in srgb, var(--accent-overall) 30%, transparent);
 }
 
 .queued-playlists__chevron {
@@ -138,7 +137,6 @@ function handleDownload(categoryCode: string) {
 
 .queued-playlists__primary:hover {
   background: color-mix(in srgb, var(--primary-accent) 28%, var(--bg-base));
-  box-shadow: 0 0 14px color-mix(in srgb, var(--primary-accent) 35%, transparent);
 }
 
 .queued-playlists__primary-label {

@@ -72,9 +72,7 @@ onMounted(async () => {
 
 <style scoped>
 .news-banner {
-  background: color-mix(in srgb, var(--bg-surface) 55%, transparent);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: var(--bg-surface);
   border-color: color-mix(in srgb, var(--banner-accent) 25%, var(--bg-overlay));
 }
 

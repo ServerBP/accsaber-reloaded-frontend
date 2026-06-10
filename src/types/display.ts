@@ -173,17 +173,6 @@ export interface MilestoneDisplay {
   categoryCode?: CategoryCode
 }
 
-export interface CampaignDisplay {
-  id: string
-  name: string
-  creator: string
-  difficulty: string
-  mapCount: number
-  description: string
-  isVerified: boolean
-  completedMaps?: number
-}
-
 export interface LevelDisplay {
   level: number
   currentXp: number

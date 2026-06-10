@@ -27,7 +27,7 @@ interface Star {
   bright: boolean
 }
 
-const count = props.particleCount ?? 120
+const count = props.particleCount ?? 170
 const radius = props.proximityRadius ?? 120
 
 function isReducedMotion(): boolean {
@@ -43,15 +43,15 @@ function initParticles(w: number, h: number) {
   for (let i = 0; i < count; i++) {
     const y = Math.random() * h
     const yRatio = 1 - y / h
-    const isBright = Math.random() < 0.16
-    const isWarm = Math.random() < (yRatio * 0.5) 
+    const isBright = Math.random() < 0.32
+    const isWarm = Math.random() < (yRatio * 0.6)
 
     particles.push({
       x: Math.random() * w,
       y,
       baseOpacity: isBright
-        ? 0.3 + Math.random() * 0.3
-        : 0.04 + Math.random() * 0.08,
+        ? 0.6 + Math.random() * 0.4
+        : 0.18 + Math.random() * 0.18,
       size: isBright
         ? 2 + Math.random() * 1.5
         : 1 + Math.random() * 1.5,
@@ -272,12 +272,12 @@ onUnmounted(() => {
   pointer-events: none;
   z-index: 0;
   -webkit-mask-image:
-    linear-gradient(to bottom, transparent 0%, white 5%, white 65%, transparent 100%),
-    linear-gradient(to right, transparent 0%, white 8%, white 92%, transparent 100%);
+    linear-gradient(to bottom, transparent 0%, white 3%, white 96%, transparent 100%),
+    linear-gradient(to right, transparent 0%, white 3%, white 97%, transparent 100%);
   -webkit-mask-composite: destination-in;
   mask-image:
-    linear-gradient(to bottom, transparent 0%, white 5%, white 65%, transparent 100%),
-    linear-gradient(to right, transparent 0%, white 8%, white 92%, transparent 100%);
+    linear-gradient(to bottom, transparent 0%, white 3%, white 96%, transparent 100%),
+    linear-gradient(to right, transparent 0%, white 3%, white 97%, transparent 100%);
   mask-composite: intersect;
 }
 </style>

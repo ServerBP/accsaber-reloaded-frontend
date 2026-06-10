@@ -195,11 +195,6 @@ function goToDetail(difficultyId: string) {
     </div>
 
     <div v-if="bsMap" class="map-import__preview" :style="pageAccent ? { '--page-accent': pageAccent } : {}">
-      <div v-if="coverUrl" class="map-import__bg">
-        <img :src="coverUrl" alt="" class="map-import__bg-image" decoding="async" />
-        <div class="map-import__bg-fade" />
-      </div>
-
       <div class="map-import__hero">
         <GlowImage :src="coverUrl" alt="" :size="96" />
         <div class="map-import__hero-info">
@@ -323,31 +318,6 @@ function goToDetail(difficultyId: string) {
   border: 1px solid var(--bg-overlay);
   border-radius: var(--radius-card);
   background: var(--bg-surface);
-}
-
-.map-import__bg {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  overflow: hidden;
-  border-radius: inherit;
-  pointer-events: none;
-}
-
-.map-import__bg-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center 20%;
-  filter: blur(40px);
-  opacity: 0.25;
-  transform: scale(1.1);
-}
-
-.map-import__bg-fade {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, transparent 0%, var(--bg-surface) 60%);
 }
 
 .map-import__hero {

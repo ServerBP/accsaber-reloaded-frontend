@@ -91,7 +91,6 @@ function formatDate(date: string | null): string {
     <article v-else class="news-detail__article">
       <div v-if="news.imageUrl" class="news-detail__hero">
         <img :src="news.imageUrl" :alt="news.title" fetchpriority="high" decoding="async" />
-        <div class="news-detail__hero-bleed" />
       </div>
 
       <header class="news-detail__header">
@@ -154,17 +153,6 @@ function formatDate(date: string | null): string {
   height: 100%;
   object-fit: cover;
   display: block;
-}
-
-.news-detail__hero-bleed {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(
-    ellipse at top,
-    color-mix(in srgb, var(--detail-accent) 22%, transparent) 0%,
-    transparent 60%
-  );
 }
 
 .news-detail__header {

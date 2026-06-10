@@ -1,6 +1,12 @@
 export type { MilestoneTier } from './display'
 
-export type StaffRole = 'RANKING' | 'RANKING_HEAD' | 'ADMIN' | 'DEVELOPER' | 'MODERATOR'
+export type StaffRole =
+  | 'RANKING'
+  | 'RANKING_HEAD'
+  | 'CAMPAIGN_CURATOR'
+  | 'ADMIN'
+  | 'DEVELOPER'
+  | 'MODERATOR'
 
 export type StaffUserStatus = 'REQUESTED' | 'ACCEPTED' | 'DENIED'
 
@@ -34,6 +40,18 @@ export type NewsType =
   | 'GENERAL'
   | 'ITEMS'
   | 'PLUGIN'
+
+export type CampaignStatus = 'DRAFT' | 'PUBLISHED' | 'EDITING' | 'CURATED'
+
+export type CampaignCompletionMode = 'TERMINAL' | 'ALL'
+
+export type CampaignTagKind = 'CATEGORY' | 'DIFFICULTY' | 'THEME' | 'GENRE'
+
+export type CampaignRequirementType = 'ACC' | 'AP' | 'SCORE' | 'STREAK_115' | 'FC'
+
+export type CampaignPrerequisiteMode = 'AND' | 'OR'
+
+export type UserCampaignStatus = 'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED'
 
 export type SupersedesReason =
   | 'Score improved'

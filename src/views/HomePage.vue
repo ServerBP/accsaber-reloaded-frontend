@@ -446,7 +446,7 @@ onUnmounted(() => {
 }
 
 .hero--compact .hero__scroll-hint {
-  position: fixed;
+  position: absolute;
   bottom: var(--space-lg);
   left: 50%;
   transform: translateX(-50%);

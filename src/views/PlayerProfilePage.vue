@@ -12,6 +12,7 @@ import NameHistoryPopover from '@/components/domain/NameHistoryPopover.vue'
 import PinnedScoresSection from '@/components/domain/PinnedScoresSection.vue'
 import ProfileBadgesRow from '@/components/domain/ProfileBadgesRow.vue'
 import ProfileBioEditor from '@/components/domain/ProfileBioEditor.vue'
+import ProfileXpTrend from '@/components/domain/ProfileXpTrend.vue'
 import RelationActions from '@/components/domain/RelationActions.vue'
 import RelationCountsBar from '@/components/domain/RelationCountsBar.vue'
 import SupporterProfileSection from '@/components/domain/SupporterProfileSection.vue'
@@ -288,11 +289,6 @@ const activeStats = computed(() => {
 
 const accent = computed(() => categoryStore.getAccent(activeCategory.value))
 
-const totalXpDiff = computed(() => {
-  if (!statsDiff.value) return 0
-  return (statsDiff.value.scoreXpDiff ?? 0) + (statsDiff.value.milestoneXpDiff ?? 0) + (statsDiff.value.milestoneSetBonusXpDiff ?? 0) + (statsDiff.value.missionXpDiff ?? 0)
-})
-
 async function fetchStatsDiff() {
   try {
     const { getUserStatsDiff } = await import('@/api/users')
@@ -503,44 +499,7 @@ watch(activeCategory, (newCategory) => {
             :equipped-title="equippedTitleValue"
             :equipped-border-shape="equippedBorderShapeValue"
             :equipped-border-color="equippedBorderColorValue" />
-          <span v-if="!user.banned && totalXpDiff" class="profile-hero__xp-trend"
-            :class="totalXpDiff > 0 ? 'profile-hero__xp-trend--up' : 'profile-hero__xp-trend--down'">
-            {{ totalXpDiff > 0 ? '\u25B2' : '\u25BC' }}
-            {{ totalXpDiff > 0 ? '+' : '' }}{{ Math.round(totalXpDiff) }} XP
-            <span class="profile-hero__xp-info" tabindex="0" aria-label="XP breakdown">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-                <line x1="12" y1="17" x2="12.01" y2="17" />
-              </svg>
-              <span class="profile-hero__xp-tooltip">
-                <span class="profile-hero__xp-tooltip-row">
-                  <span class="profile-hero__xp-tooltip-label">Score XP</span>
-                  <span class="profile-hero__xp-tooltip-value">{{ (statsDiff?.scoreXpDiff ?? 0) >= 0 ? '+' : '' }}{{
-                    Math.round(statsDiff?.scoreXpDiff ?? 0) }}</span>
-                </span>
-                <span class="profile-hero__xp-tooltip-row">
-                  <span class="profile-hero__xp-tooltip-label">Milestone XP</span>
-                  <span class="profile-hero__xp-tooltip-value profile-hero__xp-tooltip-value--milestone">{{
-                    (statsDiff?.milestoneXpDiff ?? 0) >= 0 ? '+' : '' }}{{ Math.round(statsDiff?.milestoneXpDiff ?? 0)
-                    }}</span>
-                </span>
-                <span class="profile-hero__xp-tooltip-row">
-                  <span class="profile-hero__xp-tooltip-label">Set Bonus XP</span>
-                  <span class="profile-hero__xp-tooltip-value profile-hero__xp-tooltip-value--set-bonus">{{
-                    (statsDiff?.milestoneSetBonusXpDiff ?? 0) >= 0 ? '+' : '' }}{{
-                      Math.round(statsDiff?.milestoneSetBonusXpDiff ?? 0) }}</span>
-                </span>
-                <span class="profile-hero__xp-tooltip-row">
-                  <span class="profile-hero__xp-tooltip-label">Mission XP</span>
-                  <span class="profile-hero__xp-tooltip-value profile-hero__xp-tooltip-value--mission">{{
-                    (statsDiff?.missionXpDiff ?? 0) >= 0 ? '+' : '' }}{{ Math.round(statsDiff?.missionXpDiff ?? 0)
-                    }}</span>
-                </span>
-              </span>
-            </span>
-          </span>
+          <ProfileXpTrend v-if="!user.banned" :stats-diff="statsDiff" />
         </div>
 
         <div class="profile-hero__details">
@@ -865,101 +824,6 @@ watch(activeCategory, (newCategory) => {
   flex-shrink: 0;
 }
 
-.profile-hero__xp-trend {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-  font-family: var(--font-mono);
-  font-size: var(--text-caption);
-}
-
-.profile-hero__xp-trend--up {
-  color: var(--success);
-}
-
-.profile-hero__xp-trend--down {
-  color: var(--error);
-}
-
-.profile-hero__xp-info {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  color: var(--text-tertiary);
-  cursor: help;
-  transition: color 120ms ease;
-}
-
-.profile-hero__xp-info:hover,
-.profile-hero__xp-info:focus-visible {
-  color: var(--text-secondary);
-}
-
-.profile-hero__xp-tooltip {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--bg-elevated);
-  border: 1px solid var(--bg-overlay);
-  border-radius: var(--radius-card);
-  padding: var(--space-sm) var(--space-md);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-  white-space: nowrap;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 120ms ease;
-  z-index: 10;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-.profile-hero__xp-tooltip::after {
-  content: '';
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  border: 5px solid transparent;
-  border-top-color: var(--bg-overlay);
-}
-
-.profile-hero__xp-info:hover .profile-hero__xp-tooltip,
-.profile-hero__xp-info:focus-visible .profile-hero__xp-tooltip {
-  opacity: 1;
-}
-
-.profile-hero__xp-tooltip-row {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-lg);
-}
-
-.profile-hero__xp-tooltip-label {
-  font-family: var(--font-sans);
-  font-size: var(--text-caption);
-  color: var(--text-secondary);
-}
-
-.profile-hero__xp-tooltip-value {
-  font-family: var(--font-mono);
-  font-size: var(--text-caption);
-  color: var(--accent-overall);
-}
-
-.profile-hero__xp-tooltip-value--milestone {
-  color: var(--tier-gold);
-}
-
-.profile-hero__xp-tooltip-value--set-bonus {
-  color: var(--tier-platinum);
-}
-
-.profile-hero__xp-tooltip-value--mission {
-  color: var(--tier-diamond);
-}
-
 .profile-hero__details {
   display: flex;
   flex-direction: column;
@@ -1183,19 +1047,16 @@ watch(activeCategory, (newCategory) => {
 .profile-hero__rank--gold {
   background: color-mix(in srgb, var(--tier-gold) 20%, transparent);
   color: var(--tier-gold);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--tier-gold) 30%, transparent);
 }
 
 .profile-hero__rank--silver {
   background: color-mix(in srgb, var(--tier-silver) 20%, transparent);
   color: var(--tier-silver);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--tier-silver) 30%, transparent);
 }
 
 .profile-hero__rank--bronze {
   background: color-mix(in srgb, var(--tier-bronze) 20%, transparent);
   color: var(--tier-bronze);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--tier-bronze) 30%, transparent);
 }
 
 .profile-page__bio {

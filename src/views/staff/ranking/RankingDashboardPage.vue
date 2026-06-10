@@ -160,7 +160,7 @@ const rows = computed(() =>
       mapper: d.mapAuthor,
       categoryName: catInfo?.name ?? '',
       categoryCode: catCode ?? 'overall',
-      categoryAccent: catInfo?.accent ?? '#a855f7',
+      categoryAccent: categoryStore.getAccent(catCode ?? 'overall'),
       status: d.status,
       complexity: d.complexity,
       criteriaStatus: d.criteriaStatus,

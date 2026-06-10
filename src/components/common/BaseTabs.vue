@@ -50,9 +50,8 @@ defineEmits<{
   bottom: -1px;
   left: 0;
   right: 0;
-  height: 2px;
+  height: 3px;
   background: transparent;
-  transition: background-color 120ms ease;
 }
 
 .base-tabs__tab:hover {
@@ -61,6 +60,7 @@ defineEmits<{
 
 .base-tabs__tab--active {
   color: var(--tab-accent, var(--accent));
+  font-weight: 600;
 }
 
 .base-tabs__tab--active::after {

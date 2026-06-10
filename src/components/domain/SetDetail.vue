@@ -711,10 +711,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   aspect-ratio: 16 / 9;
   border: 1px solid var(--bg-overlay);
   border-radius: var(--radius-card);
-  background:
-    radial-gradient(ellipse at 30% 40%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 60%),
-    radial-gradient(ellipse at 70% 60%, color-mix(in srgb, var(--accent) 4%, transparent), transparent 50%),
-    var(--bg-base);
+  background: var(--bg-base);
   overflow: hidden;
   cursor: grab;
   touch-action: none;
@@ -801,8 +798,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   flex-direction: column;
   gap: 4px;
   padding: var(--space-xs) var(--space-sm);
-  background: color-mix(in srgb, var(--bg-base) 80%, transparent);
-  backdrop-filter: blur(4px);
+  background: var(--bg-surface);
   border-radius: var(--radius-btn);
   border: 1px solid var(--bg-overlay);
 }

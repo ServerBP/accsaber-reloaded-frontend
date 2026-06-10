@@ -388,11 +388,6 @@ watch(
 
 <template>
   <div class="snipe-page" :style="{ '--page-accent': heroAccent, '--accent': heroAccent }">
-    <div v-if="targetAvatar" class="snipe-page__bg">
-      <div class="snipe-page__bg-image" :style="{ backgroundImage: `url(${targetAvatar})` }" />
-      <div class="snipe-page__bg-fade" />
-    </div>
-
     <nav class="snipe-page__breadcrumbs" aria-label="Breadcrumb">
       <span class="snipe-page__breadcrumbs-pill">
         <router-link to="/leaderboards" class="snipe-page__crumb snipe-page__crumb--link">
@@ -535,35 +530,11 @@ watch(
   --accent: var(--page-accent, var(--accent-overall));
 }
 
-.snipe-page > *:not(.snipe-page__bg) {
+.snipe-page > * {
   width: 100%;
   max-width: 1080px;
   position: relative;
   z-index: 1;
-}
-
-.snipe-page__bg {
-  position: absolute;
-  inset: -32px -32px auto -32px;
-  height: 360px;
-  z-index: 0;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-.snipe-page__bg-image {
-  position: absolute;
-  inset: 0;
-  background-size: cover;
-  background-position: center;
-  filter: blur(80px) saturate(1.3);
-  opacity: 0.25;
-}
-
-.snipe-page__bg-fade {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to bottom, transparent, var(--bg-base));
 }
 
 .snipe-page__breadcrumbs {
@@ -576,10 +547,9 @@ watch(
   align-items: center;
   gap: var(--space-xs);
   padding: var(--space-xs) var(--space-md);
-  background: color-mix(in srgb, var(--bg-surface) 60%, transparent);
+  background: var(--bg-surface);
   border: 1px solid var(--bg-overlay);
   border-radius: var(--radius-pill);
-  backdrop-filter: blur(8px);
 }
 
 .snipe-page__crumb {
@@ -610,10 +580,9 @@ watch(
   align-items: center;
   gap: var(--space-lg);
   padding: var(--space-lg);
-  background: color-mix(in srgb, var(--bg-surface) 80%, transparent);
+  background: var(--bg-surface);
   border: 1px solid var(--bg-overlay);
   border-radius: var(--radius-card);
-  backdrop-filter: blur(12px);
 }
 
 .snipe-hero__player {

@@ -162,13 +162,11 @@ onUnmounted(() => clearInterval(tickInterval))
 
 .score-feed-page__status--connected .score-feed-page__status-dot {
   background: var(--success);
-  box-shadow: 0 0 6px var(--success);
   animation: pulse-dot 3s ease-in-out infinite;
 }
 
 .score-feed-page__status--reconnecting .score-feed-page__status-dot {
   background: var(--warning);
-  box-shadow: 0 0 6px var(--warning);
   animation: pulse-dot 1s ease-in-out infinite;
 }
 

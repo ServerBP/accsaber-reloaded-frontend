@@ -7,13 +7,11 @@ interface Breadcrumb {
 defineProps<{
   title: string
   breadcrumbs?: Breadcrumb[]
-  bleedColor?: string
 }>()
 </script>
 
 <template>
-  <header class="page-header" :style="bleedColor ? { '--bleed': bleedColor } : undefined">
-    <div v-if="bleedColor" class="page-header__bleed" />
+  <header class="page-header">
     <nav v-if="breadcrumbs?.length" class="page-header__breadcrumbs" aria-label="Breadcrumb">
       <template v-for="(crumb, i) in breadcrumbs" :key="i">
         <router-link v-if="crumb.to" class="page-header__crumb page-header__crumb--link" :to="crumb.to">
@@ -40,23 +38,11 @@ defineProps<{
   border-bottom: 1px solid var(--bg-overlay);
 }
 
-.page-header__bleed {
-  position: absolute;
-  inset: -32px -32px 0 -32px;
-  background: radial-gradient(ellipse at 30% 0%,
-      color-mix(in srgb, var(--bleed) 20%, transparent),
-      transparent 70%);
-  pointer-events: none;
-  z-index: 0;
-}
-
 .page-header__breadcrumbs {
   display: flex;
   align-items: center;
   gap: var(--space-xs);
   margin-bottom: var(--space-sm);
-  position: relative;
-  z-index: 1;
 }
 
 .page-header__crumb {
@@ -84,8 +70,6 @@ defineProps<{
   align-items: center;
   justify-content: space-between;
   gap: var(--space-md);
-  position: relative;
-  z-index: 1;
 }
 
 .page-header__title {

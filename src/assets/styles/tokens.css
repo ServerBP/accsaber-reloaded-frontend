@@ -13,14 +13,14 @@
   --accent-standard-acc: #3b82f6;
   --accent-tech-acc: #ef4444;
   --accent-low-mid: #eab308;
-  --accent-overall: #a855f7;
+  --accent-overall: #f5b800;
 
   /* --- Category Tints (Dark) --- */
   --tint-true-acc: #0f3d1e;
   --tint-standard-acc: #162650;
   --tint-tech-acc: #3d1414;
   --tint-low-mid: #3d3508;
-  --tint-overall: #2d1650;
+  --tint-overall: #3a2812;
 
   /* --- Semantic Colors --- */
   --success: #22c55e;
@@ -135,7 +135,7 @@
   --tint-standard-acc: #d4e4fd;
   --tint-tech-acc: #fdd4d4;
   --tint-low-mid: #faf0c8;
-  --tint-overall: #ead4fd;
+  --tint-overall: #fde9c2;
 }
 
 /* Scoped to a class the theme store toggles for ~220ms; otherwise this would run on every hover. */

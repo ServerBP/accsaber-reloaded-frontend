@@ -105,84 +105,55 @@ const apPageData = ref<Page<LeaderboardResponse> | null>(null)
 const xpPageData = ref<Page<XpLeaderboardResponse> | null>(null)
 const highlightedUserId = ref<string | null>(null)
 
-function resolveDisplayRank(
-  globalRank: number,
-  countryRank: number | undefined,
-  positionalRank: number,
-  filteringCountry: boolean,
-  filteringRelation: boolean,
-  inactiveHidden: boolean,
-): { rank: number; parenRank: number | null } {
-  if (filteringRelation) {
-    return { rank: positionalRank, parenRank: globalRank }
-  }
-  if (filteringCountry) {
-    return {
-      rank: inactiveHidden || !countryRank ? positionalRank : countryRank,
-      parenRank: globalRank,
-    }
-  }
-  if (inactiveHidden) {
-    return { rank: positionalRank, parenRank: globalRank }
-  }
-  return { rank: globalRank, parenRank: null }
+interface RankResolution {
+  globalRank: number
+  countryRank: number | undefined
+  positionalRank: number
 }
 
-const rows = computed(() => {
+interface RankFilters {
+  filteringCountry: boolean
+  filteringRelation: boolean
+  inactiveHidden: boolean
+}
+
+function resolveDisplayRank(r: RankResolution, f: RankFilters): { rank: number; parenRank: number | null } {
+  if (f.filteringRelation) {
+    return { rank: r.positionalRank, parenRank: r.globalRank }
+  }
+  if (f.filteringCountry) {
+    return {
+      rank: f.inactiveHidden || !r.countryRank ? r.positionalRank : r.countryRank,
+      parenRank: r.globalRank,
+    }
+  }
+  if (f.inactiveHidden) {
+    return { rank: r.positionalRank, parenRank: r.globalRank }
+  }
+  return { rank: r.globalRank, parenRank: null }
+}
+
+const rows = computed<Record<string, unknown>[]>(() => {
   const pageSize = paginationParams.value.size ?? 50
   const pageOffset = (currentPage.value - 1) * pageSize
-  const inactiveHidden = !showInactive.value
-  const filteringCountry = !!countryFilter.value
-  const filteringRelation = !!relationFilter.value
-
-  if (isXpMode.value) {
-    if (!xpPageData.value) return []
-    return xpPageData.value.content.map((entry, i) => {
-      const p = toXpPlayerDisplay(entry)
-      const positionalRank = pageOffset + i + 1
-      const { rank, parenRank } = resolveDisplayRank(
-        p.rank, p.countryRank, positionalRank,
-        filteringCountry, filteringRelation, inactiveHidden,
-      )
-      return {
-        rank,
-        parenRank,
-        rankChange: p.rankChange,
-        userId: p.userId,
-        name: p.name,
-        country: p.country,
-        avatarUrl: p.avatarUrl,
-        avatarFallbackUrl: p.avatarFallbackUrl,
-        totalXp: p.totalXp,
-        level: p.level,
-        playerInactive: p.playerInactive,
-        supporterTier: p.supporterTier,
-      }
-    })
+  const filters: RankFilters = {
+    inactiveHidden: !showInactive.value,
+    filteringCountry: !!countryFilter.value,
+    filteringRelation: !!relationFilter.value,
   }
-  if (!apPageData.value) return []
-  return apPageData.value.content.map((entry, i) => {
-    const p = toPlayerDisplay(entry)
-    const positionalRank = pageOffset + i + 1
+
+  const source = isXpMode.value ? xpPageData.value : apPageData.value
+  if (!source) return []
+
+  return source.content.map((entry, i) => {
+    const p = isXpMode.value
+      ? toXpPlayerDisplay(entry as XpLeaderboardResponse)
+      : toPlayerDisplay(entry as LeaderboardResponse)
     const { rank, parenRank } = resolveDisplayRank(
-      p.rank, p.countryRank, positionalRank,
-      filteringCountry, filteringRelation, inactiveHidden,
+      { globalRank: p.rank, countryRank: p.countryRank, positionalRank: pageOffset + i + 1 },
+      filters,
     )
-    return {
-      rank,
-      parenRank,
-      rankChange: p.rankChange,
-      userId: p.userId,
-      name: p.name,
-      country: p.country,
-      avatarUrl: p.avatarUrl,
-      avatarFallbackUrl: p.avatarFallbackUrl,
-      ap: p.ap,
-      avgAccuracy: p.avgAccuracy,
-      rankedPlays: p.rankedPlays,
-      playerInactive: p.playerInactive,
-      supporterTier: p.supporterTier,
-    }
+    return { ...p, rank, parenRank }
   })
 })
 
@@ -371,7 +342,6 @@ watch(() => categoryStore.loaded, (loaded) => {
 <template>
   <div class="leaderboards" :style="{ '--page-accent': accent }">
     <header class="leaderboards__header">
-      <div class="leaderboards__header-bleed" />
       <div class="leaderboards__header-content">
         <h1 class="leaderboards__title">{{ categoryName }}</h1>
         <p v-if="totalPlayers > 0" class="leaderboards__subtitle">
@@ -494,18 +464,8 @@ watch(() => categoryStore.loaded, (loaded) => {
   padding: var(--space-2xl) 0 var(--space-lg);
 }
 
-.leaderboards__header-bleed {
-  position: absolute;
-  inset: -32px -64px 0 -64px;
-  background: radial-gradient(ellipse at 50% 0%,
-      color-mix(in srgb, var(--page-accent) 15%, transparent),
-      transparent 70%);
-  pointer-events: none;
-}
-
 .leaderboards__header-content {
   position: relative;
-  z-index: 1;
 }
 
 .leaderboards__title {
@@ -518,7 +478,7 @@ watch(() => categoryStore.loaded, (loaded) => {
 .leaderboards__subtitle {
   font-family: var(--font-mono);
   font-size: var(--text-caption);
-  color: var(--page-accent);
+  color: var(--text-secondary);
   margin: var(--space-xs) 0 0;
   letter-spacing: 0.02em;
 }

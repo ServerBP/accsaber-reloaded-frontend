@@ -1,35 +1,29 @@
 <script setup lang="ts">
-import BaseButton from '@/components/common/BaseButton.vue'
-import BaseDropdown from '@/components/common/BaseDropdown.vue'
 import BaseSelect from '@/components/common/BaseSelect.vue'
-import DataTable from '@/components/common/DataTable.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import FilterButton from '@/components/common/FilterButton.vue'
 import FilterPopover from '@/components/common/FilterPopover.vue'
-import GlowImage from '@/components/common/GlowImage.vue'
 import PaginationControls from '@/components/common/PaginationControls.vue'
 import SearchBox from '@/components/common/SearchBox.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
-import ComplexityBadge from '@/components/domain/ComplexityBadge.vue'
-import DifficultyBadge from '@/components/domain/DifficultyBadge.vue'
 import MapCard from '@/components/domain/MapCard.vue'
-import MapCardCompact from '@/components/domain/MapCardCompact.vue'
 import { usePageMeta } from '@/composables/usePageMeta'
 import { usePageableRoute } from '@/composables/usePageableRoute'
-import { usePlaylistDownload } from '@/composables/usePlaylistDownload'
 import { useAuthStore } from '@/stores/auth'
 import { useCategoryStore } from '@/stores/categories'
 import type { PublicBatchResponse } from '@/types/api/batches'
 import type { PublicMapDifficultyResponse } from '@/types/api/maps'
-import type { MapDisplay, TableColumn } from '@/types/display'
+import type { MapDisplay } from '@/types/display'
 import type { Page } from '@/types/pagination'
-import { groupBatchByCategory } from '@/utils/batches'
-import { formatRelativeDate } from '@/utils/formatters'
 import { toMapDisplay } from '@/utils/mappers'
 import { buildMapRoute } from '@/utils/mapRoute'
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter, type RouteLocationRaw } from 'vue-router'
+import BatchListView from './maps/BatchListView.vue'
 import MapFilterSidebar from './maps/MapFilterSidebar.vue'
+import MapListView from './maps/MapListView.vue'
+import PlaylistDropdown from './maps/PlaylistDropdown.vue'
+import ViewToggle from './maps/ViewToggle.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -78,23 +72,6 @@ const unplayedOnly = computed<boolean>({
     router.replace({ query })
   },
 })
-const playlistDropdownOpen = ref(false)
-const playlistUnplayedOnly = ref(false)
-const {
-  playlistCategories,
-  downloadPlaylist: dlPlaylist,
-  downloadMissingPlaylist: dlMissingPlaylist,
-  downloadBatchPlaylist,
-} = usePlaylistDownload()
-
-function downloadPlaylist(categoryCode: string) {
-  if (playlistUnplayedOnly.value && authStore.userId) {
-    dlMissingPlaylist(authStore.userId, categoryCode)
-  } else {
-    dlPlaylist(categoryCode)
-  }
-  playlistDropdownOpen.value = false
-}
 
 const selectedCategories = computed<string[]>({
   get() {
@@ -180,18 +157,6 @@ const { currentPage, sortState, paginationParams, setPage, setSort } = usePageab
   },
   secondarySort: null,
 })
-
-const listColumns: TableColumn[] = [
-  { key: 'cover', label: '', width: '56px' },
-  { key: 'songName', label: 'Name', sortable: true, align: 'left' },
-  { key: 'artistName', label: 'Artist', align: 'left' },
-  { key: 'mapperName', label: 'Mapper', align: 'left' },
-  { key: 'category', label: 'Category', sortable: true, align: 'center', width: '100px' },
-  { key: 'difficulty', label: 'Difficulty', align: 'center', width: '100px' },
-  { key: 'complexity', label: 'Complexity', sortable: true, align: 'center', width: '100px' },
-  { key: 'totalScores', label: 'Scores', sortable: true, align: 'right', mono: true, width: '80px' },
-  { key: 'rankedAt', label: 'Released', sortable: true, align: 'right', width: '100px' },
-]
 
 const difficulties = ref<PublicMapDifficultyResponse[]>([])
 const totalPages = ref(0)
@@ -325,15 +290,6 @@ function listRowTo(row: Record<string, unknown>): RouteLocationRaw {
   })
 }
 
-function batchDifficultiesByCategory(batch: PublicBatchResponse) {
-  return groupBatchByCategory(
-    batch,
-    (id) => categoryStore.getCategoryCode(id),
-    (code) => categoryStore.getAccent(code),
-    (code) => categoryStore.getCategoryInfo(code)?.name ?? code,
-  )
-}
-
 watch(searchQuery, () => {
   const query = { ...route.query }
   delete query.page
@@ -368,37 +324,7 @@ watch(
 
     <div class="maps-page__controls">
       <div class="maps-page__controls-left">
-        <BaseDropdown :open="playlistDropdownOpen" @update:open="playlistDropdownOpen = $event">
-          <template #trigger>
-            <button class="maps-page__playlist-btn" :class="{ 'maps-page__playlist-btn--active': playlistDropdownOpen }"
-              aria-label="Download playlists">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-              <span>Playlists</span>
-              <svg class="maps-page__playlist-chevron"
-                :class="{ 'maps-page__playlist-chevron--open': playlistDropdownOpen }" width="12" height="12"
-                viewBox="0 0 12 12" fill="none">
-                <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
-                  stroke-linejoin="round" />
-              </svg>
-            </button>
-          </template>
-          <div class="maps-page__playlist-menu">
-            <span class="maps-page__playlist-title">Download playlists...</span>
-            <label v-if="authStore.isLoggedIn" class="maps-page__playlist-toggle">
-              <input v-model="playlistUnplayedOnly" type="checkbox" class="maps-page__playlist-checkbox" />
-              <span>Only your unplayed maps</span>
-            </label>
-            <BaseButton v-for="cat in playlistCategories" :key="cat.code" size="sm" @click="downloadPlaylist(cat.code)">
-              <span class="maps-page__playlist-cat-dot" :style="{ background: cat.accent }" />
-              {{ cat.name }}
-            </BaseButton>
-          </div>
-        </BaseDropdown>
+        <PlaylistDropdown />
         <BaseSelect v-if="viewMode === 'grid'" :options="sortOptions" :model-value="sortState.key"
           @update:model-value="setSort($event)" />
         <BaseSelect v-if="isBatchView" :options="batchSortOptions" :model-value="batchSortKey"
@@ -406,40 +332,7 @@ watch(
         <SearchBox v-if="!isBatchView" v-model="searchQuery" placeholder="Search by song, artist, or mapper..." />
       </div>
       <div class="maps-page__controls-right">
-        <div class="maps-page__view-toggle" role="radiogroup" aria-label="View mode">
-          <button class="maps-page__view-btn" :class="{ 'maps-page__view-btn--active': viewMode === 'grid' }"
-            aria-label="Grid view" @click="viewMode = 'grid'">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="3" width="7" height="7" />
-              <rect x="14" y="3" width="7" height="7" />
-              <rect x="3" y="14" width="7" height="7" />
-              <rect x="14" y="14" width="7" height="7" />
-            </svg>
-            <span class="maps-page__view-label">Grid</span>
-          </button>
-          <button class="maps-page__view-btn" :class="{ 'maps-page__view-btn--active': viewMode === 'list' }"
-            aria-label="List view" @click="viewMode = 'list'">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round">
-              <line x1="8" y1="6" x2="21" y2="6" />
-              <line x1="8" y1="12" x2="21" y2="12" />
-              <line x1="8" y1="18" x2="21" y2="18" />
-              <line x1="3" y1="6" x2="3.01" y2="6" />
-              <line x1="3" y1="12" x2="3.01" y2="12" />
-              <line x1="3" y1="18" x2="3.01" y2="18" />
-            </svg>
-            <span class="maps-page__view-label">List</span>
-          </button>
-          <button class="maps-page__view-btn" :class="{ 'maps-page__view-btn--active': viewMode === 'batch' }"
-            aria-label="Batch view" @click="viewMode = 'batch'">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-            </svg>
-            <span class="maps-page__view-label">Batches</span>
-          </button>
-        </div>
+        <ViewToggle v-model="viewMode" />
 
         <FilterPopover v-if="!isBatchView" :open="filtersOpen" @update:open="filtersOpen = $event">
           <template #trigger>
@@ -455,125 +348,20 @@ watch(
 
     <div class="maps-page__content">
       <template v-if="viewMode === 'grid'">
-        <template v-if="loading">
-          <div class="maps-page__grid">
-            <SkeletonLoader v-for="i in 12" :key="i" variant="card" />
-          </div>
-        </template>
-        <template v-else-if="mapDisplays.length === 0">
-          <EmptyState message="No maps found matching your filters." />
-        </template>
-        <template v-else>
-          <div class="maps-page__grid">
-            <MapCard v-for="m in mapDisplays" :key="m.difficultyId" :map="m"
-              :to="mapRouteTo(m)" />
-          </div>
-        </template>
+        <div v-if="loading" class="maps-page__grid">
+          <SkeletonLoader v-for="i in 12" :key="i" variant="card" />
+        </div>
+        <EmptyState v-else-if="mapDisplays.length === 0" message="No maps found matching your filters." />
+        <div v-else class="maps-page__grid">
+          <MapCard v-for="m in mapDisplays" :key="m.difficultyId" :map="m" :to="mapRouteTo(m)" />
+        </div>
       </template>
 
-      <template v-else-if="viewMode === 'list'">
-        <DataTable :columns="listColumns" :rows="listRows" :sort-state="listSortState" :loading="loading"
-          :loading-rows="10" :row-to="listRowTo" row-key="difficultyId"
-          empty-message="No maps found matching your filters." @sort="handleListSort">
-          <template #cell-cover="{ row }">
-            <GlowImage v-if="row.cover" :src="(row.cover as string)" :alt="(row.songName as string)" :size="44"
-              :fallback-src="(row.coverFallback as string | null | undefined) ?? null" />
-          </template>
-          <template #cell-songName="{ row }">
-            <div class="maps-page__name-cell">
-              <span class="maps-page__name">{{ row.songName }}</span>
-              <span class="maps-page__diff-label">{{ row.difficultyLabel }}</span>
-            </div>
-          </template>
-          <template #cell-category="{ row }">
-            <span class="maps-page__category"
-              :style="{ '--cat-accent': categoryStore.getAccent(row.categoryCode as string) }">
-              {{ row.category }}
-            </span>
-          </template>
-          <template #cell-difficulty="{ row }">
-            <DifficultyBadge :difficulty="row.difficulty as string" />
-          </template>
-          <template #cell-complexity="{ row }">
-            <ComplexityBadge :complexity="row.complexity as number" />
-          </template>
-          <template #cell-totalScores="{ value }">
-            <span class="maps-page__mono">{{ (value as number).toLocaleString() }}</span>
-          </template>
-          <template #cell-rankedAt="{ value }">
-            <span v-if="value" class="maps-page__date">{{ formatRelativeDate(value as string) }}</span>
-          </template>
+      <MapListView v-else-if="viewMode === 'list'" :rows="listRows" :loading="loading" :sort-state="listSortState"
+        :row-to="listRowTo" @sort="handleListSort" />
 
-          <template #mobile-card="{ row }">
-            <router-link :to="listRowTo(row)" class="maps-page__list-card">
-              <GlowImage v-if="row.cover" :src="(row.cover as string)" :alt="(row.songName as string)" :size="48"
-                class="maps-page__list-card-cover"
-                :fallback-src="(row.coverFallback as string | null | undefined) ?? null" />
-              <div v-else class="maps-page__list-card-cover-placeholder" />
-              <div class="maps-page__list-card-info">
-                <span class="maps-page__name">{{ row.songName }}</span>
-                <span class="maps-page__list-card-meta">{{ row.artistName }} · {{ row.mapperName }}</span>
-              </div>
-              <div class="maps-page__list-card-badges">
-                <DifficultyBadge :difficulty="(row.difficulty as string)" />
-                <ComplexityBadge :complexity="row.complexity as number" />
-              </div>
-            </router-link>
-          </template>
-        </DataTable>
-      </template>
-
-      <template v-else-if="viewMode === 'batch'">
-        <template v-if="batchLoading">
-          <div class="maps-page__batch-skeletons">
-            <SkeletonLoader v-for="i in 3" :key="i" variant="card" />
-          </div>
-        </template>
-        <template v-else-if="batches.length === 0">
-          <EmptyState message="No released batches found." />
-        </template>
-        <template v-else>
-          <div class="maps-page__batches">
-            <div v-for="batch in batches" :key="batch.id" class="maps-page__batch">
-              <div class="maps-page__batch-header">
-                <div class="maps-page__batch-header-top">
-                  <div class="maps-page__batch-heading">
-                    <h2 class="maps-page__batch-name">{{ batch.name }}</h2>
-                    <div class="maps-page__batch-meta">
-                      <span class="maps-page__batch-count">{{ batch.difficulties.length }} difficulties</span>
-                      <span v-if="batch.releasedAt" class="maps-page__batch-date">{{ formatRelativeDate(batch.releasedAt)
-                      }}</span>
-                    </div>
-                  </div>
-                  <BaseButton size="sm" class="maps-page__batch-download"
-                    :aria-label="`Download ${batch.name} playlist`"
-                    @click="downloadBatchPlaylist(batch.id, batch.name)">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                      stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                      <polyline points="7 10 12 15 17 10" />
-                      <line x1="12" y1="15" x2="12" y2="3" />
-                    </svg>
-                    <span>Playlist</span>
-                  </BaseButton>
-                </div>
-                <p v-if="batch.description" class="maps-page__batch-desc">{{ batch.description }}</p>
-              </div>
-              <div v-for="group in batchDifficultiesByCategory(batch)" :key="group.categoryCode"
-                class="maps-page__batch-category">
-                <div class="maps-page__batch-cat-header">
-                  <span class="maps-page__batch-cat-dot" :style="{ background: group.accent }" />
-                  <span class="maps-page__batch-cat-name">{{ group.name }}</span>
-                </div>
-                <div class="maps-page__batch-cards">
-                  <MapCardCompact v-for="m in group.diffs" :key="m.difficultyId" :map="m"
-                    :to="mapRouteTo(m)" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </template>
-      </template>
+      <BatchListView v-else-if="viewMode === 'batch'" :batches="batches" :loading="batchLoading"
+        :map-route-to="mapRouteTo" />
 
       <PaginationControls v-if="!isBatchView && totalPages > 1" :page="currentPage" :total-pages="totalPages"
         @update:page="setPage($event)" />
@@ -638,41 +426,6 @@ watch(
   gap: var(--space-sm);
 }
 
-.maps-page__view-toggle {
-  display: flex;
-  border: 1px solid var(--bg-overlay);
-  border-radius: var(--radius-btn);
-  overflow: hidden;
-}
-
-.maps-page__view-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-xs);
-  padding: var(--space-xs) var(--space-sm);
-  background: transparent;
-  border: none;
-  color: var(--text-tertiary);
-  cursor: pointer;
-  transition: background 120ms ease, color 120ms ease;
-}
-
-.maps-page__view-label {
-  font-size: var(--text-caption);
-  font-weight: 500;
-}
-
-.maps-page__view-btn:hover {
-  background: var(--bg-elevated);
-  color: var(--text-secondary);
-}
-
-.maps-page__view-btn--active {
-  background: var(--bg-elevated);
-  color: var(--text-primary);
-}
-
 .maps-page__content {
   display: flex;
   flex-direction: column;
@@ -683,270 +436,6 @@ watch(
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: var(--space-md);
-}
-
-
-.maps-page__name-cell {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.maps-page__name {
-  font-weight: 500;
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.maps-page__diff-label {
-  font-size: var(--text-caption);
-  color: var(--text-secondary);
-}
-
-.maps-page__category {
-  color: var(--cat-accent);
-  font-size: var(--text-caption);
-}
-
-.maps-page__mono {
-  font-family: var(--font-mono);
-}
-
-.maps-page__date {
-  font-size: var(--text-caption);
-  color: var(--text-tertiary);
-  white-space: nowrap;
-}
-
-.maps-page__batches {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xl);
-}
-
-.maps-page__batch {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-}
-
-.maps-page__batch-header {
-  padding: var(--space-md);
-  background: var(--bg-surface);
-  border: 1px solid var(--bg-overlay);
-  border-radius: var(--radius-card);
-}
-
-.maps-page__batch-header-top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-md);
-}
-
-.maps-page__batch-heading {
-  min-width: 0;
-}
-
-.maps-page__batch-name {
-  font-size: var(--text-section);
-  font-weight: 700;
-  color: var(--text-primary);
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
-.maps-page__batch-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-md);
-  margin-top: var(--space-xs);
-}
-
-.maps-page__batch-count,
-.maps-page__batch-date {
-  font-size: var(--text-caption);
-  color: var(--text-secondary);
-}
-
-.maps-page__batch-desc {
-  font-size: var(--text-caption);
-  color: var(--text-tertiary);
-  margin: var(--space-sm) 0 0;
-}
-
-.maps-page__batch-download {
-  flex-shrink: 0;
-}
-
-.maps-page__batch-category {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  padding-left: var(--space-md);
-}
-
-.maps-page__batch-cat-header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-}
-
-.maps-page__batch-cat-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
-.maps-page__batch-cat-name {
-  font-size: var(--text-caption);
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.maps-page__batch-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: var(--space-sm);
-}
-
-.maps-page__batch-skeletons {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-lg);
-}
-
-.maps-page__list-card {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  padding: var(--space-sm) var(--space-md) var(--space-sm) var(--space-sm);
-  background: var(--bg-surface);
-  border: 1px solid var(--bg-overlay);
-  border-left: 2px solid transparent;
-  border-radius: var(--radius-card);
-  cursor: pointer;
-  min-height: 48px;
-  text-decoration: none;
-  color: inherit;
-  transition: border-color 120ms ease;
-}
-
-.maps-page__list-card:hover {
-  border-left-color: var(--text-tertiary);
-}
-
-.maps-page__list-card-cover {
-  flex-shrink: 0;
-  margin-left: var(--space-xs);
-}
-
-.maps-page__list-card-cover-placeholder {
-  width: 48px;
-  height: 48px;
-  flex-shrink: 0;
-  margin-left: var(--space-xs);
-  border-radius: var(--radius-avatar);
-  background: var(--bg-overlay);
-}
-
-.maps-page__list-card-info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.maps-page__list-card-meta {
-  font-size: var(--text-caption);
-  color: var(--text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.maps-page__list-card-badges {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: var(--space-xs);
-  flex-shrink: 0;
-}
-
-.maps-page__playlist-btn {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-sm);
-  padding: var(--space-sm) var(--space-md);
-  background: color-mix(in srgb, var(--accent-overall) 12%, transparent);
-  border: 1px solid var(--accent-overall);
-  border-radius: var(--radius-input);
-  color: var(--accent-overall);
-  font-family: var(--font-sans);
-  font-size: var(--text-body);
-  font-weight: 600;
-  cursor: pointer;
-  min-width: 140px;
-  white-space: nowrap;
-  transition: background 120ms ease, color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
-}
-
-.maps-page__playlist-btn:hover,
-.maps-page__playlist-btn--active {
-  background: color-mix(in srgb, var(--accent-overall) 22%, var(--bg-base));
-  box-shadow: 0 0 12px color-mix(in srgb, var(--accent-overall) 30%, transparent);
-}
-
-.maps-page__playlist-chevron {
-  color: currentColor;
-  transition: transform 150ms ease;
-}
-
-.maps-page__playlist-chevron--open {
-  transform: rotate(180deg);
-}
-
-.maps-page__playlist-menu {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-  min-width: 200px;
-}
-
-.maps-page__playlist-title {
-  font-size: var(--text-caption);
-  color: var(--text-secondary);
-  padding: var(--space-xs) var(--space-sm);
-  font-weight: 500;
-}
-
-.maps-page__playlist-cat-dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.maps-page__playlist-toggle {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  padding: var(--space-xs) var(--space-sm);
-  font-size: var(--text-caption);
-  color: var(--text-primary);
-  cursor: pointer;
-}
-
-.maps-page__playlist-checkbox {
-  accent-color: var(--accent);
-  cursor: pointer;
 }
 
 @media (max-width: 767px) {
@@ -966,15 +455,6 @@ watch(
     min-width: 0;
     flex: 1 1 100%;
     width: 100%;
-  }
-
-  .maps-page__batch-header-top {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .maps-page__batch-download {
-    align-self: flex-start;
   }
 }
 </style>

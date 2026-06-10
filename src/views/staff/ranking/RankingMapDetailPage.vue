@@ -608,7 +608,6 @@ const statusTransitions = computed<{ value: string; label: string }[]>(() => {
           <div class="rank-detail__cover-wrap">
             <img class="rank-detail__cover" :src="coverUrl" :alt="difficulty.songName" fetchpriority="high"
               decoding="async" @error="handleRankCoverError" />
-            <div class="rank-detail__cover-glow" :style="{ backgroundImage: `url(${coverUrl})` }" />
           </div>
 
           <div class="rank-detail__hero-info">
@@ -1146,15 +1145,13 @@ const statusTransitions = computed<{ value: string; label: string }[]>(() => {
   display: flex;
   gap: var(--space-xl);
   padding: var(--space-xl);
-  background: color-mix(in srgb, var(--bg-surface) 55%, transparent);
-  backdrop-filter: blur(12px);
+  background: var(--bg-surface);
   border: 1px solid var(--bg-overlay);
   border-radius: var(--radius-modal);
   margin-bottom: var(--space-lg);
 }
 
 .rank-detail__cover-wrap {
-  position: relative;
   flex-shrink: 0;
   width: 96px;
   height: 96px;
@@ -1165,19 +1162,6 @@ const statusTransitions = computed<{ value: string; label: string }[]>(() => {
   height: 96px;
   object-fit: cover;
   border-radius: var(--radius-card);
-  position: relative;
-  z-index: 1;
-}
-
-.rank-detail__cover-glow {
-  position: absolute;
-  inset: -8px;
-  background-size: cover;
-  background-position: center;
-  filter: blur(16px) saturate(1.8);
-  opacity: 0.4;
-  border-radius: var(--radius-card);
-  z-index: 0;
 }
 
 .rank-detail__hero-info {

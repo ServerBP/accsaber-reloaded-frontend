@@ -92,10 +92,9 @@ const unplayedPct = computed(() =>
   flex-direction: column;
   gap: var(--space-md);
   padding: var(--space-md) var(--space-lg);
-  background: color-mix(in srgb, var(--bg-surface) 80%, transparent);
+  background: var(--bg-surface);
   border: 1px solid var(--bg-overlay);
   border-radius: var(--radius-card);
-  backdrop-filter: blur(8px);
 }
 
 .tug__header {

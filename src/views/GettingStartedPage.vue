@@ -17,7 +17,6 @@ usePageMeta({
 <template>
   <div class="gs">
     <ParticleCanvas class="gs__particles" :dark-mode="themeStore.theme === 'dark'" :particle-count="100" />
-    <div class="gs__glow" />
 
     <RouterLink to="/" class="gs__back">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -162,18 +161,6 @@ usePageMeta({
   z-index: 0;
 }
 
-.gs__glow {
-  position: absolute;
-  inset: -32px -64px 0 -64px;
-  background: radial-gradient(
-    ellipse at 50% 0%,
-    color-mix(in srgb, var(--accent-overall) 12%, transparent),
-    transparent 70%
-  );
-  pointer-events: none;
-  z-index: 0;
-}
-
 .gs__back {
   position: relative;
   z-index: 1;
@@ -243,9 +230,6 @@ usePageMeta({
   border-radius: 50%;
   border: 1px solid var(--accent-overall);
   background: var(--bg-base);
-  box-shadow:
-    0 0 12px color-mix(in srgb, var(--accent-overall) 35%, transparent),
-    0 0 24px color-mix(in srgb, var(--accent-overall) 15%, transparent);
 }
 
 .gs__node span {
@@ -260,8 +244,7 @@ usePageMeta({
   z-index: 1;
   width: 1px;
   height: 48px;
-  background: linear-gradient(to bottom, var(--accent-overall), color-mix(in srgb, var(--accent-overall) 20%, transparent));
-  box-shadow: 0 0 6px color-mix(in srgb, var(--accent-overall) 25%, transparent);
+  background: var(--accent-overall);
   margin: var(--space-sm) 0;
 }
 
@@ -306,7 +289,6 @@ usePageMeta({
 .gs__link:hover {
   border-color: var(--text-tertiary);
   background: var(--bg-elevated);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--accent-overall) 20%, transparent);
 }
 
 .gs__link--primary {
@@ -322,7 +304,6 @@ usePageMeta({
 .gs__link--primary:hover {
   border-color: var(--accent-overall);
   background: color-mix(in srgb, var(--accent-overall) 15%, var(--bg-surface));
-  box-shadow: 0 0 14px color-mix(in srgb, var(--accent-overall) 35%, transparent);
 }
 
 .gs__plugin-btn {
@@ -349,7 +330,6 @@ usePageMeta({
 .gs__plugin-btn:hover {
   border-color: var(--accent-true-acc);
   background: color-mix(in srgb, var(--accent-true-acc) 15%, var(--bg-surface));
-  box-shadow: 0 0 16px color-mix(in srgb, var(--accent-true-acc) 35%, transparent);
 }
 
 .gs__plugin-btn:hover svg {
@@ -422,7 +402,6 @@ usePageMeta({
 .gs__chip:hover {
   border-color: var(--chip-color);
   background: color-mix(in srgb, var(--chip-color) 14%, var(--bg-surface));
-  box-shadow: 0 0 12px color-mix(in srgb, var(--chip-color) 30%, transparent);
 }
 
 .gs__chip-dot {
@@ -430,7 +409,6 @@ usePageMeta({
   height: 6px;
   border-radius: 50%;
   background: var(--chip-color);
-  box-shadow: 0 0 4px var(--chip-color);
 }
 
 .gs__chip-dl {

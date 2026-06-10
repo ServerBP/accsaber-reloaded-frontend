@@ -9,7 +9,7 @@ const props = withDefaults(
     maxEntries?: number
   }>(),
   {
-    accentColor: 'var(--accent, #a855f7)',
+    accentColor: 'var(--accent)',
     maxEntries: 8,
   },
 )

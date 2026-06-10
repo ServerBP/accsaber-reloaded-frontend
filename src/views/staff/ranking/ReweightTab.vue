@@ -192,7 +192,7 @@ function entriesByCategory(loaded: LoadedBatch) {
       groups.set(code, {
         code,
         name: info?.name ?? code,
-        accent: info?.accent ?? '#a855f7',
+        accent: categoryStore.getAccent(code),
         entries: [],
       })
     }

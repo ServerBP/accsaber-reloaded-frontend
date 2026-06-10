@@ -107,7 +107,7 @@ const progressBarWidth = computed(() => Math.min(100, progressPercent.value ?? 0
 }
 
 .milestone-card__icon--completed {
-  filter: drop-shadow(0 0 4px var(--tier-color));
+  color: var(--tier-color);
 }
 
 .milestone-card__icon--gray {
@@ -133,7 +133,7 @@ const progressBarWidth = computed(() => Math.min(100, progressPercent.value ?? 0
 }
 
 .milestone-card--apex .milestone-card__icon--completed {
-  filter: drop-shadow(0 0 6px var(--tier-color)) drop-shadow(0 0 12px color-mix(in srgb, var(--tier-color) 40%, transparent));
+  color: var(--tier-color);
 }
 
 .milestone-card--apex .milestone-card__title {

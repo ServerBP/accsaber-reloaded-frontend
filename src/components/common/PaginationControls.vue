@@ -172,13 +172,13 @@ function cancelJump() {
 }
 
 .pagination__page--active {
-  background: var(--accent);
+  background: var(--page-accent, var(--accent));
   color: var(--bg-base);
   font-weight: 600;
 }
 
 .pagination__page--active:hover {
-  background: var(--accent);
+  background: var(--page-accent, var(--accent));
   color: var(--bg-base);
 }
 
@@ -206,7 +206,7 @@ function cancelJump() {
   width: 56px;
   height: 32px;
   padding: 0 var(--space-xs);
-  border: 1px solid var(--accent);
+  border: 1px solid var(--page-accent, var(--accent));
   border-radius: var(--radius-btn);
   background: var(--bg-base);
   color: var(--text-primary);
@@ -214,7 +214,7 @@ function cancelJump() {
   font-size: var(--text-caption);
   text-align: center;
   outline: none;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--page-accent, var(--accent)) 20%, transparent);
   -moz-appearance: textfield;
 }
 

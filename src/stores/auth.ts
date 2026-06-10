@@ -18,6 +18,7 @@ import { computed, ref } from 'vue'
 const ROLE_HIERARCHY: Record<StaffRole, number> = {
   RANKING: 2,
   RANKING_HEAD: 3,
+  CAMPAIGN_CURATOR: 3,
   ADMIN: 5,
   DEVELOPER: 4,
   MODERATOR: 1,

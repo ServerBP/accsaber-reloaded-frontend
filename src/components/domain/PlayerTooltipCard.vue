@@ -42,11 +42,6 @@ onMounted(async () => {
 
 <template>
   <div class="player-tooltip" :style="borderColor ? { '--level-color': borderColor } : undefined">
-    <div class="player-tooltip__bg">
-      <div class="player-tooltip__bg-image" :style="{ backgroundImage: `url(${avatarUrl})` }" />
-      <div class="player-tooltip__bg-fade" />
-    </div>
-
     <div class="player-tooltip__content">
       <img :src="avatarUrl" :alt="userName" class="player-tooltip__avatar" loading="lazy" decoding="async"
         @error="handleAvatarError" />
@@ -95,29 +90,6 @@ onMounted(async () => {
   border-radius: var(--radius-card);
   border: 1px solid var(--level-color, var(--bg-overlay));
   background: var(--bg-surface);
-}
-
-.player-tooltip__bg {
-  position: absolute;
-  inset: 0;
-  border-radius: var(--radius-card);
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.player-tooltip__bg-image {
-  position: absolute;
-  inset: -40px;
-  background-size: cover;
-  background-position: center;
-  filter: blur(30px) saturate(1.4);
-  opacity: 0.35;
-}
-
-.player-tooltip__bg-fade {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to bottom, transparent 0%, var(--bg-base) 100%);
 }
 
 .player-tooltip__content {
