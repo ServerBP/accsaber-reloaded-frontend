@@ -78,9 +78,11 @@ const requiresAll = computed(() =>
   && (props.difficulty.prerequisiteCampaignDifficultyIds?.length ?? 0) >= 2,
 )
 
-const gateY = computed(() => props.cy - effectiveSize.value * 1.35)
+const gateCx = computed(() => props.cx + effectiveSize.value * 0.62)
 
-const gateFontSize = computed(() => Math.max(effectiveSize.value * 0.22, 9))
+const gateCy = computed(() => props.cy - effectiveSize.value * 0.72)
+
+const gateR = computed(() => effectiveSize.value * 0.3)
 </script>
 
 <template>
@@ -143,17 +145,25 @@ const gateFontSize = computed(() => Math.max(effectiveSize.value * 0.22, 9))
       {{ songLabel }}
     </text>
 
-    <text
+    <g
       v-if="requiresAll"
       class="campaign-node__gate"
-      :x="cx"
-      :y="gateY"
-      :font-size="gateFontSize"
-      text-anchor="middle"
-      aria-label="Requires all incoming prerequisites"
+      :transform="`translate(${gateCx}, ${gateCy})`"
+      role="img"
+      aria-label="Requires every prerequisite to unlock"
     >
-      ALL
-    </text>
+      <title>Requires every prerequisite to unlock</title>
+      <circle :r="gateR" fill="var(--bg-base)" :stroke="effectiveAccent"
+        :stroke-width="gateR * 0.18" />
+      <g :transform="`scale(${gateR * 0.07})`">
+        <line x1="0" y1="-6" x2="0" y2="6" stroke="currentColor"
+          stroke-width="1.8" stroke-linecap="round" />
+        <line x1="-5.196" y1="-3" x2="5.196" y2="3" stroke="currentColor"
+          stroke-width="1.8" stroke-linecap="round" />
+        <line x1="-5.196" y1="3" x2="5.196" y2="-3" stroke="currentColor"
+          stroke-width="1.8" stroke-linecap="round" />
+      </g>
+    </g>
   </g>
 </template>
 
@@ -185,15 +195,12 @@ const gateFontSize = computed(() => Math.max(effectiveSize.value * 0.22, 9))
 }
 
 .campaign-node__gate {
-  font-family: var(--font-sans);
-  font-weight: 700;
-  letter-spacing: 0.2em;
-  fill: var(--warning);
-  pointer-events: none;
-  paint-order: stroke;
-  stroke: var(--bg-base);
-  stroke-width: 3;
-  stroke-linejoin: round;
+  color: var(--warning);
+  cursor: help;
+}
+
+.campaign-node__gate title {
+  pointer-events: auto;
 }
 
 .campaign-node--locked .campaign-node__gate {

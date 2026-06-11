@@ -36,6 +36,7 @@ export interface CampaignResponse {
   difficultyCount: number
   tags: CampaignTagResponse[]
   backgroundUrl: string | null
+  iconUrl: string | null
   submittedAt: string | null
   curatedAt: string | null
   createdAt: string

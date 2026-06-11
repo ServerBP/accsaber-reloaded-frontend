@@ -24,9 +24,16 @@ import {
   updatePlayerCampaign,
   updatePlayerCampaignDifficulty,
 } from '@/api/campaigns'
+import {
+  deleteCampaignBackground,
+  deleteCampaignIcon,
+  uploadCampaignBackground,
+  uploadCampaignIcon,
+} from '@/api/cdn'
 import { getApiErrorMessage } from '@/api/client'
 import BaseBanner from '@/components/common/BaseBanner.vue'
 import BaseButton from '@/components/common/BaseButton.vue'
+import ImageUploader from '@/components/common/ImageUploader.vue'
 import BaseSelect from '@/components/common/BaseSelect.vue'
 import Breadcrumbs, { type Crumb } from '@/components/common/Breadcrumbs.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -484,13 +491,79 @@ async function deleteDraft() {
   }
 }
 
+async function uploadBackground(file: File) {
+  if (!campaign.value) return
+  await uploadCampaignBackground(campaign.value.id, file, useAdminEndpoint.value)
+  await load()
+}
+
+async function removeBackground() {
+  if (!campaign.value) return
+  await deleteCampaignBackground(campaign.value.id, useAdminEndpoint.value)
+  await load()
+}
+
+async function uploadIcon(file: File) {
+  if (!campaign.value) return
+  await uploadCampaignIcon(campaign.value.id, file, useAdminEndpoint.value)
+  await load()
+}
+
+async function removeIcon() {
+  if (!campaign.value) return
+  await deleteCampaignIcon(campaign.value.id, useAdminEndpoint.value)
+  await load()
+}
+
+function wouldCreateCycle(fromId: string, toId: string): boolean {
+  if (fromId === toId) return true
+  const c = campaign.value
+  if (!c) return false
+  const successors = new Map<string, string[]>()
+  for (const d of c.difficulties) {
+    for (const pid of d.prerequisiteCampaignDifficultyIds ?? []) {
+      const list = successors.get(pid) ?? []
+      list.push(d.id)
+      successors.set(pid, list)
+    }
+  }
+  const visited = new Set<string>()
+  const stack: string[] = [toId]
+  while (stack.length > 0) {
+    const id = stack.pop() as string
+    if (visited.has(id)) continue
+    visited.add(id)
+    if (id === fromId) return true
+    for (const next of successors.get(id) ?? []) stack.push(next)
+  }
+  return false
+}
+
+function nodeLabel(id: string): string {
+  const d = campaign.value?.difficulties.find((x) => x.id === id)
+  return d?.checkpointLabel || d?.songName || 'node'
+}
+
+function isCycleCandidate(prereqId: string): boolean {
+  const d = selectedDifficulty.value
+  if (!d) return false
+  const already = (d.prerequisiteCampaignDifficultyIds ?? []).includes(prereqId)
+  if (already) return false
+  return wouldCreateCycle(prereqId, d.id)
+}
+
 function togglePrereq(prereqId: string) {
   const d = selectedDifficulty.value
   if (!editable.value || !d) return
   const prev = d.prerequisiteCampaignDifficultyIds ?? []
-  const next = prev.includes(prereqId)
-    ? prev.filter((id) => id !== prereqId)
-    : [...prev, prereqId]
+  const adding = !prev.includes(prereqId)
+  if (adding && wouldCreateCycle(prereqId, d.id)) {
+    actionError.value = `Can't require "${nodeLabel(prereqId)}" here. It already depends on this node, which would create a cycle.`
+    return
+  }
+  const next = adding
+    ? [...prev, prereqId]
+    : prev.filter((id) => id !== prereqId)
   void persistPrereqs(d.id, next, prev)
 }
 
@@ -760,6 +833,10 @@ async function handleConnect(payload: { fromId: string; toId: string }) {
   if (!target) return
   const prev = target.prerequisiteCampaignDifficultyIds ?? []
   if (prev.includes(payload.fromId)) return
+  if (wouldCreateCycle(payload.fromId, payload.toId)) {
+    actionError.value = `Can't connect "${nodeLabel(payload.fromId)}" → "${nodeLabel(payload.toId)}". The reverse path already exists, which would create a cycle.`
+    return
+  }
   await persistPrereqs(payload.toId, [...prev, payload.fromId], prev)
 }
 
@@ -1078,16 +1155,16 @@ const breadcrumbs = computed<Crumb[]>(() => {
             <div class="campaign-editor__status-actions">
               <BaseButton v-if="isCreator && isDraftStatus && !campaign.seekingCuration"
                 size="sm" variant="primary" :loading="actionPending" @click="toggleSeekingCuration">
-                Submit for review
+                Publish
               </BaseButton>
-              <BaseButton v-if="isCreator && isDraftStatus && campaign.seekingCuration"
-                size="sm" :loading="actionPending" @click="toggleSeekingCuration">
-                Retract submission
-              </BaseButton>
-              <BaseButton v-if="isCreator && isDraftStatus"
+              <BaseButton v-if="isCreator && isDraftStatus && !campaign.seekingCuration"
                 size="sm" variant="destructive" :loading="actionPending" @click="deleteDraft">
                 Delete draft
               </BaseButton>
+              <p v-if="isCreator && isDraftStatus && campaign.seekingCuration"
+                class="campaign-editor__status-hint">
+                Awaiting curator review. Reach out to a curator if you need to retract.
+              </p>
 
               <template v-if="isAdminRoute">
                 <BaseButton v-if="isCurator && (isDraftStatus || campaign.status === 'EDITING')"
@@ -1176,11 +1253,18 @@ const breadcrumbs = computed<Crumb[]>(() => {
               </div>
               <small>Awarded on completion once curated.</small>
             </label>
-            <label class="campaign-editor__field">
-              <span>Background image URL</span>
-              <input v-model="formMeta.backgroundUrl" type="url" placeholder="https://..."
-                @blur="commitMetaField('backgroundUrl')" />
-            </label>
+          </fieldset>
+
+          <fieldset class="campaign-editor__section" :disabled="!editable">
+            <legend class="campaign-editor__section-title">Images</legend>
+            <div class="campaign-editor__image-row">
+              <ImageUploader label="Background" hint="16:9 hero"
+                :image-url="campaign.backgroundUrl" :disabled="!editable"
+                :upload-handler="uploadBackground" :remove-handler="removeBackground" />
+              <ImageUploader label="Icon" hint="Square card image"
+                aspect-ratio="1 / 1" :image-url="campaign.iconUrl" :disabled="!editable"
+                :upload-handler="uploadIcon" :remove-handler="removeIcon" />
+            </div>
           </fieldset>
 
           <fieldset class="campaign-editor__section" :disabled="!editable">
@@ -1402,9 +1486,11 @@ const breadcrumbs = computed<Crumb[]>(() => {
               </p>
               <ul v-else class="campaign-editor__prereq-list">
                 <li v-for="n in otherNodes" :key="n.id">
-                  <label>
+                  <label :class="{ 'campaign-editor__prereq--cycle': isCycleCandidate(n.id) }"
+                    :title="isCycleCandidate(n.id) ? 'This node already depends on the selected one. Adding it here would create a cycle.' : undefined">
                     <input type="checkbox"
                       :checked="(selectedDifficulty.prerequisiteCampaignDifficultyIds ?? []).includes(n.id)"
+                      :disabled="isCycleCandidate(n.id)"
                       @change="togglePrereq(n.id)" />
                     <span>{{ n.checkpointLabel ? `${n.checkpointLabel}: ${n.songName}` : n.songName }}</span>
                   </label>
@@ -1734,6 +1820,18 @@ const breadcrumbs = computed<Crumb[]>(() => {
   line-height: 1.4;
 }
 
+.campaign-editor__status-hint {
+  margin: 0;
+  padding: 8px 10px;
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+  background: var(--bg-base);
+  border: 1px solid var(--bg-overlay);
+  border-radius: 3px;
+  line-height: 1.5;
+}
+
 .campaign-editor__section {
   display: flex;
   flex-direction: column;
@@ -1885,6 +1983,12 @@ const breadcrumbs = computed<Crumb[]>(() => {
 .campaign-editor__inline-btn:hover {
   color: var(--text-primary);
   border-color: var(--text-tertiary);
+}
+
+.campaign-editor__image-row {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: var(--space-sm);
 }
 
 .campaign-editor__shape-row {
@@ -2070,6 +2174,19 @@ const breadcrumbs = computed<Crumb[]>(() => {
 .campaign-editor__prereq-list label:hover {
   background: var(--bg-elevated);
   color: var(--text-primary);
+}
+
+.campaign-editor__prereq-list label.campaign-editor__prereq--cycle {
+  opacity: 0.45;
+  cursor: not-allowed;
+  color: var(--text-tertiary);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--warning) 60%, transparent);
+}
+
+.campaign-editor__prereq-list label.campaign-editor__prereq--cycle:hover {
+  background: transparent;
+  color: var(--text-tertiary);
 }
 
 .campaign-editor__placeholder {

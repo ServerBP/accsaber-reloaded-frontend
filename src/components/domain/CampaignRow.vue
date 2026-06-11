@@ -114,7 +114,11 @@ const completionLabel = computed(() =>
   props.campaign.completionMode === 'ALL' ? 'Clear all' : 'Reach end',
 )
 
-const hasCover = computed(() => !!props.campaign.backgroundUrl)
+const coverUrl = computed(
+  () => props.campaign.iconUrl || props.campaign.backgroundUrl || null,
+)
+
+const hasCover = computed(() => !!coverUrl.value)
 </script>
 
 <template>
@@ -124,7 +128,7 @@ const hasCover = computed(() => !!props.campaign.backgroundUrl)
     :style="{ '--card-accent': accent, '--card-diff': difficultyColor }"
   >
     <div class="campaign-card__cover" aria-hidden="true">
-      <img v-if="hasCover" :src="campaign.backgroundUrl!" :alt="campaign.name" loading="lazy" />
+      <img v-if="hasCover && coverUrl" :src="coverUrl" :alt="campaign.name" loading="lazy" />
       <div v-else class="campaign-card__fallback">
         <svg viewBox="-30 -30 60 60" width="64" height="64" aria-hidden="true">
           <polygon points="28,0 14,24.25 -14,24.25 -28,0 -14,-24.25 14,-24.25"
