@@ -8,6 +8,7 @@ import PaginationControls from '@/components/common/PaginationControls.vue'
 import ComplexityBadge from '@/components/domain/ComplexityBadge.vue'
 import MapCardCompact from '@/components/domain/MapCardCompact.vue'
 import { usePageMeta } from '@/composables/usePageMeta'
+import { usePlaylistDownload } from '@/composables/usePlaylistDownload'
 import { useAuthStore } from '@/stores/auth'
 import { useCategoryStore } from '@/stores/categories'
 import type { BatchResponse } from '@/types/api/batches'
@@ -22,6 +23,7 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const categoryStore = useCategoryStore()
+const { downloadBatchPlaylist } = usePlaylistDownload()
 
 usePageMeta({
   title: 'Batches | AccSaber Ranking',
@@ -173,22 +175,38 @@ function batchStatusClass(status: string): string {
           <span class="batches-page__batch-status" :class="batchStatusClass(batch.status)">
             {{ batch.status.replace('_', ' ') }}
           </span>
-          <div v-if="isHead" class="batches-page__batch-actions" @click.stop>
+          <div class="batches-page__batch-actions" @click.stop>
             <BaseButton
-              v-if="batch.status === 'DRAFT'"
+              v-if="batch.difficulties.length"
               size="sm"
-              @click="openBuilder(batch.id)"
+              class="batches-page__batch-download"
+              :aria-label="`Download ${batch.name} playlist`"
+              @click="downloadBatchPlaylist(batch.id, batch.name)"
             >
-              Edit
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              <span>Playlist</span>
             </BaseButton>
-            <BaseButton
-              v-if="batch.status === 'RELEASE_READY'"
-              size="sm"
-              variant="primary"
-              @click="releaseBatchTarget = batch; showReleaseConfirm = true"
-            >
-              Release
-            </BaseButton>
+            <template v-if="isHead">
+              <BaseButton
+                v-if="batch.status === 'DRAFT'"
+                size="sm"
+                @click="openBuilder(batch.id)"
+              >
+                Edit
+              </BaseButton>
+              <BaseButton
+                v-if="batch.status === 'RELEASE_READY'"
+                size="sm"
+                variant="primary"
+                @click="releaseBatchTarget = batch; showReleaseConfirm = true"
+              >
+                Release
+              </BaseButton>
+            </template>
           </div>
           <svg
             class="batches-page__chevron"
@@ -378,6 +396,10 @@ function batchStatusClass(status: string): string {
 .batches-page__batch-actions {
   display: flex;
   gap: var(--space-xs);
+  flex-shrink: 0;
+}
+
+.batches-page__batch-download {
   flex-shrink: 0;
 }
 
