@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   addCampaignDifficulty,
+  createCampaign,
   curateCampaign,
   deactivateCampaign,
   deactivateCampaignDifficulty,
@@ -18,9 +19,11 @@ import {
   deletePlayerCampaignDifficulty,
   getCampaign,
   getCampaignTags,
+  publishPlayerCampaign,
   removeCampaignCompletionItem,
   removeCampaignDifficultyItem,
   submitCampaignForReview,
+  unpublishPlayerCampaign,
   updatePlayerCampaign,
   updatePlayerCampaignDifficulty,
 } from '@/api/campaigns'
@@ -33,6 +36,7 @@ import {
 import { getApiErrorMessage } from '@/api/client'
 import BaseBanner from '@/components/common/BaseBanner.vue'
 import BaseButton from '@/components/common/BaseButton.vue'
+import BaseModal from '@/components/common/BaseModal.vue'
 import ImageUploader from '@/components/common/ImageUploader.vue'
 import BaseSelect from '@/components/common/BaseSelect.vue'
 import Breadcrumbs, { type Crumb } from '@/components/common/Breadcrumbs.vue'
@@ -77,6 +81,9 @@ const pendingPosition = ref<{ x: number; y: number } | null>(null)
 const selectedId = ref<string | null>(null)
 const canvasMode = ref<'drag' | 'connect'>('drag')
 const itemPickerFor = ref<'campaign' | 'node' | null>(null)
+const requirementDirtyIds = ref(new Set<string>())
+const editedLiveCampaign = ref(false)
+const showRepublishWarning = ref(false)
 
 const campaignId = computed(() => String(route.params.campaignId ?? ''))
 
@@ -110,6 +117,7 @@ function createPlaceholderCampaign(): CampaignDetailResponse {
     difficultyCount: 0,
     tags: [],
     backgroundUrl: null,
+    iconUrl: null,
     submittedAt: null,
     curatedAt: null,
     createdAt: new Date().toISOString(),
@@ -121,7 +129,7 @@ function createPlaceholderCampaign(): CampaignDetailResponse {
 
 async function ensureCampaign(): Promise<CampaignDetailResponse | null> {
   if (campaign.value && campaign.value.id !== '') return campaign.value
-  if (!auth.isLoggedIn) {
+  if (!auth.isLoggedIn && !isCurator.value) {
     actionError.value = 'Sign in to create a campaign.'
     return null
   }
@@ -131,12 +139,15 @@ async function ensureCampaign(): Promise<CampaignDetailResponse | null> {
     const fallbackSlug = `untitled-${ts}`
     const typedName = formMeta.value.name.trim()
     const typedSlug = formMeta.value.slug.trim()
-    const created = await createPlayerCampaign({
+    const req = {
       name: typedName || fallbackName,
       slug: typedSlug || fallbackSlug,
       completionMode: formMeta.value.completionMode,
       progressionAgnostic: formMeta.value.progressionAgnostic,
-    })
+    }
+    const created = !auth.isLoggedIn && isCurator.value
+      ? await createCampaign(req)
+      : await createPlayerCampaign(req)
     const detail = await getCampaign(created.id)
     campaign.value = detail
     if (allTags.value.length === 0) {
@@ -154,6 +165,8 @@ async function ensureCampaign(): Promise<CampaignDetailResponse | null> {
 async function load() {
   loading.value = true
   error.value = null
+  requirementDirtyIds.value = new Set()
+  editedLiveCampaign.value = false
   try {
     const c = await getCampaign(campaignId.value)
     campaign.value = c
@@ -275,11 +288,6 @@ const selectedMeta = computed(() =>
     : null,
 )
 
-const otherNodes = computed(() => {
-  if (!campaign.value || !selectedId.value) return []
-  return campaign.value.difficulties.filter((d) => d.id !== selectedId.value)
-})
-
 const tagsByKind = computed(() => {
   const map = new Map<string, CampaignTagResponse[]>()
   for (const t of allTags.value) {
@@ -320,6 +328,24 @@ const statusMeaning: Record<string, string> = {
   EDITING: 'Reopened for changes. Player progress is preserved while you edit.',
   CURATED: 'Live with payouts. Locked from edits.',
 }
+
+const creatorStatusMeaning = computed<string | null>(() => {
+  if (!campaign.value) return null
+  switch (campaign.value.status) {
+    case 'DRAFT':
+      return campaign.value.seekingCuration
+        ? 'Draft, awaiting curator review. Only you can see it until you publish.'
+        : 'Draft, only you can see it. Publish to make it playable, or submit it for curation.'
+    case 'PUBLISHED':
+      return 'Live and playable. Unpublish to make changes, then publish again.'
+    case 'EDITING':
+      return 'A curator has this open for review. Unpublish to take it back to a draft you can edit.'
+    case 'CURATED':
+      return 'Curated and locked. Contact a curator if it needs changes.'
+    default:
+      return null
+  }
+})
 
 const formMeta = ref({
   name: '',
@@ -450,6 +476,9 @@ function commitNodeField(field: keyof UpdateCampaignDifficultyRequest) {
   const original = (d as unknown as Record<string, unknown>)[field]
   if (value === original) return
   if (typeof value === 'string' && original == null && value === '') return
+  if (field === 'requirementType' || field === 'requirementValue') {
+    requirementDirtyIds.value.add(d.id)
+  }
   const send = value === '' && field !== 'description' ? null : value
   void applyNodePatch(d.id, { [field]: send } as UpdateCampaignDifficultyRequest)
 }
@@ -471,6 +500,45 @@ async function toggleSeekingCuration() {
     await load()
   } catch (err) {
     actionError.value = getApiErrorMessage(err, 'Failed to update review state')
+  } finally {
+    actionPending.value = false
+  }
+}
+
+function doPlayerPublish() {
+  if (!campaign.value) return
+  if (editedLiveCampaign.value && requirementDirtyIds.value.size > 0) {
+    showRepublishWarning.value = true
+    return
+  }
+  void performPublish()
+}
+
+async function performPublish() {
+  if (!campaign.value) return
+  showRepublishWarning.value = false
+  actionPending.value = true
+  actionError.value = null
+  try {
+    await publishPlayerCampaign(campaign.value.id)
+    await load()
+  } catch (err) {
+    actionError.value = getApiErrorMessage(err, 'Failed to publish campaign')
+  } finally {
+    actionPending.value = false
+  }
+}
+
+async function doPlayerUnpublish() {
+  if (!campaign.value) return
+  actionPending.value = true
+  actionError.value = null
+  try {
+    await unpublishPlayerCampaign(campaign.value.id)
+    await load()
+    editedLiveCampaign.value = true
+  } catch (err) {
+    actionError.value = getApiErrorMessage(err, 'Failed to unpublish campaign')
   } finally {
     actionPending.value = false
   }
@@ -542,29 +610,6 @@ function wouldCreateCycle(fromId: string, toId: string): boolean {
 function nodeLabel(id: string): string {
   const d = campaign.value?.difficulties.find((x) => x.id === id)
   return d?.checkpointLabel || d?.songName || 'node'
-}
-
-function isCycleCandidate(prereqId: string): boolean {
-  const d = selectedDifficulty.value
-  if (!d) return false
-  const already = (d.prerequisiteCampaignDifficultyIds ?? []).includes(prereqId)
-  if (already) return false
-  return wouldCreateCycle(prereqId, d.id)
-}
-
-function togglePrereq(prereqId: string) {
-  const d = selectedDifficulty.value
-  if (!editable.value || !d) return
-  const prev = d.prerequisiteCampaignDifficultyIds ?? []
-  const adding = !prev.includes(prereqId)
-  if (adding && wouldCreateCycle(prereqId, d.id)) {
-    actionError.value = `Can't require "${nodeLabel(prereqId)}" here. It already depends on this node, which would create a cycle.`
-    return
-  }
-  const next = adding
-    ? [...prev, prereqId]
-    : prev.filter((id) => id !== prereqId)
-  void persistPrereqs(d.id, next, prev)
 }
 
 function setPrereqMode(mode: 'AND' | 'OR') {
@@ -1070,7 +1115,7 @@ const breadcrumbs = computed<Crumb[]>(() => {
       <EmptyState icon="!" :message="error ?? 'Campaign not found.'" />
     </template>
 
-    <template v-else-if="!auth.isLoggedIn">
+    <template v-else-if="!auth.isLoggedIn && !isCurator">
       <EmptyState icon="🔒" message="Sign in to edit a campaign." />
     </template>
 
@@ -1139,7 +1184,8 @@ const breadcrumbs = computed<Crumb[]>(() => {
       <div class="campaign-editor__floats">
         <aside class="campaign-editor__rail campaign-editor__rail--left" aria-label="Campaign meta">
           <header v-if="!isUnsavedDraft" class="campaign-editor__status">
-            <div v-if="!isDraftStatus" class="campaign-editor__status-row">
+            <div v-if="!isDraftStatus || (!isAdminRoute && isCreator)"
+              class="campaign-editor__status-row">
               <span class="campaign-editor__status-pill"
                 :class="`campaign-editor__status-pill--${campaign.status.toLowerCase()}`">
                 {{ statusLabel[campaign.status] }}
@@ -1148,23 +1194,35 @@ const breadcrumbs = computed<Crumb[]>(() => {
                 Seeking review
               </span>
             </div>
-            <p v-if="!isDraftStatus" class="campaign-editor__status-meaning">
+            <p v-if="!isAdminRoute && isCreator && creatorStatusMeaning"
+              class="campaign-editor__status-meaning">
+              {{ creatorStatusMeaning }}
+            </p>
+            <p v-else-if="!isDraftStatus" class="campaign-editor__status-meaning">
               {{ statusMeaning[campaign.status] }}
             </p>
 
             <div class="campaign-editor__status-actions">
-              <BaseButton v-if="isCreator && isDraftStatus && !campaign.seekingCuration"
-                size="sm" variant="primary" :loading="actionPending" @click="toggleSeekingCuration">
-                Publish
-              </BaseButton>
-              <BaseButton v-if="isCreator && isDraftStatus && !campaign.seekingCuration"
-                size="sm" variant="destructive" :loading="actionPending" @click="deleteDraft">
-                Delete draft
-              </BaseButton>
-              <p v-if="isCreator && isDraftStatus && campaign.seekingCuration"
-                class="campaign-editor__status-hint">
-                Awaiting curator review. Reach out to a curator if you need to retract.
-              </p>
+              <template v-if="!isAdminRoute && isCreator">
+                <template v-if="isDraftStatus">
+                  <BaseButton size="sm" variant="primary" :loading="actionPending"
+                    @click="doPlayerPublish">
+                    Publish
+                  </BaseButton>
+                  <BaseButton size="sm" :loading="actionPending" @click="toggleSeekingCuration">
+                    {{ campaign.seekingCuration ? 'Retract curation request' : 'Submit for curation' }}
+                  </BaseButton>
+                  <BaseButton size="sm" variant="destructive" :loading="actionPending"
+                    @click="deleteDraft">
+                    Delete draft
+                  </BaseButton>
+                </template>
+                <BaseButton
+                  v-else-if="campaign.status === 'PUBLISHED' || campaign.status === 'EDITING'"
+                  size="sm" variant="primary" :loading="actionPending" @click="doPlayerUnpublish">
+                  Unpublish to edit
+                </BaseButton>
+              </template>
 
               <template v-if="isAdminRoute">
                 <BaseButton v-if="isCurator && (isDraftStatus || campaign.status === 'EDITING')"
@@ -1479,27 +1537,11 @@ const breadcrumbs = computed<Crumb[]>(() => {
               </div>
             </fieldset>
 
-            <fieldset class="campaign-editor__section" :disabled="!editable">
-              <legend class="campaign-editor__section-title">Prerequisites</legend>
-              <p v-if="otherNodes.length === 0" class="campaign-editor__hint">
-                Add more nodes to wire prerequisites.
-              </p>
-              <ul v-else class="campaign-editor__prereq-list">
-                <li v-for="n in otherNodes" :key="n.id">
-                  <label :class="{ 'campaign-editor__prereq--cycle': isCycleCandidate(n.id) }"
-                    :title="isCycleCandidate(n.id) ? 'This node already depends on the selected one. Adding it here would create a cycle.' : undefined">
-                    <input type="checkbox"
-                      :checked="(selectedDifficulty.prerequisiteCampaignDifficultyIds ?? []).includes(n.id)"
-                      :disabled="isCycleCandidate(n.id)"
-                      @change="togglePrereq(n.id)" />
-                    <span>{{ n.checkpointLabel ? `${n.checkpointLabel}: ${n.songName}` : n.songName }}</span>
-                  </label>
-                </li>
-              </ul>
-
-              <div v-if="(selectedDifficulty.prerequisiteCampaignDifficultyIds ?? []).length >= 2"
-                class="campaign-editor__prereq-mode" role="radiogroup" aria-label="Prerequisite mode">
-                <span class="campaign-editor__prereq-mode-label">Unlock when</span>
+            <fieldset
+              v-if="(selectedDifficulty.prerequisiteCampaignDifficultyIds ?? []).length >= 2"
+              class="campaign-editor__section" :disabled="!editable">
+              <legend class="campaign-editor__section-title">Unlock when</legend>
+              <div class="campaign-editor__prereq-mode" role="radiogroup" aria-label="Unlock when">
                 <div class="campaign-editor__prereq-mode-toggle">
                   <button type="button" role="radio"
                     :aria-checked="selectedDifficulty.prerequisiteMode !== 'AND'"
@@ -1571,6 +1613,35 @@ const breadcrumbs = computed<Crumb[]>(() => {
       <CampaignItemPicker v-if="itemPickerFor" :loading="actionPending"
         @close="itemPickerFor = null"
         @pick="handleItemPicked" />
+
+      <BaseModal v-if="showRepublishWarning" :open="true" title="Recalculate player progress?"
+        @close="showRepublishWarning = false">
+        <div class="campaign-editor__warn">
+          <p>
+            You changed the completion requirement on
+            {{ requirementDirtyIds.size }}
+            {{ requirementDirtyIds.size === 1 ? 'map' : 'maps' }}.
+            Republishing recalculates player progress on
+            {{ requirementDirtyIds.size === 1 ? 'it' : 'them' }}:
+          </p>
+          <ul>
+            <li>Players who cleared an affected map under the old requirement lose that completion.</li>
+            <li>Anyone who no longer meets the new bar is moved back to in-progress.</li>
+            <li v-if="campaign && !campaign.progressionAgnostic">
+              Because this campaign is played in order, every map after a changed one is
+              recalculated too.
+            </li>
+          </ul>
+        </div>
+        <template #footer>
+          <BaseButton :disabled="actionPending" @click="showRepublishWarning = false">
+            Cancel
+          </BaseButton>
+          <BaseButton variant="primary" :loading="actionPending" @click="performPublish">
+            Publish anyway
+          </BaseButton>
+        </template>
+      </BaseModal>
     </template>
   </div>
 </template>
@@ -1818,6 +1889,29 @@ const breadcrumbs = computed<Crumb[]>(() => {
   font-size: var(--text-caption);
   color: var(--warning);
   line-height: 1.4;
+}
+
+.campaign-editor__warn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.campaign-editor__warn p {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.campaign-editor__warn ul {
+  margin: 0;
+  padding-left: 1.1em;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
 }
 
 .campaign-editor__status-hint {
@@ -2148,47 +2242,6 @@ const breadcrumbs = computed<Crumb[]>(() => {
   align-self: start;
 }
 
-.campaign-editor__prereq-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  max-height: 180px;
-  overflow-y: auto;
-}
-
-.campaign-editor__prereq-list label {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-  padding: 4px 6px;
-  font-family: var(--font-sans);
-  font-size: var(--text-caption);
-  color: var(--text-secondary);
-  cursor: pointer;
-  border-radius: 2px;
-}
-
-.campaign-editor__prereq-list label:hover {
-  background: var(--bg-elevated);
-  color: var(--text-primary);
-}
-
-.campaign-editor__prereq-list label.campaign-editor__prereq--cycle {
-  opacity: 0.45;
-  cursor: not-allowed;
-  color: var(--text-tertiary);
-  text-decoration: line-through;
-  text-decoration-color: color-mix(in srgb, var(--warning) 60%, transparent);
-}
-
-.campaign-editor__prereq-list label.campaign-editor__prereq--cycle:hover {
-  background: transparent;
-  color: var(--text-tertiary);
-}
-
 .campaign-editor__placeholder {
   padding: var(--space-md) 0;
   font-family: var(--font-sans);
@@ -2211,20 +2264,7 @@ const breadcrumbs = computed<Crumb[]>(() => {
 .campaign-editor__prereq-mode {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-sm);
-  margin-top: var(--space-sm);
-  padding-top: var(--space-sm);
-  border-top: 1px dashed var(--bg-overlay);
-}
-
-.campaign-editor__prereq-mode-label {
-  font-family: var(--font-sans);
-  font-size: 0.625rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
 }
 
 .campaign-editor__prereq-mode-toggle {

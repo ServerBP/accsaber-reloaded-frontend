@@ -9,6 +9,7 @@ import { usePageableRoute } from '@/composables/usePageableRoute'
 import { useAuthStore } from '@/stores/auth'
 import { useCategoryStore } from '@/stores/categories'
 import type {
+  CampaignDetailResponse,
   CampaignProgressResponse,
   CampaignResponse,
   CampaignTagResponse,
@@ -18,16 +19,19 @@ import type { CampaignStatus } from '@/types/enums'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-type Pane = 'all' | 'mine' | 'started'
+type Pane = 'all' | 'mine' | 'started' | 'review'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const categoryStore = useCategoryStore()
 
+const isCurator = computed(() => auth.hasRole('CAMPAIGN_CURATOR'))
+
 const pane = computed<Pane>(() => {
   const v = (route.query.pane as string | undefined) ?? 'all'
   if (v === 'mine' || v === 'started') return v
+  if (v === 'review' && isCurator.value) return 'review'
   return 'all'
 })
 
@@ -98,7 +102,7 @@ async function loadCampaigns() {
       const details = await Promise.all(
         ids.map((id) => getCampaign(id).catch(() => null)),
       )
-      items.value = details.filter((c): c is CampaignResponse => !!c)
+      items.value = details.filter((c): c is CampaignDetailResponse => !!c)
       const progressList = await getMyCampaignProgressBulk(ids)
       const nextMap = new Map(progressMap.value)
       for (const p of progressList) nextMap.set(p.campaignId, p)
@@ -115,6 +119,20 @@ async function loadCampaigns() {
         size: paginationParams.value.size,
         sort: paginationParams.value.sort,
         creatorId: auth.userId,
+      })
+      items.value = page.content
+      totalPages.value = page.totalPages || 1
+    } else if (pane.value === 'review') {
+      if (!isCurator.value) {
+        items.value = []
+        totalPages.value = 1
+        return
+      }
+      const { getCurationQueue } = await import('@/api/campaigns')
+      const page = await getCurationQueue({
+        page: paginationParams.value.page,
+        size: paginationParams.value.size,
+        sort: paginationParams.value.sort,
       })
       items.value = page.content
       totalPages.value = page.totalPages || 1
@@ -249,6 +267,10 @@ watch(
           :class="{ 'campaigns-page__pane--active': pane === 'mine' }" @click="setPane('mine')">
           Mine
         </button>
+        <button v-if="isCurator" class="campaigns-page__pane"
+          :class="{ 'campaigns-page__pane--active': pane === 'review' }" @click="setPane('review')">
+          Review
+        </button>
       </nav>
 
       <div class="campaigns-page__bar-actions">
@@ -308,7 +330,7 @@ watch(
           </details>
         </template>
 
-        <button v-if="auth.isLoggedIn" type="button" class="campaigns-page__new"
+        <button v-if="auth.isLoggedIn || isCurator" type="button" class="campaigns-page__new"
           @click="goToNewCampaign">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -338,12 +360,16 @@ watch(
     <EmptyState v-else-if="pane === 'mine' && items.length === 0"
       message="You haven't drafted any campaigns yet. Use New campaign to start one." />
 
+    <EmptyState v-else-if="pane === 'review' && items.length === 0"
+      message="Nothing in the curation queue right now." />
+
     <EmptyState v-else-if="items.length === 0"
       message="No campaigns match these filters." />
 
     <div v-else class="campaigns-page__list">
       <CampaignRow v-for="campaign in items" :key="campaign.id" :campaign="campaign"
-        :progress="progressMap.get(campaign.id) ?? null" />
+        :progress="progressMap.get(campaign.id) ?? null"
+        :editor-link="isCurator || pane === 'mine'" />
     </div>
 
     <div v-if="totalPages > 1 && !loading" class="campaigns-page__pagination">

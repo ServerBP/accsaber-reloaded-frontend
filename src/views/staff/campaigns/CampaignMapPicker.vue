@@ -2,6 +2,7 @@
 import { getDifficulties } from '@/api/maps'
 import { getApiErrorMessage } from '@/api/client'
 import BaseModal from '@/components/common/BaseModal.vue'
+import FilterButton from '@/components/common/FilterButton.vue'
 import PaginationControls from '@/components/common/PaginationControls.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import CategoryBadge from '@/components/domain/CategoryBadge.vue'
@@ -12,6 +13,7 @@ import { useCategoryStore } from '@/stores/categories'
 import type { PublicMapDifficultyResponse } from '@/types/api/maps'
 import type { CategoryCode } from '@/types/display'
 import { computed, onMounted, ref, watch } from 'vue'
+import MapFilterSidebar from '@/views/maps/MapFilterSidebar.vue'
 
 defineProps<{ loading?: boolean }>()
 
@@ -32,19 +34,39 @@ const results = ref<PublicMapDifficultyResponse[]>([])
 const fetching = ref(false)
 const err = ref<string | null>(null)
 
-watch(debounced, () => { page.value = 1 })
+const filtersOpen = ref(false)
+const selectedCategories = ref<string[]>([])
+const complexityRange = ref<[number, number]>([0, 20])
+
+const hasActiveFilters = computed(() =>
+  selectedCategories.value.length > 0
+  || complexityRange.value[0] > 0
+  || complexityRange.value[1] < 20,
+)
+
+watch([debounced, selectedCategories, complexityRange], () => { page.value = 1 })
 
 async function search() {
   fetching.value = true
   err.value = null
   try {
-    const data = await getDifficulties({
+    const params: Record<string, unknown> = {
       page: page.value - 1,
       size: PAGE_SIZE,
       status: 'RANKED',
       search: debounced.value || undefined,
       sort: 'rankedAt,desc',
-    })
+    }
+    if (selectedCategories.value.length === 1) {
+      params.categoryId = selectedCategories.value[0]
+    }
+    if (complexityRange.value[0] > 0) {
+      params.complexityMin = complexityRange.value[0]
+    }
+    if (complexityRange.value[1] < 20) {
+      params.complexityMax = complexityRange.value[1]
+    }
+    const data = await getDifficulties(params as never)
     results.value = data.content
     totalPages.value = data.totalPages || 1
     if (page.value > totalPages.value) page.value = totalPages.value
@@ -59,7 +81,7 @@ async function search() {
 
 onMounted(search)
 
-watch([debounced, page], () => {
+watch([debounced, page, selectedCategories, complexityRange], () => {
   void search()
 })
 
@@ -81,8 +103,18 @@ const characteristicHint = computed(() => (diff: PublicMapDifficultyResponse) =>
 <template>
   <BaseModal :open="true" title="Add a node" @close="emit('close')">
     <div class="map-picker">
-      <input class="map-picker__search" v-model="query" type="search" autofocus
-        placeholder="Search song, artist, or mapper" />
+      <div class="map-picker__head">
+        <input class="map-picker__search" v-model="query" type="search" autofocus
+          placeholder="Search song, artist, or mapper" />
+        <FilterButton :active="filtersOpen || hasActiveFilters" :has-indicator="hasActiveFilters"
+          @click="filtersOpen = !filtersOpen" />
+      </div>
+
+      <div v-if="filtersOpen" class="map-picker__filters">
+        <MapFilterSidebar :selected-categories="selectedCategories" :complexity-range="complexityRange"
+          @update:selected-categories="selectedCategories = $event"
+          @update:complexity-range="complexityRange = $event" />
+      </div>
 
       <p v-if="err" class="map-picker__error" role="alert">{{ err }}</p>
 
@@ -131,6 +163,24 @@ const characteristicHint = computed(() => (diff: PublicMapDifficultyResponse) =>
   gap: var(--space-md);
   width: min(640px, 100%);
   max-height: 78vh;
+}
+
+.map-picker__head {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-sm);
+}
+
+.map-picker__head .map-picker__search {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.map-picker__filters {
+  padding: var(--space-md);
+  background: var(--bg-base);
+  border: 1px solid var(--bg-overlay);
+  border-radius: 3px;
 }
 
 .map-picker__search {

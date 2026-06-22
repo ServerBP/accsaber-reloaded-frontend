@@ -24,6 +24,11 @@ import type {
   CampaignProgressResponse,
 } from '@/types/api/campaigns'
 import type { PublicMapDifficultyResponse } from '@/types/api/maps'
+import {
+  campaignDifficultyColor,
+  campaignDifficultyGradient,
+  campaignDifficultyLabel,
+} from '@/utils/campaignDifficulty'
 import { formatRequirement, formatUserValue } from '@/utils/campaignLayout'
 import { buildMapRoute } from '@/utils/mapRoute'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
@@ -131,32 +136,21 @@ const accent = computed(() => {
   return categoryStore.getCategoryInfo(code)?.accent ?? 'var(--accent-overall)'
 })
 
-const DIFFICULTY_TIER_ORDER = [
-  'Beginner',
-  'Apprentice',
-  'Intermediate',
-  'Advanced',
-  'Expert',
-  'Impossible',
-  'Progressive',
-] as const
+const difficultyLabel = computed<string | null>(() =>
+  campaignDifficultyLabel(campaign.value?.tags ?? []),
+)
 
-const difficultyLabel = computed<string | null>(() => {
-  const tags = (campaign.value?.tags ?? []).filter((t) => t.kind === 'DIFFICULTY')
-  if (tags.length === 0) return null
-  const sorted = tags.slice().sort((a, b) => {
-    const ai = DIFFICULTY_TIER_ORDER.indexOf(a.name as (typeof DIFFICULTY_TIER_ORDER)[number])
-    const bi = DIFFICULTY_TIER_ORDER.indexOf(b.name as (typeof DIFFICULTY_TIER_ORDER)[number])
-    if (ai === -1 && bi === -1) return a.name.localeCompare(b.name)
-    if (ai === -1) return 1
-    if (bi === -1) return -1
-    return ai - bi
-  })
-  if (sorted.length === 1) return sorted[0].name
-  const first = sorted[0].name
-  const last = sorted[sorted.length - 1].name
-  return first === last ? first : `${first} - ${last}`
-})
+const difficultyColor = computed(() =>
+  campaignDifficultyColor(campaign.value?.tags ?? [], accent.value),
+)
+
+const difficultyGradient = computed(() => campaignDifficultyGradient(campaign.value?.tags ?? []))
+
+const difficultyChipStyle = computed(() =>
+  difficultyGradient.value
+    ? { backgroundImage: difficultyGradient.value }
+    : { color: difficultyColor.value },
+)
 
 const themeTags = computed(
   () => campaign.value?.tags.filter((t) => t.kind === 'THEME' || t.kind === 'GENRE') ?? [],
@@ -422,7 +416,10 @@ function unpinTooltip() {
               <span v-if="categoryTag" class="campaign-detail__category" :style="{ color: accent }">
                 {{ categoryTag.name }}
               </span>
-              <span v-if="difficultyLabel" class="campaign-detail__chip">{{ difficultyLabel }}</span>
+              <span v-if="difficultyLabel"
+                class="campaign-detail__chip campaign-detail__chip--difficulty"
+                :class="{ 'campaign-detail__chip--fade': difficultyGradient }"
+                :style="difficultyChipStyle">{{ difficultyLabel }}</span>
               <span v-for="tag in themeTags" :key="tag.id" class="campaign-detail__chip">{{ tag.name }}</span>
             </div>
             <h1 class="campaign-detail__title">{{ campaign.name }}</h1>
@@ -849,6 +846,12 @@ function unpinTooltip() {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--text-tertiary);
+}
+
+.campaign-detail__chip--fade {
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .campaign-detail__title {

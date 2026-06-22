@@ -5,12 +5,25 @@ import type {
   CampaignResponse,
   CampaignTagResponse,
 } from '@/types/api/campaigns'
+import {
+  campaignDifficultyColor,
+  campaignDifficultyGradient,
+  campaignDifficultyLabel,
+} from '@/utils/campaignDifficulty'
 import { computed } from 'vue'
+import type { RouteLocationRaw } from 'vue-router'
 
 const props = defineProps<{
   campaign: CampaignResponse
   progress?: CampaignProgressResponse | null
+  editorLink?: boolean
 }>()
+
+const cardTo = computed<RouteLocationRaw>(() =>
+  props.editorLink
+    ? { name: 'campaign-editor', params: { campaignId: props.campaign.id } }
+    : { name: 'campaign-detail', params: { campaignId: props.campaign.slug || props.campaign.id } },
+)
 
 const categoryStore = useCategoryStore()
 
@@ -18,46 +31,7 @@ const categoryTag = computed<CampaignTagResponse | null>(
   () => props.campaign.tags.find((t) => t.kind === 'CATEGORY') ?? null,
 )
 
-const DIFFICULTY_TIER_ORDER = [
-  'Beginner',
-  'Apprentice',
-  'Intermediate',
-  'Advanced',
-  'Expert',
-  'Impossible',
-  'Progressive',
-] as const
-
-const DIFFICULTY_TIER_COLORS: Record<string, string> = {
-  Beginner: 'var(--success)',
-  Apprentice: 'var(--info)',
-  Intermediate: 'var(--warning)',
-  Advanced: '#f97316',
-  Expert: 'var(--error)',
-  Impossible: 'var(--tier-diamond, #b9f2ff)',
-  Progressive: 'var(--accent-overall)',
-}
-
-const difficultyTags = computed<CampaignTagResponse[]>(() => {
-  const tags = props.campaign.tags.filter((t) => t.kind === 'DIFFICULTY')
-  return tags.slice().sort((a, b) => {
-    const ai = DIFFICULTY_TIER_ORDER.indexOf(a.name as (typeof DIFFICULTY_TIER_ORDER)[number])
-    const bi = DIFFICULTY_TIER_ORDER.indexOf(b.name as (typeof DIFFICULTY_TIER_ORDER)[number])
-    if (ai === -1 && bi === -1) return a.name.localeCompare(b.name)
-    if (ai === -1) return 1
-    if (bi === -1) return -1
-    return ai - bi
-  })
-})
-
-const difficultyLabel = computed<string | null>(() => {
-  const tags = difficultyTags.value
-  if (tags.length === 0) return null
-  if (tags.length === 1) return tags[0].name
-  const first = tags[0].name
-  const last = tags[tags.length - 1].name
-  return first === last ? first : `${first} - ${last}`
-})
+const difficultyLabel = computed<string | null>(() => campaignDifficultyLabel(props.campaign.tags))
 
 const themeTags = computed(() =>
   props.campaign.tags.filter((t) => t.kind === 'THEME' || t.kind === 'GENRE').slice(0, 2),
@@ -71,12 +45,11 @@ const accent = computed(() => {
   return 'var(--accent-overall)'
 })
 
-const difficultyColor = computed(() => {
-  const tags = difficultyTags.value
-  if (tags.length === 0) return accent.value
-  const peak = tags[tags.length - 1].name
-  return DIFFICULTY_TIER_COLORS[peak] ?? accent.value
-})
+const difficultyColor = computed(() =>
+  campaignDifficultyColor(props.campaign.tags, accent.value),
+)
+
+const difficultyGradient = computed(() => campaignDifficultyGradient(props.campaign.tags))
 
 const totalNodes = computed(() =>
   props.progress?.totalDifficulties || props.campaign.difficultyCount || 0,
@@ -124,8 +97,8 @@ const hasCover = computed(() => !!coverUrl.value)
 <template>
   <router-link
     class="campaign-card"
-    :to="{ name: 'campaign-detail', params: { campaignId: campaign.slug || campaign.id } }"
-    :style="{ '--card-accent': accent, '--card-diff': difficultyColor }"
+    :to="cardTo"
+    :style="{ '--card-accent': accent, '--card-diff': difficultyColor, '--card-diff-gradient': difficultyGradient ?? 'none' }"
   >
     <div class="campaign-card__cover" aria-hidden="true">
       <img v-if="hasCover && coverUrl" :src="coverUrl" :alt="campaign.name" loading="lazy" />
@@ -138,7 +111,10 @@ const hasCover = computed(() => !!coverUrl.value)
         </svg>
         <span class="campaign-card__fallback-count">{{ totalNodes }}</span>
       </div>
-      <span v-if="difficultyLabel" class="campaign-card__diff-pill">{{ difficultyLabel }}</span>
+      <span v-if="difficultyLabel" class="campaign-card__diff-pill"
+        :class="{ 'campaign-card__diff-pill--fade': difficultyGradient }">
+        <span class="campaign-card__diff-pill-text">{{ difficultyLabel }}</span>
+      </span>
     </div>
 
     <div class="campaign-card__body">
@@ -200,7 +176,7 @@ const hasCover = computed(() => !!coverUrl.value)
 
 .campaign-card__cover {
   position: relative;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 1 / 1;
   background: var(--bg-base);
   overflow: hidden;
 }
@@ -250,6 +226,17 @@ const hasCover = computed(() => !!coverUrl.value)
   border: 1px solid color-mix(in srgb, var(--card-diff) 40%, transparent);
   border-radius: 3px;
   backdrop-filter: blur(8px);
+}
+
+.campaign-card__diff-pill-text {
+  color: inherit;
+}
+
+.campaign-card__diff-pill--fade .campaign-card__diff-pill-text {
+  background-image: var(--card-diff-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .campaign-card__body {

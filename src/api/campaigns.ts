@@ -106,6 +106,14 @@ export function submitCampaignForReview(
   )
 }
 
+export function publishPlayerCampaign(campaignId: string): Promise<CampaignResponse> {
+  return patch<CampaignResponse>(`/campaigns/${campaignId}/publish`)
+}
+
+export function unpublishPlayerCampaign(campaignId: string): Promise<CampaignResponse> {
+  return patch<CampaignResponse>(`/campaigns/${campaignId}/unpublish`)
+}
+
 export function addPlayerCampaignDifficulty(
   campaignId: string,
   req: AddCampaignDifficultyRequest,

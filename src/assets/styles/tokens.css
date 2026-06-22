@@ -35,6 +35,14 @@
   --diff-expert: #ef4444;
   --diff-expert-plus: #8b5cf6;
 
+  /* --- Campaign Difficulty Tiers (easy -> impossible) --- */
+  --campaign-tier-beginner: #22c55e;
+  --campaign-tier-apprentice: #3b82f6;
+  --campaign-tier-intermediate: #f97316;
+  --campaign-tier-advanced: #ef4444;
+  --campaign-tier-expert: #a855f7;
+  --campaign-tier-impossible: #1e40af;
+
   /* --- Milestone Tiers --- */
   --tier-bronze: #cd7f32;
   --tier-silver: #c0c0c0;
