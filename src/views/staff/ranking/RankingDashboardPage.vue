@@ -38,12 +38,11 @@ usePageMeta({
 
 const statusTabs: Tab[] = [
   { key: 'QUEUE', label: 'Queue' },
-  { key: 'QUALIFIED', label: 'Qualified' },
   { key: 'RANKED', label: 'Reweighting' },
 ]
 
 const pageTitle = computed(() =>
-  activeStatus.value === 'RANKED' ? 'Reweighting Queue' : activeStatus.value === 'QUALIFIED' ? 'Qualified Queue' : 'Ranking Queue'
+  activeStatus.value === 'RANKED' ? 'Reweighting Queue' : 'Ranking Queue'
 )
 
 const accent = computed(() => MAP_STATUS_ACCENT[activeStatus.value] ?? 'var(--accent-overall)')
@@ -51,22 +50,19 @@ const accent = computed(() => MAP_STATUS_ACCENT[activeStatus.value] ?? 'var(--ac
 const subtitleText = computed(() => {
   if (!totalElements.value) return ''
   if (activeStatus.value === 'RANKED') return `${totalElements.value} ranked maps`
-  if (activeStatus.value === 'QUALIFIED') return `${totalElements.value} maps in queue with 3+ upvotes and criteria pass`
   return `${totalElements.value} maps in queue`
 })
 
 const activeStatus = computed<MapDifficultyStatus>({
   get() {
-    const s = route.query.status as string
-    if (s === 'QUALIFIED' || s === 'RANKED') return s
-    return 'QUEUE'
+    return route.query.status === 'RANKED' ? 'RANKED' : 'QUEUE'
   },
   set(val) {
     const query = { ...route.query }
-    if (val === 'QUEUE') {
-      delete query.status
-    } else {
+    if (val === 'RANKED') {
       query.status = val
+    } else {
+      delete query.status
     }
     delete query.page
     router.replace({ query })
@@ -130,6 +126,7 @@ const baseColumns: TableColumn[] = [
   { key: 'song', label: 'Song', align: 'left' },
   { key: 'mapper', label: 'Mapper', align: 'left', width: '120px' },
   { key: 'category', label: 'Category', align: 'center', width: '110px' },
+  { key: 'status', label: 'Status', align: 'center', width: '96px' },
   { key: 'complexity', label: 'Complexity', sortable: true, align: 'center', width: '100px' },
   { key: 'criteria', label: 'Criteria', align: 'center', width: '90px' },
   { key: 'rating', label: 'Rating', sortable: true, align: 'center', mono: true, width: '70px' },
@@ -139,7 +136,7 @@ const baseColumns: TableColumn[] = [
 
 const columns = computed(() =>
   activeStatus.value === 'RANKED'
-    ? baseColumns.filter((c) => c.key !== 'criteria')
+    ? baseColumns.filter((c) => c.key !== 'criteria' && c.key !== 'status')
     : baseColumns
 )
 
@@ -164,6 +161,7 @@ const rows = computed(() =>
       categoryName: catInfo?.name ?? '',
       categoryCode: catCode ?? 'overall',
       categoryAccent: catInfo?.accent ?? '#a855f7',
+      status: d.status,
       complexity: d.complexity,
       criteriaStatus: d.criteriaStatus,
       autoCriteriaStatus: d.autoCriteriaStatus,
@@ -185,7 +183,7 @@ const rows = computed(() =>
 function buildFetchParams(): Record<string, unknown> {
   const params: Record<string, unknown> = {
     ...paginationParams.value,
-    status: activeStatus.value,
+    status: activeStatus.value === 'RANKED' ? 'RANKED' : 'QUEUE,QUALIFIED',
   }
   if (selectedCategories.value.length === 1) {
     params.categoryId = selectedCategories.value[0]
@@ -357,6 +355,12 @@ function criteriaClassName(row: Record<string, unknown>): string {
         </span>
       </template>
 
+      <template #cell-status="{ row }">
+        <span class="ranking-dashboard__status" :class="'ranking-dashboard__status--' + (row.status as string).toLowerCase()">
+          {{ row.status === 'QUALIFIED' ? 'Qualified' : 'In Queue' }}
+        </span>
+      </template>
+
       <template #cell-complexity="{ row }">
         <ComplexityBadge v-if="row.complexity != null" :complexity="row.complexity as number" />
         <span v-else class="ranking-dashboard__rating--neutral">-</span>
@@ -402,6 +406,10 @@ function criteriaClassName(row: Record<string, unknown>): string {
             <span class="ranking-dashboard__song-name">{{ row.songName }}</span>
             <span class="ranking-dashboard__song-meta">{{ row.songAuthor }} - {{ row.mapper }}</span>
             <div class="ranking-dashboard__mobile-meta">
+              <span v-if="row.status !== 'RANKED'" class="ranking-dashboard__status"
+                :class="'ranking-dashboard__status--' + (row.status as string).toLowerCase()">
+                {{ row.status === 'QUALIFIED' ? 'Qualified' : 'In Queue' }}
+              </span>
               <ComplexityBadge v-if="row.complexity != null" :complexity="row.complexity as number" />
               <span v-if="row.headCriteriaVote" class="ranking-dashboard__criteria criteria-text--head" :class="headCriteriaClass(row.headCriteriaVote as string)">
                 HEAD {{ row.headCriteriaVote === 'UPVOTE' ? 'PASS' : row.headCriteriaVote === 'DOWNVOTE' ? 'FAIL' : 'NEUTRAL' }}
@@ -435,7 +443,7 @@ function criteriaClassName(row: Record<string, unknown>): string {
   display: flex;
   flex-direction: column;
   gap: var(--space-lg);
-  max-width: 1070px;
+  max-width: 1200px;
   margin: 0 auto;
   width: 100%;
 }
@@ -508,6 +516,17 @@ function criteriaClassName(row: Record<string, unknown>): string {
 .ranking-dashboard__rating--positive { color: var(--success); }
 .ranking-dashboard__rating--negative { color: var(--error); }
 .ranking-dashboard__rating--neutral { color: var(--text-tertiary); }
+
+.ranking-dashboard__status {
+  font-size: var(--text-caption);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.ranking-dashboard__status--queue { color: var(--warning); }
+.ranking-dashboard__status--qualified { color: var(--info); }
 
 .ranking-dashboard__date {
   font-size: var(--text-caption);

@@ -156,6 +156,11 @@ const rows = computed(() => {
     })
 })
 
+function cleanPlayerName(name: string): string {
+  const stripped = name.replace(/<[^>]+>/g, '').trim()
+  return stripped || name
+}
+
 function normalizeBl(s: BeatLeaderScore): NormalizedScore {
   return {
     id: `bl-${s.id}`,
@@ -165,7 +170,7 @@ function normalizeBl(s: BeatLeaderScore): NormalizedScore {
     modifiers: s.modifiers,
     player: {
       id: s.player.id,
-      name: s.player.name,
+      name: cleanPlayerName(s.player.name),
       avatar: s.player.avatar,
       country: s.player.country,
     },
@@ -224,7 +229,7 @@ async function loadScores() {
         modifiers: s.modifiers,
         player: {
           id: info.id,
-          name: info.name,
+          name: cleanPlayerName(info.name),
           avatar: info.profilePicture,
           country: info.country,
         },
@@ -466,5 +471,6 @@ watch(() => props.originalComplexity, (v) => { previewComplexity.value = v ?? 0 
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 160px;
 }
 </style>
