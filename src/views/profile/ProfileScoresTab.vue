@@ -14,6 +14,7 @@ import { formatRelativeDate } from '@/utils/formatters'
 import { toScoreDisplay } from '@/utils/mappers'
 import { buildMapRoute } from '@/utils/mapRoute'
 import { getRankClass } from '@/utils/ranking'
+import { resolveReplay, type ResolvedReplay } from '@/utils/replay'
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
@@ -41,19 +42,8 @@ const modifierStore = useModifierStore()
 const settingsStore = useSettingsStore()
 
 const replayService = computed(() => settingsStore.appearance['appearance.primaryReplayService'])
-const replayLabel = computed(() =>
-  replayService.value === 'arcviewer' ? 'Watch in ArcViewer' : 'Watch replay',
-)
-const replayIcon = computed(() =>
-  replayService.value === 'arcviewer'
-    ? 'https://beatleader.com/assets/ArcViewerIcon.webp'
-    : 'https://beatleader.com/assets/bs-pepe.gif',
-)
-function getReplayUrl(blScoreId: number | null | undefined): string | null {
-  if (blScoreId == null) return null
-  return replayService.value === 'arcviewer'
-    ? `https://allpoland.github.io/ArcViewer/?scoreID=${blScoreId}`
-    : `https://replay.beatleader.com/?scoreId=${blScoreId}`
+function rowReplay(row: Record<string, unknown>): ResolvedReplay | null {
+  return (row.replay as ResolvedReplay | null) ?? null
 }
 
 const { currentPage, sortState, paginationParams, setPage, setSort, resetPage } = usePageableRoute({
@@ -127,7 +117,10 @@ const rows = computed(() =>
     streak115: s.streak115,
     date: s.date,
     leaderboardRank: s.leaderboardRank,
-    blScoreId: s.blScoreId,
+    replay: resolveReplay(
+      { blScoreId: s.blScoreId, ssScoreId: s.ssScoreId, date: s.date },
+      replayService.value,
+    ),
   })),
 )
 
@@ -313,10 +306,10 @@ watch(
               <path d="M9 4h6l-1 5 4 3v3h-5v6l-1 1-1-1v-6H6v-3l4-3-1-5z" />
             </svg>
           </button>
-          <a v-if="getReplayUrl(row.blScoreId as number | null)" class="scores-tab__icon-btn"
-            :href="getReplayUrl(row.blScoreId as number | null)!" target="_blank" rel="noopener noreferrer"
-            :aria-label="replayLabel" :title="replayLabel" @click.stop>
-            <img :src="replayIcon" alt="" width="14" height="14" style="border-radius: 2px;" loading="lazy" decoding="async" />
+          <a v-if="rowReplay(row)" class="scores-tab__icon-btn"
+            :href="rowReplay(row)!.url" target="_blank" rel="noopener noreferrer"
+            :aria-label="rowReplay(row)!.label" :title="rowReplay(row)!.label" @click.stop>
+            <img :src="rowReplay(row)!.icon" alt="" width="14" height="14" style="border-radius: 2px;" loading="lazy" decoding="async" />
           </a>
           <button class="scores-tab__icon-btn" aria-label="View score details"
             @click="openDetail(row.mapDifficultyId as string, $event)">
@@ -376,10 +369,10 @@ watch(
                 <path d="M9 4h6l-1 5 4 3v3h-5v6l-1 1-1-1v-6H6v-3l4-3-1-5z" />
               </svg>
             </button>
-            <a v-if="getReplayUrl(row.blScoreId as number | null)" class="ps-card__action-btn"
-              :href="getReplayUrl(row.blScoreId as number | null)!" target="_blank" rel="noopener noreferrer"
-              :aria-label="replayLabel" :title="replayLabel" @click.stop>
-              <img :src="replayIcon" alt="" width="14" height="14" style="border-radius: 2px;" loading="lazy" decoding="async" />
+            <a v-if="rowReplay(row)" class="ps-card__action-btn"
+              :href="rowReplay(row)!.url" target="_blank" rel="noopener noreferrer"
+              :aria-label="rowReplay(row)!.label" :title="rowReplay(row)!.label" @click.stop>
+              <img :src="rowReplay(row)!.icon" alt="" width="14" height="14" style="border-radius: 2px;" loading="lazy" decoding="async" />
             </a>
             <button class="ps-card__action-btn" aria-label="View score details"
               @click.stop="openDetail(row.mapDifficultyId as string, $event)">

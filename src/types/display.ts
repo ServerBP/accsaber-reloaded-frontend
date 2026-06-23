@@ -117,6 +117,7 @@ export interface ScoreDisplay {
   xpGained?: number
   rankWhenSet?: number
   blScoreId?: number
+  ssScoreId?: number
   userName?: string
   mapAuthor?: string
   active?: boolean
@@ -142,6 +143,7 @@ export interface DifficultyScoreDisplay {
   modifiers: string[]
   date: string
   blScoreId?: number
+  ssScoreId?: number
   misses: number
   badCuts: number
   maxCombo: number

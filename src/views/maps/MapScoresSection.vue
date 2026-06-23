@@ -19,6 +19,7 @@ import { COUNTRY_OPTIONS } from '@/utils/countries'
 import { formatRelativeDate } from '@/utils/formatters'
 import { toDifficultyScoreDisplay } from '@/utils/mappers'
 import { getRankClass } from '@/utils/ranking'
+import { resolveReplay, type ResolvedReplay } from '@/utils/replay'
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
@@ -45,19 +46,8 @@ const modifierStore = useModifierStore()
 const settingsStore = useSettingsStore()
 
 const replayService = computed(() => settingsStore.appearance['appearance.primaryReplayService'])
-const replayLabel = computed(() =>
-  replayService.value === 'arcviewer' ? 'Watch in ArcViewer' : 'Watch replay',
-)
-const replayIcon = computed(() =>
-  replayService.value === 'arcviewer'
-    ? 'https://beatleader.com/assets/ArcViewerIcon.webp'
-    : 'https://beatleader.com/assets/bs-pepe.gif',
-)
-function getReplayUrl(blScoreId: number | null | undefined): string | null {
-  if (blScoreId == null) return null
-  return replayService.value === 'arcviewer'
-    ? `https://allpoland.github.io/ArcViewer/?scoreID=${blScoreId}`
-    : `https://replay.beatleader.com/?scoreId=${blScoreId}`
+function rowReplay(row: Record<string, unknown>): ResolvedReplay | null {
+  return (row.replay as ResolvedReplay | null) ?? null
 }
 
 const { currentPage, sortState, paginationParams, setPage, setSort, resetPage } = usePageableRoute({
@@ -124,7 +114,10 @@ const rows = computed(() => {
       weighted: s.weightedAp,
       streak115: s.streak115,
       date: s.date,
-      blScoreId: s.blScoreId,
+      replay: resolveReplay(
+        { blScoreId: s.blScoreId, ssScoreId: s.ssScoreId, date: s.date },
+        replayService.value,
+      ),
     }
   })
 })
@@ -189,6 +182,7 @@ function openDetail(userId: string, event: Event) {
     xpGained: s.xpGained,
     rankWhenSet: s.rankWhenSet,
     blScoreId: s.blScoreId,
+    ssScoreId: s.ssScoreId,
     mapAuthor: props.mapAuthor,
     userName: s.userName,
   }
@@ -281,10 +275,10 @@ watch(
 
       <template #cell-detail="{ row }">
         <div class="map-scores__actions">
-          <a v-if="getReplayUrl(row.blScoreId as number | null)" class="map-scores__detail-btn"
-            :href="getReplayUrl(row.blScoreId as number | null)!" target="_blank" rel="noopener noreferrer"
-            :aria-label="replayLabel" :title="replayLabel" @click.stop>
-            <img :src="replayIcon" alt="" width="14" height="14" style="border-radius: 2px;" loading="lazy" decoding="async" />
+          <a v-if="rowReplay(row)" class="map-scores__detail-btn"
+            :href="rowReplay(row)!.url" target="_blank" rel="noopener noreferrer"
+            :aria-label="rowReplay(row)!.label" :title="rowReplay(row)!.label" @click.stop>
+            <img :src="rowReplay(row)!.icon" alt="" width="14" height="14" style="border-radius: 2px;" loading="lazy" decoding="async" />
           </a>
           <button class="map-scores__detail-btn" aria-label="View score details"
             @click="openDetail(row._userId as string, $event)">
@@ -322,10 +316,10 @@ watch(
             </span>
             <span class="ms-card__weighted">/ {{ (row.weighted as number).toFixed(2) }}</span>
           </div>
-          <a v-if="getReplayUrl(row.blScoreId as number | null)" class="ms-card__detail-btn"
-            :href="getReplayUrl(row.blScoreId as number | null)!" target="_blank" rel="noopener noreferrer"
-            :aria-label="replayLabel" :title="replayLabel" @click.stop>
-            <img :src="replayIcon" alt="" width="14" height="14" style="border-radius: 2px;" loading="lazy" decoding="async" />
+          <a v-if="rowReplay(row)" class="ms-card__detail-btn"
+            :href="rowReplay(row)!.url" target="_blank" rel="noopener noreferrer"
+            :aria-label="rowReplay(row)!.label" :title="rowReplay(row)!.label" @click.stop>
+            <img :src="rowReplay(row)!.icon" alt="" width="14" height="14" style="border-radius: 2px;" loading="lazy" decoding="async" />
           </a>
           <button class="ms-card__detail-btn" aria-label="View score details"
             @click.stop="openDetail(row._userId as string, $event)">

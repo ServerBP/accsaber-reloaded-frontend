@@ -10,6 +10,7 @@ import type { ScoreResponse } from '@/types/api/users'
 import { formatRelativeDate } from '@/utils/formatters'
 import { buildMapRoute } from '@/utils/mapRoute'
 import { getRankClass } from '@/utils/ranking'
+import { resolveReplay } from '@/utils/replay'
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
@@ -95,19 +96,15 @@ const modifierStore = useModifierStore()
 const settingsStore = useSettingsStore()
 
 const replayService = computed(() => settingsStore.appearance['appearance.primaryReplayService'])
-const replayUrl = computed(() => {
-  if (props.score.blScoreId == null) return null
-  return replayService.value === 'arcviewer'
-    ? `https://allpoland.github.io/ArcViewer/?scoreID=${props.score.blScoreId}`
-    : `https://replay.beatleader.com/?scoreId=${props.score.blScoreId}`
-})
-const replayLabel = computed(() =>
-  replayService.value === 'arcviewer' ? 'Watch in ArcViewer' : 'Watch replay',
-)
-const replayIcon = computed(() =>
-  replayService.value === 'arcviewer'
-    ? 'https://beatleader.com/assets/ArcViewerIcon.webp'
-    : 'https://beatleader.com/assets/bs-pepe.gif',
+const replay = computed(() =>
+  resolveReplay(
+    {
+      blScoreId: props.score.blScoreId,
+      ssScoreId: props.score.ssScoreId,
+      date: props.score.timeSet,
+    },
+    replayService.value,
+  ),
 )
 
 const categoryCode = computed(() => categoryStore.getCategoryCode(props.score.categoryId))
@@ -156,8 +153,8 @@ function onUnpinClick(e: MouseEvent) {
 function onReplayClick(e: MouseEvent) {
   e.preventDefault()
   e.stopPropagation()
-  if (!replayUrl.value) return
-  window.open(replayUrl.value, '_blank', 'noopener,noreferrer')
+  if (!replay.value) return
+  window.open(replay.value.url, '_blank', 'noopener,noreferrer')
 }
 </script>
 
@@ -235,9 +232,9 @@ function onReplayClick(e: MouseEvent) {
             <path d="M9 4h6l-1 5 4 3v3h-5v6l-1 1-1-1v-6H6v-3l4-3-1-5z" />
           </svg>
         </button>
-        <button v-if="score.blScoreId" class="pin-card__foot-btn" type="button"
-          :aria-label="replayLabel" :title="replayLabel" @click="onReplayClick">
-          <img :src="replayIcon" alt="" width="16" height="16"
+        <button v-if="replay" class="pin-card__foot-btn" type="button"
+          :aria-label="replay.label" :title="replay.label" @click="onReplayClick">
+          <img :src="replay.icon" alt="" width="16" height="16"
             style="border-radius: 2px; display: block;" loading="lazy" decoding="async" />
         </button>
         <button class="pin-card__foot-btn" type="button" aria-label="View score details" @click="onDetailClick">

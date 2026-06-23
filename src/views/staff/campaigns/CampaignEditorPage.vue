@@ -7,6 +7,7 @@ import {
   deactivateCampaignDifficulty,
   publishCampaign,
   reopenCampaignForEdit,
+  uncurateCampaign,
   updateCampaign,
   updateCampaignDifficulty,
 } from '@/api/admin/campaigns'
@@ -665,6 +666,20 @@ async function doCurate() {
   }
 }
 
+async function doUncurate() {
+  if (!campaign.value) return
+  actionPending.value = true
+  actionError.value = null
+  try {
+    await uncurateCampaign(campaign.value.id)
+    await load()
+  } catch (err) {
+    actionError.value = getApiErrorMessage(err, 'Failed to uncurate campaign')
+  } finally {
+    actionPending.value = false
+  }
+}
+
 async function doDeactivate() {
   if (!campaign.value) return
   if (!window.confirm('Deactivate this campaign? It will be hidden but player progress preserved.')) return
@@ -1237,6 +1252,10 @@ const breadcrumbs = computed<Crumb[]>(() => {
                   size="sm" variant="primary" :loading="actionPending" :disabled="!canCurate"
                   @click="doCurate">
                   Curate
+                </BaseButton>
+                <BaseButton v-if="isCurator && campaign.status === 'CURATED'"
+                  size="sm" :loading="actionPending" @click="doUncurate">
+                  Uncurate
                 </BaseButton>
                 <BaseButton v-if="isAdmin" size="sm" variant="destructive" :loading="actionPending"
                   @click="doDeactivate">

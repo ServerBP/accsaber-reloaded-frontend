@@ -33,6 +33,7 @@ import {
   readTitleValue,
 } from '@/utils/items'
 import { buildMapRoute } from '@/utils/mapRoute'
+import { scoreSaberReplayUrl } from '@/utils/replay'
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
@@ -53,6 +54,13 @@ const themeStore = useThemeStore()
 const settingsStore = useSettingsStore()
 const beatLeaderFirst = computed(
   () => settingsStore.appearance['appearance.primaryReplayService'] !== 'arcviewer',
+)
+const scoreSaberReplay = computed(() =>
+  scoreSaberReplayUrl({
+    blScoreId: props.score?.blScoreId,
+    ssScoreId: props.score?.ssScoreId,
+    date: props.score?.date,
+  }),
 )
 const coverUrl = computed(() => props.score?.coverUrl ?? '')
 const { dominantColor } = useColorExtract(coverUrl)
@@ -518,6 +526,11 @@ watch(
             BeatLeader
           </BaseButton>
         </template>
+        <BaseButton v-if="scoreSaberReplay" size="sm" :href="scoreSaberReplay">
+          <img src="https://scoresaber.com/favicon-32x32.png" alt="ScoreSaber" width="20" height="20"
+            style="border-radius: 3px;" loading="lazy" decoding="async" />
+          Replay
+        </BaseButton>
       </div>
 
       <div class="score-detail__history">

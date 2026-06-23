@@ -75,6 +75,7 @@ export interface ScoreResponse {
   ap: number
   weightedAp: number
   blScoreId: number | null
+  ssScoreId: number | null
   maxCombo: number
   badCuts: number
   misses: number
