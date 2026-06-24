@@ -43,6 +43,11 @@ const activeRange = computed(() => props.selectedRange ?? 'all')
 
 const hasData = computed(() => props.data.length > 0)
 
+function formatNumber(value: number): string {
+  if (!Number.isFinite(value)) return `${value}`
+  return Number.isInteger(value) ? `${value}` : value.toFixed(2)
+}
+
 async function loadChart() {
   isLoading.value = true
   try {
@@ -109,7 +114,7 @@ async function loadChart() {
                 const y = item.parsed.y ?? 0
                 return props.formatValue
                   ? props.formatValue(y)
-                  : `${y}`
+                  : formatNumber(y)
               },
               afterLabel: () => '',
             },
@@ -134,9 +139,10 @@ async function loadChart() {
             ticks: {
               color: textColor,
               font: { family: 'JetBrains Mono, monospace', size: 10 },
-              callback: props.formatValue
-                ? (value) => props.formatValue!(value as number)
-                : undefined,
+              callback: (value) =>
+                props.formatValue
+                  ? props.formatValue(value as number)
+                  : formatNumber(value as number),
             },
           },
         },
