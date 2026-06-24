@@ -717,5 +717,9 @@ watch([sortField, sortDir, filterCategoryId], () => {
     flex-direction: column;
     gap: var(--space-xs);
   }
+
+  .followed-activity__feed :deep(.feed-card__stats) {
+    margin-left: var(--space-lg);
+  }
 }
 </style>
