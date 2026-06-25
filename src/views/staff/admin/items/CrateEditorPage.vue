@@ -6,17 +6,20 @@ import {
   type CrateContentResponse,
 } from '@/api/admin/crates'
 import {
+  deleteItemIcon,
   getAdminItem,
   getAdminItems,
   reactivateItem,
   deleteItem as retireItem,
   updateItem,
+  uploadItemIcon,
 } from '@/api/admin/items'
 import { ApiError, getApiErrorMessage } from '@/api/client'
 import BaseButton from '@/components/common/BaseButton.vue'
 import BaseInput from '@/components/common/BaseInput.vue'
 import BaseSelect from '@/components/common/BaseSelect.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import ImageUploader from '@/components/common/ImageUploader.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import CrateOpenAnimation from '@/components/domain/CrateOpenAnimation.vue'
 import type {
@@ -47,13 +50,19 @@ const groupByType = ref(true)
 const metaSaving = ref(false)
 const statusBusy = ref(false)
 
+const selectedIds = ref<Set<string>>(new Set())
+const bulkWeight = ref(100)
+const bulkBusy = ref(false)
+
 const form = ref({
   name: '',
   description: '',
-  iconUrl: '',
   rarity: 'common' as ItemRarity,
   tradeable: false,
   visible: true,
+  stackable: true,
+  welcomeGrant: false,
+  missionPoolable: false,
 })
 
 const rarityOptions = RARITY_ORDER.map((r) => ({ value: r, label: r }))
@@ -118,10 +127,12 @@ function syncFormFromCrate() {
   form.value = {
     name: crate.value.name,
     description: crate.value.description ?? '',
-    iconUrl: crate.value.iconUrl ?? '',
     rarity: crate.value.rarity,
     tradeable: crate.value.tradeable,
     visible: crate.value.visible,
+    stackable: crate.value.stackable,
+    welcomeGrant: crate.value.welcomeGrant,
+    missionPoolable: crate.value.missionPoolable,
   }
 }
 
@@ -133,10 +144,12 @@ async function saveMetadata() {
     const req: UpdateItemRequest = {
       name: form.value.name,
       description: form.value.description || undefined,
-      iconUrl: form.value.iconUrl || undefined,
       rarity: form.value.rarity,
       tradeable: form.value.tradeable,
       visible: form.value.visible,
+      stackable: form.value.stackable,
+      welcomeGrant: form.value.welcomeGrant,
+      missionPoolable: form.value.missionPoolable,
     }
     crate.value = await updateItem(crate.value.id, req)
     syncFormFromCrate()
@@ -145,6 +158,16 @@ async function saveMetadata() {
   } finally {
     metaSaving.value = false
   }
+}
+
+async function onCrateIconUpload(file: File) {
+  if (!crate.value) return
+  crate.value = await uploadItemIcon(crate.value.id, file)
+}
+
+async function onCrateIconRemove() {
+  if (!crate.value) return
+  crate.value = await deleteItemIcon(crate.value.id)
 }
 
 async function togglePublish() {
@@ -202,6 +225,41 @@ async function addReward(item: ItemResponse, weight = 100) {
         : 'Cannot add reward'
   } finally {
     delete rowBusy.value[item.id]
+  }
+}
+
+function toggleSelect(id: string) {
+  const next = new Set(selectedIds.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  selectedIds.value = next
+}
+
+function clearSelection() {
+  selectedIds.value = new Set()
+}
+
+const selectableCount = computed(
+  () => [...selectedIds.value].filter((id) => !rewardIds.value.has(id)).length,
+)
+
+async function addSelected() {
+  const ids = [...selectedIds.value].filter((id) => !rewardIds.value.has(id))
+  if (ids.length === 0) return
+  const weight = Math.max(1, Math.floor(bulkWeight.value || 1))
+  bulkBusy.value = true
+  errorMsg.value = null
+  try {
+    for (const id of ids) {
+      await putAdminCrateContent(crateId.value, id, weight)
+    }
+    contents.value = await getAdminCrateContents(crateId.value)
+    selectedIds.value = new Set()
+  } catch (e) {
+    errorMsg.value = getApiErrorMessage(e, 'Failed to add selected rewards')
+    contents.value = await getAdminCrateContents(crateId.value)
+  } finally {
+    bulkBusy.value = false
   }
 }
 
@@ -394,15 +452,25 @@ watch(crateId, refresh)
         <div class="crate-editor__meta-grid">
           <BaseInput v-model="form.name" label="Name" />
           <BaseInput v-model="form.description" label="Description" />
-          <BaseInput v-model="form.iconUrl" label="Icon URL" />
           <BaseSelect :model-value="form.rarity" :options="rarityOptions" label="Rarity"
             @update:model-value="(v: string) => (form.rarity = v as ItemRarity)" />
+          <ImageUploader label="Icon" aspect-ratio="1 / 1" :image-url="crate?.iconUrl ?? null"
+            :upload-handler="onCrateIconUpload" :remove-handler="onCrateIconRemove" />
           <div class="crate-editor__meta-checks">
             <label class="crate-editor__check">
               <input v-model="form.tradeable" type="checkbox" /> Tradeable
             </label>
             <label class="crate-editor__check">
               <input v-model="form.visible" type="checkbox" /> Visible
+            </label>
+            <label class="crate-editor__check">
+              <input v-model="form.stackable" type="checkbox" /> Stackable
+            </label>
+            <label class="crate-editor__check">
+              <input v-model="form.welcomeGrant" type="checkbox" /> Welcome grant
+            </label>
+            <label class="crate-editor__check">
+              <input v-model="form.missionPoolable" type="checkbox" /> Mission reward
             </label>
           </div>
         </div>
@@ -433,32 +501,49 @@ watch(crateId, refresh)
                 <input v-model="groupByType" type="checkbox" /> Group by type
               </label>
             </header>
+            <div v-if="selectableCount > 0" class="crate-editor__bulk-bar">
+              <span class="crate-editor__bulk-count">{{ selectableCount }} selected</span>
+              <label class="crate-editor__bulk-weight">
+                Weight
+                <input type="number" min="1" step="1" :value="bulkWeight"
+                  @input="bulkWeight = Math.max(1, Math.floor(Number(($event.target as HTMLInputElement).value) || 1))" />
+              </label>
+              <BaseButton size="sm" variant="primary" :loading="bulkBusy" @click="addSelected">
+                Add {{ selectableCount }}
+              </BaseButton>
+              <BaseButton size="sm" @click="clearSelection">Clear</BaseButton>
+            </div>
             <div class="crate-editor__picker-list">
               <div v-if="filteredItems.length === 0" class="crate-editor__picker-empty">
                 No matching items.
               </div>
               <div v-for="group in grouped" :key="String(group.key)" class="crate-editor__group">
                 <div v-if="groupByType" class="crate-editor__group-label">{{ group.key }}</div>
-                <button v-for="item in group.items" :key="item.id" type="button" class="crate-editor__picker-item"
-                  :class="{ 'crate-editor__picker-item--added': rewardIds.has(item.id) }"
-                  :disabled="rewardIds.has(item.id) || rowBusy[item.id]" @click="addReward(item)">
-                  <div class="crate-editor__picker-icon">
-                    <img v-if="item.iconUrl" :src="item.iconUrl" alt="" loading="lazy" decoding="async" />
-                    <span v-else class="crate-editor__picker-icon-placeholder" />
-                  </div>
-                  <div class="crate-editor__picker-meta">
-                    <div class="crate-editor__picker-name">{{ item.name }}</div>
-                    <div class="crate-editor__picker-sub">
-                      <span class="crate-editor__picker-type">{{ item.typeKey }}</span>
-                      <span class="crate-editor__rarity" :class="`rarity--${item.rarity}`">
-                        {{ item.rarity }}
-                      </span>
+                <div v-for="item in group.items" :key="item.id" class="crate-editor__picker-row">
+                  <input type="checkbox" class="crate-editor__picker-check"
+                    :checked="selectedIds.has(item.id)" :disabled="rewardIds.has(item.id)"
+                    :aria-label="`Select ${item.name}`" @change="toggleSelect(item.id)" />
+                  <button type="button" class="crate-editor__picker-item"
+                    :class="{ 'crate-editor__picker-item--added': rewardIds.has(item.id) }"
+                    :disabled="rewardIds.has(item.id) || rowBusy[item.id]" @click="addReward(item)">
+                    <div class="crate-editor__picker-icon">
+                      <img v-if="item.iconUrl" :src="item.iconUrl" alt="" loading="lazy" decoding="async" />
+                      <span v-else class="crate-editor__picker-icon-placeholder" />
                     </div>
-                  </div>
-                  <div class="crate-editor__picker-action">
-                    {{ rewardIds.has(item.id) ? 'Already added' : '+ Add' }}
-                  </div>
-                </button>
+                    <div class="crate-editor__picker-meta">
+                      <div class="crate-editor__picker-name">{{ item.name }}</div>
+                      <div class="crate-editor__picker-sub">
+                        <span class="crate-editor__picker-type">{{ item.typeKey }}</span>
+                        <span class="crate-editor__rarity" :class="`rarity--${item.rarity}`">
+                          {{ item.rarity }}
+                        </span>
+                      </div>
+                    </div>
+                    <div class="crate-editor__picker-action">
+                      {{ rewardIds.has(item.id) ? 'Already added' : '+ Add' }}
+                    </div>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -709,8 +794,64 @@ watch(crateId, refresh)
 .crate-editor__meta-checks {
   display: flex;
   align-items: center;
-  gap: var(--space-md);
-  align-self: end;
+  flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-md);
+  grid-column: 1 / -1;
+}
+
+.crate-editor__bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--bg-overlay);
+  background: var(--bg-elevated);
+  flex-wrap: wrap;
+}
+
+.crate-editor__bulk-count {
+  font-size: var(--text-caption);
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.crate-editor__bulk-weight {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+}
+
+.crate-editor__bulk-weight input {
+  width: 72px;
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--bg-overlay);
+  border-radius: var(--radius-input);
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  outline: none;
+}
+
+.crate-editor__bulk-weight input:focus {
+  border-color: var(--accent);
+}
+
+.crate-editor__picker-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.crate-editor__picker-check {
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.crate-editor__picker-row .crate-editor__picker-item {
+  flex: 1;
+  min-width: 0;
 }
 
 .crate-editor__check {

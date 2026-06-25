@@ -4,9 +4,13 @@ export type ItemSource =
   | 'milestone'
   | 'milestone_set'
   | 'campaign_milestone'
+  | 'campaign_difficulty'
+  | 'campaign_completion'
   | 'level'
   | 'trade'
   | 'manual'
+  | 'crate_drop'
+  | 'supporter_tier'
 
 export type KnownItemTypeKey =
   | 'badge'
@@ -328,8 +332,10 @@ export interface ItemResponse {
   visible: boolean
   active: boolean
   deprecated: boolean
-  unlockLevel: number | null
   stackable: boolean
+  welcomeGrant: boolean
+  missionPoolable: boolean
+  unlockLevel: number | null
   worth: number | null
   requirement: string | null
   createdAt: string
@@ -393,26 +399,33 @@ export interface CreateItemRequest {
   name: string
   description?: string
   iconUrl?: string
-  value?: ItemValue
+  value?: Record<string, unknown>
   tradeable?: boolean
   visible?: boolean
   rarity?: ItemRarity
   stackable?: boolean
+  welcomeGrant?: boolean
+  missionPoolable?: boolean
+  active?: boolean
   worth?: number | null
   requirement?: string | null
+  unlockLevel?: number | null
 }
 
 export interface UpdateItemRequest {
   name?: string
   description?: string
   iconUrl?: string
-  value?: ItemValue
+  value?: Record<string, unknown>
   tradeable?: boolean
   visible?: boolean
   rarity?: ItemRarity
   stackable?: boolean
+  welcomeGrant?: boolean
+  missionPoolable?: boolean
   worth?: number | null
   requirement?: string | null
+  unlockLevel?: number | null
 }
 
 export interface AwardItemRequest {

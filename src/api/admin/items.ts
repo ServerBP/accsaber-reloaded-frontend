@@ -11,7 +11,7 @@ import type {
   UpdateItemTypeRequest,
   UserItemResponse,
 } from '@/types/api/items'
-import { del, get, patch, post } from '../client'
+import { del, get, patch, post, postMultipart } from '../client'
 import { buildQuery } from '../utils'
 
 export function getAdminItemTypes(
@@ -65,6 +65,16 @@ export function reactivateItem(id: string): Promise<ItemResponse> {
 
 export function deprecateItem(id: string): Promise<ItemResponse> {
   return post<ItemResponse>(`/admin/items/${id}/deprecate`)
+}
+
+export function uploadItemIcon(id: string, file: File): Promise<ItemResponse> {
+  const form = new FormData()
+  form.append('file', file)
+  return postMultipart<ItemResponse>(`/admin/items/${id}/icon`, form)
+}
+
+export function deleteItemIcon(id: string): Promise<ItemResponse> {
+  return del<ItemResponse>(`/admin/items/${id}/icon`)
 }
 
 export function getAdminItemModifiers(): Promise<ItemModifierResponse[]> {

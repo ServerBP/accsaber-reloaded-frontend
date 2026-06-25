@@ -4,14 +4,19 @@ import BaseButton from '@/components/common/BaseButton.vue'
 import BaseInput from '@/components/common/BaseInput.vue'
 import BaseModal from '@/components/common/BaseModal.vue'
 import BaseSelect from '@/components/common/BaseSelect.vue'
+import ImageUploader from '@/components/common/ImageUploader.vue'
+import SchemaValueForm from './value-form/SchemaValueForm.vue'
 import {
   createItem,
   deleteItem,
+  deleteItemIcon,
   deprecateItem,
   getAdminItems,
   reactivateItem,
   updateItem,
+  uploadItemIcon,
 } from '@/api/admin/items'
+import { parseApiError } from '@/api/client'
 import { useItemTypeStore } from '@/stores/itemTypes'
 import type {
   CreateItemRequest,
@@ -21,6 +26,7 @@ import type {
 } from '@/types/api/items'
 import { parseNullableNumber } from '@/utils/formatters'
 import { RARITY_ORDER } from '@/utils/items'
+import { cleanValue, type JsonSchema } from './value-form/schemaUtils'
 import { computed, onMounted, ref, watch } from 'vue'
 
 const itemTypeStore = useItemTypeStore()
@@ -33,21 +39,52 @@ const typeFilter = ref<string>('')
 const editing = ref<ItemResponse | null>(null)
 const modalOpen = ref(false)
 const submitting = ref(false)
-const valueText = ref('')
+const activeToggling = ref(false)
+
+const formError = ref<string | null>(null)
+const nameError = ref<string | null>(null)
 const valueError = ref<string | null>(null)
-const form = ref<CreateItemRequest>({
-  typeId: '',
-  name: '',
-  description: '',
-  iconUrl: '',
-  value: undefined,
-  tradeable: false,
-  visible: true,
-  rarity: 'common',
-  stackable: false,
-  worth: null,
-  requirement: null,
-})
+
+interface ItemForm {
+  typeId: string
+  name: string
+  description: string
+  rarity: ItemRarity
+  tradeable: boolean
+  visible: boolean
+  stackable: boolean
+  welcomeGrant: boolean
+  missionPoolable: boolean
+  active: boolean
+  worth: number | null
+  requirement: string | null
+  unlockLevel: number | null
+}
+
+function blankForm(typeId = ''): ItemForm {
+  return {
+    typeId,
+    name: '',
+    description: '',
+    rarity: 'common',
+    tradeable: false,
+    visible: true,
+    stackable: false,
+    welcomeGrant: false,
+    missionPoolable: false,
+    active: true,
+    worth: null,
+    requirement: null,
+    unlockLevel: null,
+  }
+}
+
+const form = ref<ItemForm>(blankForm())
+const valueModel = ref<Record<string, unknown>>({})
+
+const iconUrl = ref<string | null>(null)
+const stagedIcon = ref<File | null>(null)
+const stagedIconUrl = ref<string | null>(null)
 
 const rarityOptions = RARITY_ORDER.map((r) => ({ value: r, label: r }))
 
@@ -62,18 +99,39 @@ const typeOptionsRequired = computed(() =>
     .map((t) => ({ value: t.id, label: `${t.name} (${t.key})` })),
 )
 
-const selectedTypeSchema = computed(() => {
-  const id = form.value.typeId
-  if (!id) return null
-  const t = itemTypeStore.byId.get(id)
-  return t?.valueSchema ?? null
-})
+const selectedType = computed(() => itemTypeStore.byId.get(form.value.typeId) ?? null)
+
+const selectedTypeLabel = computed(() =>
+  selectedType.value ? `${selectedType.value.name} (${selectedType.value.key})` : '—',
+)
+
+const selectedTypeSchema = computed<JsonSchema | null>(
+  () => (selectedType.value?.valueSchema as JsonSchema | undefined) ?? null,
+)
 
 const visibleItems = computed(() =>
   typeFilter.value
     ? items.value.filter((i) => i.typeId === typeFilter.value)
     : items.value,
 )
+
+const nameCache = new Map<string, { id: string; name: string }[]>()
+
+async function ensureNames(typeId: string): Promise<{ id: string; name: string }[]> {
+  if (!typeId) return []
+  const cached = nameCache.get(typeId)
+  if (cached) return cached
+  const list = await getAdminItems({ typeId, includeInactive: true })
+  const mapped = list.map((i) => ({ id: i.id, name: i.name }))
+  nameCache.set(typeId, mapped)
+  return mapped
+}
+
+function isDuplicateName(candidate: string): boolean {
+  const list = nameCache.get(form.value.typeId) ?? []
+  const norm = candidate.trim().toLowerCase()
+  return list.some((x) => x.id !== editing.value?.id && x.name.trim().toLowerCase() === norm)
+}
 
 async function fetchItems() {
   loading.value = true
@@ -87,24 +145,27 @@ async function fetchItems() {
   }
 }
 
+function clearStagedIcon() {
+  if (stagedIconUrl.value) URL.revokeObjectURL(stagedIconUrl.value)
+  stagedIcon.value = null
+  stagedIconUrl.value = null
+}
+
+function resetErrors() {
+  formError.value = null
+  nameError.value = null
+  valueError.value = null
+}
+
 function openCreate() {
   editing.value = null
-  form.value = {
-    typeId: itemTypeStore.itemTypes[0]?.id ?? '',
-    name: '',
-    description: '',
-    iconUrl: '',
-    value: undefined,
-    tradeable: false,
-    visible: true,
-    rarity: 'common',
-    stackable: false,
-    worth: null,
-    requirement: null,
-  }
-  valueText.value = ''
-  valueError.value = null
+  form.value = blankForm(itemTypeStore.itemTypes.find((t) => t.active)?.id ?? '')
+  valueModel.value = {}
+  iconUrl.value = null
+  clearStagedIcon()
+  resetErrors()
   modalOpen.value = true
+  if (form.value.typeId) void ensureNames(form.value.typeId)
 }
 
 function openEdit(item: ItemResponse) {
@@ -113,69 +174,186 @@ function openEdit(item: ItemResponse) {
     typeId: item.typeId,
     name: item.name,
     description: item.description ?? '',
-    iconUrl: item.iconUrl ?? '',
-    value: item.value ?? undefined,
+    rarity: item.rarity,
     tradeable: item.tradeable,
     visible: item.visible,
-    rarity: item.rarity,
     stackable: item.stackable,
+    welcomeGrant: item.welcomeGrant,
+    missionPoolable: item.missionPoolable,
+    active: item.active,
     worth: item.worth,
     requirement: item.requirement,
+    unlockLevel: item.unlockLevel,
   }
-  valueText.value = item.value ? JSON.stringify(item.value, null, 2) : ''
-  valueError.value = null
+  valueModel.value = item.value ? { ...(item.value as unknown as Record<string, unknown>) } : {}
+  iconUrl.value = item.iconUrl
+  clearStagedIcon()
+  resetErrors()
   modalOpen.value = true
+  void ensureNames(item.typeId)
 }
 
-function parseValue(): Record<string, unknown> | undefined | false {
-  const text = valueText.value.trim()
-  if (!text) return undefined
-  try {
-    const parsed = JSON.parse(text)
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-      valueError.value = 'value must be a JSON object'
-      return false
-    }
+function closeModal() {
+  clearStagedIcon()
+  modalOpen.value = false
+}
+
+watch(
+  () => form.value.typeId,
+  (typeId) => {
+    if (editing.value) return
+    valueModel.value = {}
     valueError.value = null
-    return parsed as Record<string, unknown>
+    if (typeId) void ensureNames(typeId)
+  },
+)
+
+function applyUpdatedItem(updated: ItemResponse) {
+  const idx = items.value.findIndex((i) => i.id === updated.id)
+  if (idx >= 0) items.value[idx] = updated
+  if (editing.value?.id === updated.id) editing.value = updated
+  const names = nameCache.get(updated.typeId)
+  if (names) {
+    const ni = names.findIndex((n) => n.id === updated.id)
+    if (ni >= 0) names[ni] = { id: updated.id, name: updated.name }
+    else names.push({ id: updated.id, name: updated.name })
+  }
+}
+
+async function onIconUpload(file: File) {
+  if (editing.value) {
+    const updated = await uploadItemIcon(editing.value.id, file)
+    iconUrl.value = updated.iconUrl
+    applyUpdatedItem(updated)
+  } else {
+    clearStagedIcon()
+    stagedIcon.value = file
+    stagedIconUrl.value = URL.createObjectURL(file)
+  }
+}
+
+async function onIconRemove() {
+  if (editing.value) {
+    const updated = await deleteItemIcon(editing.value.id)
+    iconUrl.value = updated.iconUrl
+    applyUpdatedItem(updated)
+  } else {
+    clearStagedIcon()
+  }
+}
+
+const iconPreview = computed(() => (editing.value ? iconUrl.value : stagedIconUrl.value))
+
+async function toggleActive() {
+  if (!editing.value) return
+  activeToggling.value = true
+  resetErrors()
+  try {
+    if (editing.value.active) {
+      await deleteItem(editing.value.id)
+      applyUpdatedItem({ ...editing.value, active: false })
+    } else {
+      applyUpdatedItem(await reactivateItem(editing.value.id))
+    }
   } catch (e) {
-    valueError.value = (e as Error).message
-    return false
+    formError.value = parseApiError(e, 'Failed to change active state').message
+  } finally {
+    activeToggling.value = false
+  }
+}
+
+function buildValuePayload(): Record<string, unknown> | undefined {
+  if (!selectedTypeSchema.value) return undefined
+  return cleanValue(valueModel.value) as Record<string, unknown> | undefined
+}
+
+function mapError(e: unknown, fallback: string) {
+  const parsed = parseApiError(e, fallback)
+  if (parsed.fieldErrors.length) {
+    for (const fe of parsed.fieldErrors) {
+      if (fe.field === 'name') nameError.value = fe.message
+      else if (fe.field === 'value' || fe.field.startsWith('value')) valueError.value = fe.message
+    }
+    formError.value = parsed.message
+  } else if (parsed.status === 422) {
+    valueError.value = parsed.message
+  } else if (parsed.status === 500) {
+    formError.value =
+      'Unexpected server error. If another item in this type already uses this name, pick a different one.'
+  } else {
+    formError.value = parsed.message
   }
 }
 
 async function submit() {
-  const parsed = parseValue()
-  if (parsed === false) return
+  resetErrors()
+
+  const name = form.value.name.trim()
+  if (!name) {
+    nameError.value = 'Name is required'
+    return
+  }
+  try {
+    await ensureNames(form.value.typeId)
+  } catch {
+    void 0
+  }
+  if (isDuplicateName(name)) {
+    nameError.value = 'An item with this name already exists in this type'
+    return
+  }
+
   submitting.value = true
   try {
+    const valuePayload = buildValuePayload()
     if (editing.value) {
       const req: UpdateItemRequest = {
-        name: form.value.name,
-        description: form.value.description,
-        iconUrl: form.value.iconUrl,
-        value: parsed,
+        name,
+        description: form.value.description.trim() || undefined,
+        value: valuePayload,
+        rarity: form.value.rarity,
         tradeable: form.value.tradeable,
         visible: form.value.visible,
-        rarity: form.value.rarity,
         stackable: form.value.stackable,
+        welcomeGrant: form.value.welcomeGrant,
+        missionPoolable: form.value.missionPoolable,
         worth: form.value.worth,
         requirement: form.value.requirement,
+        unlockLevel: form.value.unlockLevel,
       }
-      const updated = await updateItem(editing.value.id, req)
-      const idx = items.value.findIndex((i) => i.id === updated.id)
-      if (idx >= 0) items.value[idx] = updated
+      applyUpdatedItem(await updateItem(editing.value.id, req))
     } else {
       const req: CreateItemRequest = {
-        ...form.value,
-        value: parsed,
-        description: form.value.description || undefined,
-        iconUrl: form.value.iconUrl || undefined,
+        typeId: form.value.typeId,
+        name,
+        description: form.value.description.trim() || undefined,
+        value: valuePayload,
+        rarity: form.value.rarity,
+        tradeable: form.value.tradeable,
+        visible: form.value.visible,
+        stackable: form.value.stackable,
+        welcomeGrant: form.value.welcomeGrant,
+        missionPoolable: form.value.missionPoolable,
+        active: form.value.active,
+        worth: form.value.worth,
+        requirement: form.value.requirement,
+        unlockLevel: form.value.unlockLevel,
       }
-      const created = await createItem(req)
+      let created = await createItem(req)
+      if (stagedIcon.value) {
+        try {
+          created = await uploadItemIcon(created.id, stagedIcon.value)
+        } catch (e) {
+          formError.value = parseApiError(e, 'Item created, but icon upload failed').message
+        }
+      }
       items.value.unshift(created)
+      const names = nameCache.get(created.typeId)
+      if (names) names.push({ id: created.id, name: created.name })
     }
-    modalOpen.value = false
+    closeModal()
+  } catch (e) {
+    mapError(e, 'Failed to save item')
   } finally {
     submitting.value = false
   }
@@ -194,20 +372,23 @@ async function withBusy(id: string, fn: () => Promise<void>) {
 
 async function handleDeprecate(item: ItemResponse) {
   if (item.deprecated) return
+  if (
+    !confirm(
+      `Deprecate "${item.name}"? This is permanent and irreversible, and stamps a "vintage" modifier on every copy players already own. There is no un-deprecate.`,
+    )
+  )
+    return
   await withBusy(item.id, async () => {
-    const updated = await deprecateItem(item.id)
-    const idx = items.value.findIndex((i) => i.id === updated.id)
-    if (idx >= 0) items.value[idx] = updated
+    applyUpdatedItem(await deprecateItem(item.id))
   })
 }
 
 async function handleDelete(item: ItemResponse) {
-  if (!confirm(`Delete "${item.name}"? This deactivates the item.`)) return
+  if (!confirm(`Delete "${item.name}"? This deactivates the item (reversible).`)) return
   await withBusy(item.id, async () => {
     await deleteItem(item.id)
     if (includeInactive.value) {
-      const idx = items.value.findIndex((i) => i.id === item.id)
-      if (idx >= 0) items.value[idx] = { ...item, active: false }
+      applyUpdatedItem({ ...item, active: false })
     } else {
       items.value = items.value.filter((i) => i.id !== item.id)
     }
@@ -216,10 +397,13 @@ async function handleDelete(item: ItemResponse) {
 
 async function handleReactivate(item: ItemResponse) {
   await withBusy(item.id, async () => {
-    const updated = await reactivateItem(item.id)
-    const idx = items.value.findIndex((i) => i.id === updated.id)
-    if (idx >= 0) items.value[idx] = updated
+    applyUpdatedItem(await reactivateItem(item.id))
   })
+}
+
+function onUnlockLevelInput(raw: string) {
+  const n = parseNullableNumber(raw)
+  form.value.unlockLevel = n == null ? null : Math.trunc(n)
 }
 
 watch([typeFilter, includeInactive], fetchItems)
@@ -245,7 +429,7 @@ onMounted(async () => {
         <th>Name</th>
         <th>Type</th>
         <th>Rarity</th>
-        <th>Tradeable</th>
+        <th>Flags</th>
         <th>Status</th>
         <th class="right">Actions</th>
       </template>
@@ -256,7 +440,14 @@ onMounted(async () => {
         </td>
         <td class="muted">{{ item.typeKey }}</td>
         <td>{{ item.rarity }}</td>
-        <td>{{ item.tradeable ? 'Yes' : 'No' }}</td>
+        <td>
+          <div class="items-mgmt__flags">
+            <span v-if="item.tradeable" class="items-mgmt__flag" title="Tradeable">Trade</span>
+            <span v-if="item.welcomeGrant" class="items-mgmt__flag" title="Granted to new players">Welcome</span>
+            <span v-if="item.missionPoolable" class="items-mgmt__flag" title="Eligible mission reward">Mission</span>
+            <span v-if="item.stackable" class="items-mgmt__flag" title="Stackable">Stack</span>
+          </div>
+        </td>
         <td>
           <span v-if="!item.active">Inactive</span>
           <span v-else-if="item.deprecated">Deprecated</span>
@@ -291,31 +482,59 @@ onMounted(async () => {
       </template>
     </AdminTable>
 
-    <BaseModal :open="modalOpen" :title="editing ? 'Edit item' : 'New item'" max-width="640px" @close="modalOpen = false">
+    <BaseModal :open="modalOpen" :title="editing ? 'Edit item' : 'New item'" max-width="680px" @close="closeModal">
       <div class="items-mgmt__form">
         <BaseSelect
+          v-if="!editing"
           v-model="form.typeId"
           :options="typeOptionsRequired"
           label="Type"
-          :disabled="!!editing"
+          searchable
         />
-        <BaseInput v-model="form.name" label="Name" />
-        <BaseInput v-model="form.description" label="Description" />
-        <BaseInput v-model="form.iconUrl" label="Icon URL" />
-        <BaseInput
-          :model-value="form.requirement ?? ''"
-          label="Requirement (optional)"
-          placeholder="e.g. Reach level 50"
-          @update:model-value="(v) => form.requirement = String(v).trim() || null"
-        />
+        <div v-else class="items-mgmt__readonly">
+          <span class="items-mgmt__readonly-label">Type</span>
+          <span class="items-mgmt__readonly-value">{{ selectedTypeLabel }}</span>
+        </div>
+
+        <BaseInput v-model="form.name" label="Name" :error="nameError ?? undefined" />
+
+        <div class="items-mgmt__field">
+          <label class="items-mgmt__field-label">Description</label>
+          <textarea
+            v-model="form.description"
+            class="items-mgmt__textarea"
+            rows="2"
+            placeholder="Optional"
+          />
+        </div>
+
         <BaseSelect
-          :model-value="form.rarity ?? 'common'"
+          :model-value="form.rarity"
           :options="rarityOptions"
           label="Rarity"
           @update:model-value="(v: string) => form.rarity = v as ItemRarity"
         />
 
-        <div class="items-mgmt__check-row">
+        <ImageUploader
+          label="Icon"
+          aspect-ratio="1 / 1"
+          hint="PNG, WebP, etc. Stored on upload."
+          :image-url="iconPreview"
+          :upload-handler="onIconUpload"
+          :remove-handler="onIconRemove"
+        />
+
+        <div v-if="selectedTypeSchema" class="items-mgmt__value">
+          <label class="items-mgmt__field-label">Value</label>
+          <SchemaValueForm
+            :key="form.typeId"
+            v-model="valueModel"
+            :schema="selectedTypeSchema"
+            :value-error="valueError"
+          />
+        </div>
+
+        <div class="items-mgmt__check-grid">
           <label class="items-mgmt__check">
             <input v-model="form.tradeable" type="checkbox" /> Tradeable
           </label>
@@ -325,36 +544,57 @@ onMounted(async () => {
           <label class="items-mgmt__check">
             <input v-model="form.stackable" type="checkbox" /> Stackable
           </label>
+          <label class="items-mgmt__check">
+            <input v-model="form.welcomeGrant" type="checkbox" /> Grant to every new player
+          </label>
+          <label class="items-mgmt__check">
+            <input v-model="form.missionPoolable" type="checkbox" /> Eligible mission reward
+          </label>
+          <label v-if="!editing" class="items-mgmt__check">
+            <input v-model="form.active" type="checkbox" /> Active
+          </label>
+          <label v-else class="items-mgmt__check items-mgmt__check--toggle">
+            <input
+              type="checkbox"
+              :checked="editing.active"
+              :disabled="activeToggling"
+              @change="toggleActive"
+            />
+            Active <span class="items-mgmt__toggle-note">(applies immediately)</span>
+          </label>
+        </div>
+
+        <div class="items-mgmt__num-grid">
+          <BaseInput
+            :model-value="form.worth == null ? '' : String(form.worth)"
+            label="Worth (optional)"
+            type="number"
+            step="any"
+            placeholder="e.g. 100"
+            @update:model-value="(v) => form.worth = parseNullableNumber(String(v))"
+          />
+          <BaseInput
+            :model-value="form.unlockLevel == null ? '' : String(form.unlockLevel)"
+            label="Unlock level (optional)"
+            type="number"
+            step="1"
+            placeholder="e.g. 50"
+            @update:model-value="(v) => onUnlockLevelInput(String(v))"
+          />
         </div>
 
         <BaseInput
-          :model-value="form.worth == null ? '' : String(form.worth)"
-          label="Worth (optional)"
-          type="number"
-          step="any"
-          placeholder="e.g. 100"
-          @update:model-value="(v) => form.worth = parseNullableNumber(String(v))"
+          :model-value="form.requirement ?? ''"
+          label="Requirement (optional)"
+          placeholder="e.g. Reach level 50"
+          @update:model-value="(v) => form.requirement = String(v).trim() || null"
         />
 
-        <div class="items-mgmt__value">
-          <label class="items-mgmt__value-label">Value (JSON)</label>
-          <textarea
-            v-model="valueText"
-            class="items-mgmt__value-input"
-            rows="6"
-            spellcheck="false"
-            placeholder="{}"
-          />
-          <div v-if="valueError" class="items-mgmt__value-error">{{ valueError }}</div>
-          <details v-if="selectedTypeSchema" class="items-mgmt__schema">
-            <summary>Value schema for this type</summary>
-            <pre>{{ JSON.stringify(selectedTypeSchema, null, 2) }}</pre>
-          </details>
-        </div>
+        <p v-if="formError" class="items-mgmt__form-error">{{ formError }}</p>
       </div>
 
       <template #footer>
-        <BaseButton size="sm" @click="modalOpen = false">Cancel</BaseButton>
+        <BaseButton size="sm" @click="closeModal">Cancel</BaseButton>
         <BaseButton variant="primary" size="sm" :loading="submitting" @click="submit">
           {{ editing ? 'Save' : 'Create' }}
         </BaseButton>
@@ -385,13 +625,40 @@ onMounted(async () => {
   cursor: pointer;
 }
 
-.items-mgmt__check-row {
-  display: flex;
+.items-mgmt__check-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-sm) var(--space-md);
+}
+
+.items-mgmt__toggle-note {
+  color: var(--text-tertiary);
+}
+
+.items-mgmt__num-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-md);
 }
 
 .items-mgmt__name {
   font-weight: 500;
+}
+
+.items-mgmt__flags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.items-mgmt__flag {
+  padding: 1px var(--space-xs);
+  border: 1px solid var(--bg-overlay);
+  border-radius: var(--radius-pill);
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
 }
 
 .items-mgmt__actions {
@@ -406,56 +673,69 @@ onMounted(async () => {
   gap: var(--space-md);
 }
 
+.items-mgmt__field,
 .items-mgmt__value {
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
 }
 
-.items-mgmt__value-label {
+.items-mgmt__field-label {
   font-size: var(--text-caption);
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  font-weight: 500;
 }
 
-.items-mgmt__value-input {
+.items-mgmt__textarea {
   width: 100%;
-  padding: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
   background: var(--bg-base);
   border: 1px solid var(--bg-overlay);
   border-radius: var(--radius-input);
   color: var(--text-primary);
-  font-family: var(--font-mono);
-  font-size: var(--text-caption);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
   resize: vertical;
   outline: none;
 }
 
-.items-mgmt__value-input:focus {
+.items-mgmt__textarea:focus {
   border-color: var(--accent);
 }
 
-.items-mgmt__value-error {
-  font-size: var(--text-caption);
-  color: var(--error);
+.items-mgmt__readonly {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
 }
 
-.items-mgmt__schema {
+.items-mgmt__readonly-label {
   font-size: var(--text-caption);
   color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 500;
 }
 
-.items-mgmt__schema pre {
-  margin: var(--space-xs) 0 0;
-  padding: var(--space-sm);
+.items-mgmt__readonly-value {
+  padding: var(--space-sm) var(--space-md);
   background: var(--bg-base);
   border: 1px solid var(--bg-overlay);
   border-radius: var(--radius-input);
-  font-family: var(--font-mono);
-  font-size: var(--text-caption);
   color: var(--text-tertiary);
-  overflow: auto;
-  max-height: 200px;
+  font-family: var(--font-mono);
+  font-size: var(--text-body);
+}
+
+.items-mgmt__form-error {
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--error);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  border-radius: var(--radius-input);
+  color: var(--error);
+  font-size: var(--text-caption);
 }
 </style>

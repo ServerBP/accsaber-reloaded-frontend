@@ -20,6 +20,51 @@ export function getApiErrorMessage(err: unknown, fallback: string): string {
   }
 }
 
+export interface ApiFieldError {
+  field: string
+  message: string
+  rejectedValue?: unknown
+}
+
+export interface ParsedApiError {
+  status: number
+  code: string | null
+  message: string
+  fieldErrors: ApiFieldError[]
+}
+
+export function parseApiError(err: unknown, fallback = 'Request failed'): ParsedApiError {
+  if (!(err instanceof ApiError)) {
+    return {
+      status: 0,
+      code: null,
+      message: err instanceof Error ? err.message : fallback,
+      fieldErrors: [],
+    }
+  }
+  try {
+    const body = JSON.parse(err.message) as {
+      code?: unknown
+      message?: unknown
+      fieldErrors?: unknown
+    }
+    const fieldErrors = Array.isArray(body.fieldErrors)
+      ? (body.fieldErrors.filter(
+          (f): f is ApiFieldError =>
+            !!f && typeof f === 'object' && typeof (f as ApiFieldError).field === 'string',
+        ) as ApiFieldError[])
+      : []
+    return {
+      status: err.status,
+      code: typeof body.code === 'string' ? body.code : null,
+      message: typeof body.message === 'string' ? body.message : fallback,
+      fieldErrors,
+    }
+  } catch {
+    return { status: err.status, code: null, message: err.message || fallback, fieldErrors: [] }
+  }
+}
+
 const NO_AUTO_AUTH_PATHS = [
   '/auth/refresh',
   '/auth/logout',
