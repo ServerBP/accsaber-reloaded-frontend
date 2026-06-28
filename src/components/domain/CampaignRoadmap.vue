@@ -105,7 +105,7 @@ const nextIds = computed(() => {
   return set
 })
 
-const diffById = computed(() => {
+const difficultyById = computed(() => {
   const map = new Map<string, CampaignDifficultyResponse>()
   for (const d of props.difficulties) map.set(d.id, d)
   return map
@@ -114,7 +114,7 @@ const diffById = computed(() => {
 const labelLayout = computed(() =>
   computeLabelPlacements(
     renderedNodes.value.map((n) => {
-      const d = diffById.value.get(n.id)
+      const d = difficultyById.value.get(n.id)
       return {
         id: n.id,
         cx: n.cx,
@@ -167,17 +167,17 @@ const checkpointLabels = computed<CheckpointLabel[]>(() => {
   const out: CheckpointLabel[] = []
   for (const [key, g] of groups) {
     const xs = g.nodes.map((n) => n.cx)
-    const ys = g.nodes.map((n) => n.cy)
     const minX = Math.min(...xs)
     const maxX = Math.max(...xs)
-    const minY = Math.min(...ys)
+    const topNode = g.nodes.reduce((a, b) => (b.cy < a.cy ? b : a))
+    const topSize = parseNumericSize(difficultyById.value.get(topNode.id)?.size, props.unit)
     const color = g.color || 'var(--accent-overall)'
     out.push({
       key,
       label: g.label,
       color,
       x: (minX + maxX) / 2,
-      y: minY - props.unit * 1.55,
+      y: topNode.cy - (topSize * 1.3 + props.unit * 0.7),
     })
   }
   return out
@@ -196,12 +196,6 @@ function nodeFootprint(d: CampaignDifficultyResponse): NodeFootprint {
     outerSize: size + accentBand,
   }
 }
-
-const difficultyById = computed(() => {
-  const map = new Map<string, CampaignDifficultyResponse>()
-  for (const d of props.difficulties) map.set(d.id, d)
-  return map
-})
 
 const edges = computed<Edge[]>(() => {
   const out: Edge[] = []

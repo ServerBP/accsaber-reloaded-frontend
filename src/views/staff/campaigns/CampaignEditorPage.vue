@@ -43,6 +43,8 @@ import Breadcrumbs, { type Crumb } from '@/components/common/Breadcrumbs.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import CampaignRoadmap from '@/components/domain/CampaignRoadmap.vue'
+import CampaignRewardItem from '@/components/domain/CampaignRewardItem.vue'
+import { useItemCatalog } from '@/composables/useItemCatalog'
 import { useAuthStore } from '@/stores/auth'
 import { useCategoryStore } from '@/stores/categories'
 import { isAdminSubdomain } from '@/utils/subdomain'
@@ -68,6 +70,7 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const categoryStore = useCategoryStore()
+const { itemsById: rewardItemsById, ensureLoaded: ensureRewardItems } = useItemCatalog()
 
 const campaign = ref<CampaignDetailResponse | null>(null)
 const allTags = ref<CampaignTagResponse[]>([])
@@ -170,6 +173,7 @@ async function load() {
   try {
     const c = await getCampaign(campaignId.value)
     campaign.value = c
+    void ensureRewardItems()
     if (allTags.value.length === 0) {
       allTags.value = await getCampaignTags()
     }
@@ -350,6 +354,7 @@ const creatorStatusMeaning = computed<string | null>(() => {
 const formMeta = ref({
   name: '',
   slug: '',
+  creatorAlias: '',
   summary: '',
   description: '',
   completionMode: 'TERMINAL' as 'TERMINAL' | 'ALL',
@@ -365,6 +370,7 @@ function syncFormFromCampaign() {
   formMeta.value = {
     name: campaign.value.name ?? '',
     slug: campaign.value.slug ?? '',
+    creatorAlias: campaign.value.creatorAlias ?? campaign.value.creatorName ?? '',
     summary: campaign.value.summary ?? '',
     description: campaign.value.description ?? '',
     completionMode: campaign.value.completionMode,
@@ -1265,6 +1271,13 @@ const breadcrumbs = computed<Crumb[]>(() => {
               <span>Name</span>
               <input v-model="formMeta.name" type="text" @blur="commitMetaField('name')" />
             </label>
+            <label class="campaign-editor__field">
+              <span>Creator alias</span>
+              <input v-model="formMeta.creatorAlias" type="text"
+                :placeholder="campaign.creatorName ?? 'Creator name'"
+                @blur="commitMetaField('creatorAlias')" />
+              <small>Shown as the campaign's author. Defaults to your name; change it to credit a collaboration.</small>
+            </label>
             <label v-if="isCurator" class="campaign-editor__field">
               <span>Slug</span>
               <input v-model="formMeta.slug" type="text" placeholder="auto from name"
@@ -1336,16 +1349,19 @@ const breadcrumbs = computed<Crumb[]>(() => {
             <ul v-if="campaign.completionItems.length > 0" class="campaign-editor__reward-list">
               <li v-for="item in campaign.completionItems" :key="item.itemId"
                 class="campaign-editor__reward">
-                <span class="campaign-editor__reward-qty">×{{ item.quantity }}</span>
-                <span class="campaign-editor__reward-name">{{ item.itemName }}</span>
-                <button v-if="editable" type="button" class="campaign-editor__reward-remove"
-                  aria-label="Remove reward" @click="removeCompletionItem(item.itemId)">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
+                <CampaignRewardItem :name="item.itemName" :quantity="item.quantity"
+                  :item="rewardItemsById.get(item.itemId) ?? null">
+                  <template v-if="editable" #action>
+                    <button type="button" class="campaign-editor__reward-remove"
+                      aria-label="Remove reward" @click="removeCompletionItem(item.itemId)">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                  </template>
+                </CampaignRewardItem>
               </li>
             </ul>
             <p v-else class="campaign-editor__hint">
@@ -1572,16 +1588,19 @@ const breadcrumbs = computed<Crumb[]>(() => {
               <ul v-if="selectedDifficulty.items.length > 0" class="campaign-editor__reward-list">
                 <li v-for="item in selectedDifficulty.items" :key="item.itemId"
                   class="campaign-editor__reward">
-                  <span class="campaign-editor__reward-qty">×{{ item.quantity }}</span>
-                  <span class="campaign-editor__reward-name">{{ item.itemName }}</span>
-                  <button v-if="editable" type="button" class="campaign-editor__reward-remove"
-                    aria-label="Remove reward" @click="removeNodeItem(item.itemId)">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </button>
+                  <CampaignRewardItem :name="item.itemName" :quantity="item.quantity"
+                    :item="rewardItemsById.get(item.itemId) ?? null">
+                    <template v-if="editable" #action>
+                      <button type="button" class="campaign-editor__reward-remove"
+                        aria-label="Remove reward" @click="removeNodeItem(item.itemId)">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                          stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <line x1="18" y1="6" x2="6" y2="18" />
+                          <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                      </button>
+                    </template>
+                  </CampaignRewardItem>
                 </li>
               </ul>
               <p v-else class="campaign-editor__hint">
@@ -2309,30 +2328,12 @@ const breadcrumbs = computed<Crumb[]>(() => {
 }
 
 .campaign-editor__reward {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: var(--space-sm);
-  align-items: center;
   padding: 6px 8px;
   background: var(--bg-base);
   border: 1px solid var(--bg-overlay);
   border-radius: 3px;
   font-family: var(--font-sans);
   font-size: var(--text-caption);
-}
-
-.campaign-editor__reward-qty {
-  font-family: var(--font-mono);
-  font-weight: 500;
-  color: var(--text-tertiary);
-  min-width: 28px;
-}
-
-.campaign-editor__reward-name {
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .campaign-editor__reward-remove {

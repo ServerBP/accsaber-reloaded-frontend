@@ -67,7 +67,16 @@ const clipPoints = computed(() =>
 
 const songLabel = computed(() => props.difficulty.songName)
 
-const labelFontSize = computed(() => Math.max(effectiveSize.value * 0.22, 9))
+const labelBoxed = computed(() => !!props.labelPlacement?.boxed)
+
+const baseLabelFontSize = computed(() => Math.max(effectiveSize.value * 0.22, 9))
+
+const labelFontSize = computed(() => {
+  if (!labelBoxed.value) return baseLabelFontSize.value
+  const len = Math.max(songLabel.value.length, 1)
+  const fit = (effectiveSize.value * 1.7) / (len * 0.56)
+  return Math.max(8, Math.min(baseLabelFontSize.value, fit))
+})
 
 const labelX = computed(() => props.labelPlacement?.x ?? props.cx)
 
@@ -76,6 +85,21 @@ const labelY = computed(
 )
 
 const labelAnchor = computed(() => props.labelPlacement?.anchor ?? 'middle')
+
+const labelPlate = computed(() => {
+  if (!labelBoxed.value) return null
+  const fs = labelFontSize.value
+  const textW = Math.max(songLabel.value.length, 1) * fs * 0.56
+  const w = textW + fs * 0.9
+  const h = fs * 1.5
+  return {
+    x: labelX.value - w / 2,
+    y: labelY.value - fs * 0.95,
+    width: w,
+    height: h,
+    rx: Math.min(4, h / 3),
+  }
+})
 
 const tickCx = computed(() => props.cx + effectiveSize.value * 0.62)
 
@@ -144,8 +168,19 @@ const gateR = computed(() => effectiveSize.value * 0.3)
       />
     </g>
 
+    <rect
+      v-if="labelPlate"
+      class="campaign-node__label-plate"
+      :x="labelPlate.x"
+      :y="labelPlate.y"
+      :width="labelPlate.width"
+      :height="labelPlate.height"
+      :rx="labelPlate.rx"
+    />
+
     <text
       class="campaign-node__label"
+      :class="{ 'campaign-node__label--boxed': labelBoxed }"
       :x="labelX"
       :y="labelY"
       :font-size="labelFontSize"
@@ -198,6 +233,18 @@ const gateR = computed(() => effectiveSize.value * 0.3)
   stroke: var(--bg-base);
   stroke-width: 3;
   stroke-linejoin: round;
+}
+
+.campaign-node__label--boxed {
+  stroke-width: 1.5;
+}
+
+.campaign-node__label-plate {
+  fill: var(--bg-base);
+  fill-opacity: 0.82;
+  stroke: var(--bg-overlay);
+  stroke-width: 1;
+  pointer-events: none;
 }
 
 .campaign-node--locked .campaign-node__label {

@@ -13,8 +13,10 @@ import Breadcrumbs, { type Crumb } from '@/components/common/Breadcrumbs.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import CampaignRoadmap from '@/components/domain/CampaignRoadmap.vue'
+import CampaignRewardItem from '@/components/domain/CampaignRewardItem.vue'
 import ComplexityBadge from '@/components/domain/ComplexityBadge.vue'
 import DifficultyBadge from '@/components/domain/DifficultyBadge.vue'
+import { useItemCatalog } from '@/composables/useItemCatalog'
 import { useAuthStore } from '@/stores/auth'
 import { useCategoryStore } from '@/stores/categories'
 import type {
@@ -39,6 +41,7 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const categoryStore = useCategoryStore()
+const { itemsById: rewardItemsById, ensureLoaded: ensureRewardItems } = useItemCatalog()
 
 const campaign = ref<CampaignDetailResponse | null>(null)
 const progress = ref<CampaignProgressResponse | null>(null)
@@ -93,6 +96,9 @@ async function load() {
       progress.value = null
     }
     void loadDifficultyMeta(fetched.difficulties)
+    if (fetched.completionItems.length > 0 || fetched.difficulties.some((d) => d.items.length > 0)) {
+      void ensureRewardItems()
+    }
   } catch (err) {
     error.value = getApiErrorMessage(err, 'Failed to load campaign')
   } finally {
@@ -455,7 +461,7 @@ function unpinTooltip() {
             </div>
             <h1 class="campaign-detail__title">{{ campaign.name }}</h1>
             <p class="campaign-detail__creator">
-              curated by
+              {{ campaign.status === 'CURATED' ? 'curated by' : 'created by' }}
               <span class="campaign-detail__creator-name">
                 {{ campaign.creatorAlias || campaign.creatorName || 'AccSaber' }}
               </span>
@@ -566,8 +572,8 @@ function unpinTooltip() {
             <h2 class="campaign-detail__section-label">Completion rewards</h2>
             <ul class="campaign-detail__rewards-list">
               <li v-for="item in campaign.completionItems" :key="item.itemId" class="campaign-detail__reward">
-                <span class="campaign-detail__reward-qty">×{{ item.quantity }}</span>
-                <span class="campaign-detail__reward-name">{{ item.itemName }}</span>
+                <CampaignRewardItem :name="item.itemName" :quantity="item.quantity"
+                  :item="rewardItemsById.get(item.itemId) ?? null" />
               </li>
             </ul>
           </section>
@@ -683,8 +689,8 @@ function unpinTooltip() {
               </h3>
               <ul class="campaign-detail__rewards-list">
                 <li v-for="item in displayedDifficulty.items" :key="item.itemId" class="campaign-detail__reward">
-                  <span class="campaign-detail__reward-qty">×{{ item.quantity }}</span>
-                  <span class="campaign-detail__reward-name">{{ item.itemName }}</span>
+                  <CampaignRewardItem :name="item.itemName" :quantity="item.quantity"
+                    :item="rewardItemsById.get(item.itemId) ?? null" />
                 </li>
               </ul>
             </div>
@@ -1157,7 +1163,7 @@ function unpinTooltip() {
 
 .campaign-detail__reward {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--space-sm);
   padding: 6px 0;
   font-family: var(--font-sans);
@@ -1167,17 +1173,6 @@ function unpinTooltip() {
 
 .campaign-detail__reward:last-child {
   border-bottom: none;
-}
-
-.campaign-detail__reward-qty {
-  font-family: var(--font-mono);
-  font-weight: 500;
-  color: var(--page-accent);
-  min-width: 32px;
-}
-
-.campaign-detail__reward-name {
-  color: var(--text-primary);
 }
 
 .campaign-detail__node {

@@ -112,6 +112,7 @@ export interface LabelPlacement {
   x: number
   y: number
   anchor: 'middle' | 'start' | 'end'
+  boxed?: boolean
 }
 
 interface LabelNodeInput {
@@ -143,15 +144,9 @@ function boxesOverlap(a: LabelBox, b: LabelBox): boolean {
   return a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0
 }
 
-/**
- * Chooses a label position for each node so song names land in open space
- * (below, above, right, then left) instead of overprinting neighbouring nodes.
- * Greedy: nodes resolve top-to-bottom, each avoiding node bodies first and
- * already-placed labels second, falling back to the below position.
- */
 export function computeLabelPlacements(nodes: LabelNodeInput[]): Map<string, LabelPlacement> {
   const result = new Map<string, LabelPlacement>()
-  const circles = nodes.map((n) => ({ id: n.id, cx: n.cx, cy: n.cy, r: n.size * 1.18 }))
+  const circles = nodes.map((n) => ({ id: n.id, cx: n.cx, cy: n.cy, r: n.size * 1.2 }))
   const placed: LabelBox[] = []
 
   const order = [...nodes].sort((a, b) => a.cy - b.cy || a.cx - b.cx)
@@ -162,59 +157,54 @@ export function computeLabelPlacements(nodes: LabelNodeInput[]): Map<string, Lab
     const halfW = width / 2
     const ascent = fontSize * 0.9
     const descent = fontSize * 0.18
+    const pad = Math.max(3, fontSize * 0.3)
     const s = n.size
-
     const sideY = n.cy + fontSize * 0.32
-    const candidates: { placement: LabelPlacement; box: LabelBox }[] = [
-      (() => {
-        const y = n.cy + s * 1.55
-        return {
-          placement: { x: n.cx, y, anchor: 'middle' as const },
-          box: { x0: n.cx - halfW, x1: n.cx + halfW, y0: y - ascent, y1: y + descent },
-        }
-      })(),
-      (() => {
-        const y = n.cy - s * 1.25
-        return {
-          placement: { x: n.cx, y, anchor: 'middle' as const },
-          box: { x0: n.cx - halfW, x1: n.cx + halfW, y0: y - ascent, y1: y + descent },
-        }
-      })(),
-      (() => {
-        const x = n.cx + s * 1.25
-        return {
-          placement: { x, y: sideY, anchor: 'start' as const },
-          box: { x0: x, x1: x + width, y0: sideY - ascent, y1: sideY + descent },
-        }
-      })(),
-      (() => {
-        const x = n.cx - s * 1.25
-        return {
-          placement: { x, y: sideY, anchor: 'end' as const },
-          box: { x0: x - width, x1: x, y0: sideY - ascent, y1: sideY + descent },
-        }
-      })(),
-    ]
 
-    let best: { placement: LabelPlacement; box: LabelBox; penalty: number } | null = null
-    candidates.forEach((cand, idx) => {
-      let nodeHits = 0
-      for (const c of circles) {
-        if (c.id === n.id) continue
-        if (circleHitsBox(c.cx, c.cy, c.r, cand.box)) nodeHits++
-      }
-      let labelHits = 0
-      for (const box of placed) {
-        if (boxesOverlap(cand.box, box)) labelHits++
-      }
-      const penalty = nodeHits * 100 + labelHits * 12 + idx
-      if (!best || penalty < best.penalty) best = { ...cand, penalty }
+    const vert = (y: number): { placement: LabelPlacement; box: LabelBox } => ({
+      placement: { x: n.cx, y, anchor: 'middle' },
+      box: { x0: n.cx - halfW, x1: n.cx + halfW, y0: y - ascent, y1: y + descent },
+    })
+    const right = (x: number): { placement: LabelPlacement; box: LabelBox } => ({
+      placement: { x, y: sideY, anchor: 'start' },
+      box: { x0: x, x1: x + width, y0: sideY - ascent, y1: sideY + descent },
+    })
+    const left = (x: number): { placement: LabelPlacement; box: LabelBox } => ({
+      placement: { x, y: sideY, anchor: 'end' },
+      box: { x0: x - width, x1: x, y0: sideY - ascent, y1: sideY + descent },
     })
 
-    const chosen = best as { placement: LabelPlacement; box: LabelBox } | null
-    if (chosen) {
-      result.set(n.id, chosen.placement)
-      placed.push(chosen.box)
+    const candidates = [
+      vert(n.cy + s * 1.55),
+      vert(n.cy - s * 1.25),
+      right(n.cx + s * 1.25),
+      left(n.cx - s * 1.25),
+      vert(n.cy + s * 2.75),
+      vert(n.cy - s * 2.45),
+      right(n.cx + s * 2.55),
+      left(n.cx - s * 2.55),
+    ]
+
+    const isClear = (box: LabelBox): boolean => {
+      const inflated = { x0: box.x0 - pad, y0: box.y0 - pad, x1: box.x1 + pad, y1: box.y1 + pad }
+      for (const c of circles) {
+        if (c.id === n.id) continue
+        if (circleHitsBox(c.cx, c.cy, c.r, inflated)) return false
+      }
+      for (const box2 of placed) {
+        if (boxesOverlap(inflated, box2)) return false
+      }
+      return true
+    }
+
+    const clear = candidates.find((cand) => isClear(cand.box))
+    if (clear) {
+      result.set(n.id, clear.placement)
+      placed.push(clear.box)
+    } else {
+      result.set(n.id, { x: n.cx, y: sideY, anchor: 'middle', boxed: true })
+      const bw = Math.min(halfW, s)
+      placed.push({ x0: n.cx - bw, x1: n.cx + bw, y0: n.cy - fontSize, y1: n.cy + fontSize })
     }
   }
 
@@ -270,7 +260,7 @@ export function formatRequirement(
     case 'ACC':
       return `${(value * 100).toFixed(2)}%`
     case 'AP':
-      return `${Math.round(value)}ap`
+      return `${Math.round(value)} AP`
     case 'SCORE':
       if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`
       if (value >= 1_000) return `${(value / 1_000).toFixed(0)}k`
@@ -292,7 +282,7 @@ export function formatRequirementShort(
     case 'ACC':
       return `${(value * 100).toFixed(1)}%`
     case 'AP':
-      return `${Math.round(value)}ap`
+      return `${Math.round(value)} AP`
     case 'SCORE':
       if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`
       if (value >= 1_000) return `${(value / 1_000).toFixed(0)}k`
@@ -315,7 +305,7 @@ export function formatUserValue(
     case 'ACC':
       return `${(value * 100).toFixed(2)}%`
     case 'AP':
-      return `${value.toFixed(1)}ap`
+      return `${value.toFixed(1)} AP`
     case 'SCORE':
       return value.toLocaleString('en-US')
     case 'STREAK_115':
