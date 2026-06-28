@@ -16,6 +16,7 @@ import type {
 } from '@/types/api/campaigns'
 import type { Page } from '@/types/pagination'
 import type { CampaignStatus } from '@/types/enums'
+import { isAdminSubdomain } from '@/utils/subdomain'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -27,11 +28,12 @@ const auth = useAuthStore()
 const categoryStore = useCategoryStore()
 
 const isCurator = computed(() => auth.hasRole('CAMPAIGN_CURATOR'))
+const canReview = computed(() => isCurator.value && isAdminSubdomain)
 
 const pane = computed<Pane>(() => {
   const v = (route.query.pane as string | undefined) ?? 'all'
   if (v === 'mine' || v === 'started') return v
-  if (v === 'review' && isCurator.value) return 'review'
+  if (v === 'review' && canReview.value) return 'review'
   return 'all'
 })
 
@@ -123,7 +125,7 @@ async function loadCampaigns() {
       items.value = page.content
       totalPages.value = page.totalPages || 1
     } else if (pane.value === 'review') {
-      if (!isCurator.value) {
+      if (!canReview.value) {
         items.value = []
         totalPages.value = 1
         return
@@ -267,7 +269,7 @@ watch(
           :class="{ 'campaigns-page__pane--active': pane === 'mine' }" @click="setPane('mine')">
           Mine
         </button>
-        <button v-if="isCurator" class="campaigns-page__pane"
+        <button v-if="canReview" class="campaigns-page__pane"
           :class="{ 'campaigns-page__pane--active': pane === 'review' }" @click="setPane('review')">
           Review
         </button>
@@ -369,7 +371,7 @@ watch(
     <div v-else class="campaigns-page__list">
       <CampaignRow v-for="campaign in items" :key="campaign.id" :campaign="campaign"
         :progress="progressMap.get(campaign.id) ?? null"
-        :editor-link="isCurator || pane === 'mine'" />
+        :editor-link="pane === 'mine' || pane === 'review'" />
     </div>
 
     <div v-if="totalPages > 1 && !loading" class="campaigns-page__pagination">

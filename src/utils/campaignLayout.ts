@@ -108,6 +108,119 @@ export function layoutNodes(
   }
 }
 
+export interface LabelPlacement {
+  x: number
+  y: number
+  anchor: 'middle' | 'start' | 'end'
+}
+
+interface LabelNodeInput {
+  id: string
+  cx: number
+  cy: number
+  size: number
+  text: string
+}
+
+interface LabelBox {
+  x0: number
+  y0: number
+  x1: number
+  y1: number
+}
+
+const AVG_CHAR_WIDTH = 0.56
+
+function circleHitsBox(cx: number, cy: number, r: number, box: LabelBox): boolean {
+  const nx = Math.max(box.x0, Math.min(cx, box.x1))
+  const ny = Math.max(box.y0, Math.min(cy, box.y1))
+  const dx = cx - nx
+  const dy = cy - ny
+  return dx * dx + dy * dy < r * r
+}
+
+function boxesOverlap(a: LabelBox, b: LabelBox): boolean {
+  return a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0
+}
+
+/**
+ * Chooses a label position for each node so song names land in open space
+ * (below, above, right, then left) instead of overprinting neighbouring nodes.
+ * Greedy: nodes resolve top-to-bottom, each avoiding node bodies first and
+ * already-placed labels second, falling back to the below position.
+ */
+export function computeLabelPlacements(nodes: LabelNodeInput[]): Map<string, LabelPlacement> {
+  const result = new Map<string, LabelPlacement>()
+  const circles = nodes.map((n) => ({ id: n.id, cx: n.cx, cy: n.cy, r: n.size * 1.18 }))
+  const placed: LabelBox[] = []
+
+  const order = [...nodes].sort((a, b) => a.cy - b.cy || a.cx - b.cx)
+
+  for (const n of order) {
+    const fontSize = Math.max(n.size * 0.22, 9)
+    const width = Math.max(n.text.length * fontSize * AVG_CHAR_WIDTH, fontSize)
+    const halfW = width / 2
+    const ascent = fontSize * 0.9
+    const descent = fontSize * 0.18
+    const s = n.size
+
+    const sideY = n.cy + fontSize * 0.32
+    const candidates: { placement: LabelPlacement; box: LabelBox }[] = [
+      (() => {
+        const y = n.cy + s * 1.55
+        return {
+          placement: { x: n.cx, y, anchor: 'middle' as const },
+          box: { x0: n.cx - halfW, x1: n.cx + halfW, y0: y - ascent, y1: y + descent },
+        }
+      })(),
+      (() => {
+        const y = n.cy - s * 1.25
+        return {
+          placement: { x: n.cx, y, anchor: 'middle' as const },
+          box: { x0: n.cx - halfW, x1: n.cx + halfW, y0: y - ascent, y1: y + descent },
+        }
+      })(),
+      (() => {
+        const x = n.cx + s * 1.25
+        return {
+          placement: { x, y: sideY, anchor: 'start' as const },
+          box: { x0: x, x1: x + width, y0: sideY - ascent, y1: sideY + descent },
+        }
+      })(),
+      (() => {
+        const x = n.cx - s * 1.25
+        return {
+          placement: { x, y: sideY, anchor: 'end' as const },
+          box: { x0: x - width, x1: x, y0: sideY - ascent, y1: sideY + descent },
+        }
+      })(),
+    ]
+
+    let best: { placement: LabelPlacement; box: LabelBox; penalty: number } | null = null
+    candidates.forEach((cand, idx) => {
+      let nodeHits = 0
+      for (const c of circles) {
+        if (c.id === n.id) continue
+        if (circleHitsBox(c.cx, c.cy, c.r, cand.box)) nodeHits++
+      }
+      let labelHits = 0
+      for (const box of placed) {
+        if (boxesOverlap(cand.box, box)) labelHits++
+      }
+      const penalty = nodeHits * 100 + labelHits * 12 + idx
+      if (!best || penalty < best.penalty) best = { ...cand, penalty }
+    })
+
+    const chosen = best as { placement: LabelPlacement; box: LabelBox } | null
+    if (chosen) {
+      result.set(n.id, chosen.placement)
+      placed.push(chosen.box)
+    }
+  }
+
+  return result
+}
+
 export function edgePointOnShape(
   shape: CampaignNodeShape,
   size: number,

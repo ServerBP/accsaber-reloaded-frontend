@@ -196,6 +196,10 @@ function criteriaLabel(vote: string): string {
   gap: var(--space-sm);
 }
 
+.activity-page :deep(.pagination) {
+  margin-top: var(--space-lg);
+}
+
 .activity-card {
   background: var(--bg-surface);
   border: 1px solid var(--bg-overlay);

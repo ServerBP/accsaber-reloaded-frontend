@@ -8,6 +8,7 @@ import {
   parseNumericSize,
   resolveShape,
   shapeCorners,
+  type LabelPlacement,
 } from '@/utils/campaignLayout'
 import { computed } from 'vue'
 
@@ -19,6 +20,8 @@ const props = defineProps<{
   size: number
   accentColor: string
   selected?: boolean
+  isNext?: boolean
+  labelPlacement?: LabelPlacement | null
 }>()
 
 defineEmits<{ select: [id: string] }>()
@@ -27,6 +30,7 @@ const state = computed<'locked' | 'available' | 'cleared' | 'current'>(() => {
   if (props.progress?.completed) return 'cleared'
   if (props.selected) return 'current'
   if (props.progress && !props.progress.unlocked) return 'locked'
+  if (props.isNext) return 'current'
   return 'available'
 })
 
@@ -63,9 +67,15 @@ const clipPoints = computed(() =>
 
 const songLabel = computed(() => props.difficulty.songName)
 
-const labelOffsetY = computed(() => props.cy + effectiveSize.value * 1.55)
-
 const labelFontSize = computed(() => Math.max(effectiveSize.value * 0.22, 9))
+
+const labelX = computed(() => props.labelPlacement?.x ?? props.cx)
+
+const labelY = computed(
+  () => props.labelPlacement?.y ?? props.cy + effectiveSize.value * 1.55,
+)
+
+const labelAnchor = computed(() => props.labelPlacement?.anchor ?? 'middle')
 
 const tickCx = computed(() => props.cx + effectiveSize.value * 0.62)
 
@@ -136,10 +146,10 @@ const gateR = computed(() => effectiveSize.value * 0.3)
 
     <text
       class="campaign-node__label"
-      :x="cx"
-      :y="labelOffsetY"
+      :x="labelX"
+      :y="labelY"
       :font-size="labelFontSize"
-      text-anchor="middle"
+      :text-anchor="labelAnchor"
       fill="var(--text-primary)"
     >
       {{ songLabel }}

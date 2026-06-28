@@ -31,6 +31,7 @@ import {
 } from '@/utils/campaignDifficulty'
 import { formatRequirement, formatUserValue } from '@/utils/campaignLayout'
 import { buildMapRoute } from '@/utils/mapRoute'
+import { isAdminSubdomain } from '@/utils/subdomain'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -175,6 +176,23 @@ const isInProgress = computed(() => progress.value?.status === 'IN_PROGRESS')
 const isCompleted = computed(() => progress.value?.status === 'COMPLETED')
 const isAbandoned = computed(() => progress.value?.status === 'ABANDONED')
 
+const isOwner = computed(
+  () =>
+    auth.isLoggedIn
+    && !!campaign.value?.creatorId
+    && !!auth.userId
+    && String(campaign.value.creatorId) === String(auth.userId),
+)
+
+const canManage = computed(
+  () => isOwner.value || (isAdminSubdomain && auth.hasRole('CAMPAIGN_CURATOR')),
+)
+
+function goToEditor() {
+  if (!campaign.value) return
+  void router.push({ name: 'campaign-editor', params: { campaignId: campaign.value.id } })
+}
+
 const progressByDifficulty = computed(() => {
   const map = new Map<string, CampaignDifficultyProgressResponse>()
   for (const p of progress.value?.difficulties ?? []) {
@@ -264,10 +282,6 @@ const focusNodeId = computed<string | null>(() => {
 
   if (cleared.length === 0) return rootId()
 
-  if (c.completionMode === 'ALL' || c.progressionAgnostic) {
-    return cleared[cleared.length - 1].campaignDifficultyId
-  }
-
   const byId = new Map(c.difficulties.map((d) => [d.id, d]))
   const depthMemo = new Map<string, number>()
   const depthOf = (id: string, seen = new Set<string>()): number => {
@@ -286,6 +300,22 @@ const focusNodeId = computed<string | null>(() => {
     seen.delete(id)
     depthMemo.set(id, max)
     return max
+  }
+
+  if (isInProgress.value && !c.progressionAgnostic) {
+    const frontier = progress.value?.difficulties.filter((p) => p.unlocked && !p.completed) ?? []
+    if (frontier.length > 0) {
+      let next = { id: frontier[0].campaignDifficultyId, depth: Infinity }
+      for (const f of frontier) {
+        const d = depthOf(f.campaignDifficultyId)
+        if (d < next.depth) next = { id: f.campaignDifficultyId, depth: d }
+      }
+      return next.id
+    }
+  }
+
+  if (c.completionMode === 'ALL' || c.progressionAgnostic) {
+    return cleared[cleared.length - 1].campaignDifficultyId
   }
 
   let best = { id: cleared[0].campaignDifficultyId, depth: -1 }
@@ -403,7 +433,8 @@ function unpinTooltip() {
         <CampaignRoadmap :difficulties="campaign.difficulties" :progress="progress?.difficulties"
           :accent-color="accent" :node-accents="nodeAccents" :background-url="campaign.backgroundUrl"
           :show-starfield="!campaign.backgroundUrl" :focus-id="focusNodeId" :default-scale="1.35"
-          :selected-id="selectedId" @select="handleSelect" @hover="handleHover"
+          :selected-id="selectedId" :mark-next="isInProgress && !campaign.progressionAgnostic"
+          @select="handleSelect" @hover="handleHover"
           @deselect="handleDeselect" />
 
         <Breadcrumbs class="campaign-detail__breadcrumbs" :crumbs="breadcrumbs" />
@@ -481,6 +512,15 @@ function unpinTooltip() {
             <p v-if="isAbandoned" class="campaign-detail__hint">
               Previously abandoned. Beginning again resets progress.
             </p>
+
+            <button v-if="canManage" type="button" class="campaign-detail__manage" @click="goToEditor">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+              </svg>
+              Edit campaign
+            </button>
           </div>
 
           <section class="campaign-detail__progress" aria-label="Your progression">
@@ -938,6 +978,30 @@ function unpinTooltip() {
   font-size: 0.6875rem;
   color: var(--text-tertiary);
   line-height: 1.4;
+}
+
+.campaign-detail__manage {
+  width: auto;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  padding: 0;
+  background: none;
+  border: none;
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+
+.campaign-detail__manage:hover {
+  color: var(--text-primary);
 }
 
 .campaign-detail__error {

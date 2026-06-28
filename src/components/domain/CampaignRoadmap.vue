@@ -8,8 +8,8 @@ import type {
   CampaignNodeShape,
 } from '@/types/api/campaigns'
 import {
+  computeLabelPlacements,
   edgePointOnShape,
-  hexCorners,
   layoutNodes,
   parseNumericSize,
   resolveShape,
@@ -32,6 +32,7 @@ const props = withDefaults(defineProps<{
   editable?: boolean
   mode?: 'drag' | 'connect'
   unit?: number
+  markNext?: boolean
 }>(), {
   accentColor: 'var(--accent)',
   nodeAccents: () => new Map(),
@@ -43,6 +44,7 @@ const props = withDefaults(defineProps<{
   editable: false,
   mode: 'drag',
   unit: 48,
+  markNext: false,
 })
 
 const themeStore = useThemeStore()
@@ -93,6 +95,36 @@ const progressById = computed(() => {
   for (const p of props.progress ?? []) map.set(p.campaignDifficultyId, p)
   return map
 })
+
+const nextIds = computed(() => {
+  const set = new Set<string>()
+  if (!props.markNext) return set
+  for (const p of props.progress ?? []) {
+    if (p.unlocked && !p.completed) set.add(p.campaignDifficultyId)
+  }
+  return set
+})
+
+const diffById = computed(() => {
+  const map = new Map<string, CampaignDifficultyResponse>()
+  for (const d of props.difficulties) map.set(d.id, d)
+  return map
+})
+
+const labelLayout = computed(() =>
+  computeLabelPlacements(
+    renderedNodes.value.map((n) => {
+      const d = diffById.value.get(n.id)
+      return {
+        id: n.id,
+        cx: n.cx,
+        cy: n.cy,
+        size: parseNumericSize(d?.size, props.unit),
+        text: d?.songName ?? '',
+      }
+    }),
+  ),
+)
 
 interface Edge {
   fromId: string
@@ -515,15 +547,21 @@ function focusNode(id: string, targetScale?: number) {
   clampPan()
 }
 
-function initialPosition() {
-  if (!stage.value) return
-  stageWidth.value = stage.value.clientWidth
-  stageHeight.value = stage.value.clientHeight
+const canRecenter = computed(() => !!props.focusId && nodeById.value.has(props.focusId))
+
+function recenter() {
   if (props.focusId && nodeById.value.has(props.focusId)) {
     focusNode(props.focusId, props.defaultScale)
   } else {
     fitToContent()
   }
+}
+
+function initialPosition() {
+  if (!stage.value) return
+  stageWidth.value = stage.value.clientWidth
+  stageHeight.value = stage.value.clientHeight
+  recenter()
 }
 
 let didInitialPosition = false
@@ -692,6 +730,7 @@ const arrowDecorations = computed(() =>
           <CampaignNode :difficulty="difficulties.find((d) => d.id === n.id)!"
             :progress="progressById.get(n.id) ?? null" :cx="n.cx" :cy="n.cy" :size="unit"
             :accent-color="nodeAccentFor(n.id)" :selected="selectedId === n.id"
+            :is-next="nextIds.has(n.id)" :label-placement="labelLayout.get(n.id) ?? null"
             @select="emit('select', $event)" />
         </g>
 
@@ -707,6 +746,7 @@ const arrowDecorations = computed(() =>
     </svg>
 
     <div class="campaign-roadmap__bottom-stack">
+      <div class="campaign-roadmap__hint" aria-hidden="true">drag · scroll to zoom</div>
       <div class="campaign-roadmap__controls" aria-label="Roadmap controls">
         <button type="button" class="campaign-roadmap__btn" aria-label="Zoom in" @click="adjustZoom(1.2)">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -730,11 +770,21 @@ const arrowDecorations = computed(() =>
             <polyline points="20 16 20 20 16 20" />
           </svg>
         </button>
+        <button v-if="canRecenter" type="button" class="campaign-roadmap__btn"
+          aria-label="Recenter on current progress" @click="recenter">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="7" />
+            <line x1="12" y1="1.5" x2="12" y2="4.5" />
+            <line x1="12" y1="19.5" x2="12" y2="22.5" />
+            <line x1="1.5" y1="12" x2="4.5" y2="12" />
+            <line x1="19.5" y1="12" x2="22.5" y2="12" />
+            <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />
+          </svg>
+        </button>
       </div>
       <slot name="actions" />
     </div>
-
-    <div class="campaign-roadmap__hint" aria-hidden="true">drag · scroll to zoom</div>
   </div>
 </template>
 
@@ -903,9 +953,7 @@ const arrowDecorations = computed(() =>
 }
 
 .campaign-roadmap__hint {
-  position: absolute;
-  bottom: var(--space-sm);
-  left: var(--space-sm);
+  order: -1;
   font-family: var(--font-sans);
   font-size: 0.5625rem;
   font-weight: 600;

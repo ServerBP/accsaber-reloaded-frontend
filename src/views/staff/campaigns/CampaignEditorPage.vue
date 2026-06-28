@@ -23,7 +23,6 @@ import {
   publishPlayerCampaign,
   removeCampaignCompletionItem,
   removeCampaignDifficultyItem,
-  submitCampaignForReview,
   unpublishPlayerCampaign,
   updatePlayerCampaign,
   updatePlayerCampaignDifficulty,
@@ -336,7 +335,7 @@ const creatorStatusMeaning = computed<string | null>(() => {
     case 'DRAFT':
       return campaign.value.seekingCuration
         ? 'Draft, awaiting curator review. Only you can see it until you publish.'
-        : 'Draft, only you can see it. Publish to make it playable, or submit it for curation.'
+        : 'Draft, only you can see it. Publish to make it playable.'
     case 'PUBLISHED':
       return 'Live and playable. Unpublish to make changes, then publish again.'
     case 'EDITING':
@@ -490,20 +489,6 @@ function toggleTag(tagId: string) {
   if (current.has(tagId)) current.delete(tagId)
   else current.add(tagId)
   void applyCampaignPatch({ tagIds: Array.from(current) })
-}
-
-async function toggleSeekingCuration() {
-  if (!campaign.value) return
-  actionPending.value = true
-  actionError.value = null
-  try {
-    await submitCampaignForReview(campaign.value.id, !campaign.value.seekingCuration)
-    await load()
-  } catch (err) {
-    actionError.value = getApiErrorMessage(err, 'Failed to update review state')
-  } finally {
-    actionPending.value = false
-  }
 }
 
 function doPlayerPublish() {
@@ -1223,9 +1208,6 @@ const breadcrumbs = computed<Crumb[]>(() => {
                   <BaseButton size="sm" variant="primary" :loading="actionPending"
                     @click="doPlayerPublish">
                     Publish
-                  </BaseButton>
-                  <BaseButton size="sm" :loading="actionPending" @click="toggleSeekingCuration">
-                    {{ campaign.seekingCuration ? 'Retract curation request' : 'Submit for curation' }}
                   </BaseButton>
                   <BaseButton size="sm" variant="destructive" :loading="actionPending"
                     @click="deleteDraft">
