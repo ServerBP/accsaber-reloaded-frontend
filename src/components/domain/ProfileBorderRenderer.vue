@@ -78,6 +78,40 @@ const solidColor = computed<string | null>(() => {
   return null
 })
 
+const vbBounds = computed(() => {
+  const vb = props.shape?.viewBox ?? '0 0 100 100'
+  const parts = vb.split(/[\s,]+/).map(Number)
+  const valid = parts.length === 4 && parts.every((n) => Number.isFinite(n))
+  const [minX, minY, w, h] = valid ? parts : [0, 0, 100, 100]
+  return { minX, minY, w, h }
+})
+
+const linearGradAttrs = computed(() => {
+  const { minX, minY, w, h } = vbBounds.value
+  const g = effectiveGradient.value
+  const angle = g && g.type === 'linear' ? g.angleDeg : 0
+  return {
+    x1: minX,
+    y1: minY + h / 2,
+    x2: minX + w,
+    y2: minY + h / 2,
+    transform: `rotate(${angle} ${minX + w / 2} ${minY + h / 2})`,
+  }
+})
+
+const radialGradAttrs = computed(() => {
+  const { minX, minY, w, h } = vbBounds.value
+  const g = effectiveGradient.value
+  const cxPct = g && g.type === 'radial' ? (g.centerXPct ?? 50) : 50
+  const cyPct = g && g.type === 'radial' ? (g.centerYPct ?? 50) : 50
+  const rPct = g && g.type === 'radial' ? (g.radiusPct ?? 50) : 50
+  return {
+    cx: minX + (w * cxPct) / 100,
+    cy: minY + (h * cyPct) / 100,
+    r: (Math.min(w, h) * rPct) / 100,
+  }
+})
+
 const sortedShapeStates = computed<BorderShapeStateValue[]>(() => {
   const sv = props.shape
   if (!sv) return []
@@ -253,8 +287,12 @@ const ringStyle = computed<Record<string, string> | undefined>(() => {
       <linearGradient
         v-if="effectiveGradient.type === 'linear'"
         :id="gradientId"
-        gradientUnits="objectBoundingBox"
-        :gradientTransform="`rotate(${effectiveGradient.angleDeg} 0.5 0.5)`"
+        gradientUnits="userSpaceOnUse"
+        :x1="linearGradAttrs.x1"
+        :y1="linearGradAttrs.y1"
+        :x2="linearGradAttrs.x2"
+        :y2="linearGradAttrs.y2"
+        :gradientTransform="linearGradAttrs.transform"
       >
         <stop
           v-for="(s, i) in effectiveGradient.stops"
@@ -266,10 +304,10 @@ const ringStyle = computed<Record<string, string> | undefined>(() => {
       <radialGradient
         v-else-if="effectiveGradient.type === 'radial'"
         :id="gradientId"
-        gradientUnits="objectBoundingBox"
-        :cx="(effectiveGradient.centerXPct ?? 50) / 100"
-        :cy="(effectiveGradient.centerYPct ?? 50) / 100"
-        :r="(effectiveGradient.radiusPct ?? 50) / 100"
+        gradientUnits="userSpaceOnUse"
+        :cx="radialGradAttrs.cx"
+        :cy="radialGradAttrs.cy"
+        :r="radialGradAttrs.r"
       >
         <stop
           v-for="(s, i) in effectiveGradient.stops"

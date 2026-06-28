@@ -319,10 +319,10 @@ async function fetchBatches() {
   }
 }
 
-watch(difficultyId, () => {
-  fetchDifficulty()
-  fetchVotes()
+watch(difficultyId, async () => {
   fetchBatches()
+  await fetchDifficulty()
+  fetchVotes()
 }, { immediate: true })
 
 async function submitVote() {
@@ -373,6 +373,7 @@ async function handleStatusChange() {
     showStatusModal.value = false
     statusTarget.value = ''
     await fetchDifficulty()
+    await fetchVotes()
   } catch {
   } finally {
     statusLoading.value = false

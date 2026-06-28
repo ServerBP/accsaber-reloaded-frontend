@@ -217,9 +217,23 @@ export interface FrameSpec {
   streaks?: FrameStreaksSpec
 }
 
+export type AvatarFit = 'cover' | 'safe'
+
+export interface BorderDecal {
+  viewBox: string
+  paths: BorderShapePathValue[]
+  xPct: number
+  yPct: number
+  sizePct: number
+  rotateDeg?: number
+  opacity?: number
+}
+
 export interface BorderShapeValue {
   viewBox?: string
   avatarMask?: string
+  avatarFit?: AvatarFit
+  decals?: BorderDecal[]
   renderMode?: BorderShapeRenderMode
   pixelSize?: number
   motif?: BorderShapeMotif

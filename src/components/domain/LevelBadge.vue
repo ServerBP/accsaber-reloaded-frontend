@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BorderDecals from '@/components/domain/BorderDecals.vue'
 import ProfileBorderRenderer from '@/components/domain/ProfileBorderRenderer.vue'
 import TitleRenderer from '@/components/domain/TitleRenderer.vue'
 import type {
@@ -35,6 +36,8 @@ const progressBackground = computed(() => {
 })
 
 const hasShapeOverride = computed(() => !!props.equippedBorderShape)
+
+const decals = computed(() => props.equippedBorderShape?.decals ?? [])
 
 const DEFAULT_AVATAR_MASK
   = 'M14,0 L86,0 Q100,0 100,14 L100,86 Q100,100 86,100 L14,100 Q0,100 0,86 L0,14 Q0,0 14,0 Z'
@@ -126,12 +129,18 @@ function computeSafeBox(mask: string): { x: number, y: number, size: number } {
   return result
 }
 
+const COVER_BOX = { x: 0, y: 0, size: 100 }
+
 watch(
-  () => props.equippedBorderShape?.avatarMask ?? DEFAULT_AVATAR_MASK,
-  (mask) => {
-    avatarImageBox.value = computeSafeBox(mask)
+  () => props.equippedBorderShape,
+  (shape) => {
+    if (shape?.avatarFit === 'cover') {
+      avatarImageBox.value = { ...COVER_BOX }
+      return
+    }
+    avatarImageBox.value = computeSafeBox(shape?.avatarMask ?? DEFAULT_AVATAR_MASK)
   },
-  { immediate: true },
+  { immediate: true, deep: false },
 )
 
 let avatarClipCounter = 0
@@ -179,6 +188,7 @@ const fallbackTitleStyle = computed(() => {
           </foreignObject>
         </g>
       </svg>
+      <BorderDecals v-if="decals.length" class="level-badge__decals" :decals="decals" />
     </div>
 
     <div class="level-badge__below">
@@ -230,6 +240,10 @@ const fallbackTitleStyle = computed(() => {
   z-index: 2;
   display: block;
   overflow: visible;
+}
+
+.level-badge__decals {
+  z-index: 3;
 }
 
 .level-badge__avatar-bg {

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BorderDecals from '@/components/domain/BorderDecals.vue'
 import ProfileBorderRenderer from '@/components/domain/ProfileBorderRenderer.vue'
 import TitleRenderer from '@/components/domain/TitleRenderer.vue'
 import type {
@@ -138,6 +139,7 @@ const fallbackInitial = computed(() => props.item.name.charAt(0).toUpperCase())
       aria-hidden="true"
     >
       <ProfileBorderRenderer :shape="borderShapeValue" :color="shapePreviewColor" />
+      <BorderDecals v-if="borderShapeValue.decals?.length" :decals="borderShapeValue.decals" />
     </span>
 
     <span
@@ -210,6 +212,18 @@ const fallbackInitial = computed(() => props.item.name.charAt(0).toUpperCase())
       loading="lazy"
       decoding="async"
     />
+
+    <svg
+      v-else-if="typeKey === 'crate'"
+      class="item-preview__crate"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <rect class="item-preview__crate-body" x="3" y="5" width="18" height="14" rx="2" />
+      <line class="item-preview__crate-seam" x1="3.6" y1="8.7" x2="20.4" y2="8.7" />
+      <rect class="item-preview__crate-strap" x="7.4" y="5" width="2.1" height="14" />
+      <rect class="item-preview__crate-strap" x="14.5" y="5" width="2.1" height="14" />
+    </svg>
 
     <img
       v-else-if="item.iconUrl"
@@ -357,5 +371,27 @@ const fallbackInitial = computed(() => props.item.name.charAt(0).toUpperCase())
   width: 60%;
   aspect-ratio: 1 / 1;
   color: var(--cell-accent, var(--info));
+}
+
+.item-preview__crate {
+  width: 64%;
+  aspect-ratio: 1 / 1;
+}
+
+.item-preview__crate-body {
+  fill: var(--bg-base);
+  stroke: var(--text-secondary);
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+}
+
+.item-preview__crate-seam {
+  stroke: var(--text-secondary);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+}
+
+.item-preview__crate-strap {
+  fill: var(--error);
 }
 </style>
