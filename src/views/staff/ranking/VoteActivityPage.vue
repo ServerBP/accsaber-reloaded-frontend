@@ -132,8 +132,13 @@ function criteriaLabel(vote: string): string {
         </div>
 
         <div class="activity-card__details">
+          <span v-if="vote.complexity != null" class="activity-card__detail">
+            <span class="activity-card__detail-label">Current</span>
+            <ComplexityBadge :complexity="vote.complexity" />
+          </span>
+
           <span v-if="vote.suggestedComplexity != null" class="activity-card__detail">
-            <span class="activity-card__detail-label">Complexity</span>
+            <span class="activity-card__detail-label">Suggested</span>
             <ComplexityBadge :complexity="vote.suggestedComplexity" />
           </span>
 

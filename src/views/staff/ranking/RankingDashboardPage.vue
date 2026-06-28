@@ -128,6 +128,7 @@ const baseColumns: TableColumn[] = [
   { key: 'category', label: 'Category', align: 'center', width: '110px' },
   { key: 'status', label: 'Status', align: 'center', width: '96px' },
   { key: 'complexity', label: 'Complexity', sortable: true, align: 'center', width: '100px' },
+  { key: 'avgComplexity', label: 'Vote Avg', align: 'center', width: '90px' },
   { key: 'criteria', label: 'Criteria', align: 'center', width: '90px' },
   { key: 'rating', label: 'Rating', sortable: true, align: 'center', mono: true, width: '70px' },
   { key: 'submitted', label: 'Submitted', sortable: true, align: 'right', width: '100px' },
@@ -137,7 +138,7 @@ const baseColumns: TableColumn[] = [
 const columns = computed(() =>
   activeStatus.value === 'RANKED'
     ? baseColumns.filter((c) => c.key !== 'criteria' && c.key !== 'status')
-    : baseColumns
+    : baseColumns.filter((c) => c.key !== 'avgComplexity')
 )
 
 const difficulties = ref<MapDifficultyResponse[]>([])
@@ -163,6 +164,7 @@ const rows = computed(() =>
       categoryAccent: categoryStore.getAccent(catCode ?? 'overall'),
       status: d.status,
       complexity: d.complexity,
+      avgComplexity: d.averageVoteComplexity,
       criteriaStatus: d.criteriaStatus,
       autoCriteriaStatus: d.autoCriteriaStatus,
       criteriaUpvotes: d.criteriaUpvotes,
@@ -366,6 +368,11 @@ function criteriaClassName(row: Record<string, unknown>): string {
         <span v-else class="ranking-dashboard__rating--neutral">-</span>
       </template>
 
+      <template #cell-avgComplexity="{ row }">
+        <ComplexityBadge v-if="row.avgComplexity != null" :complexity="row.avgComplexity as number" />
+        <span v-else class="ranking-dashboard__rating--neutral">-</span>
+      </template>
+
       <template #cell-criteria="{ row }">
         <span v-if="row.headCriteriaVote" class="ranking-dashboard__criteria criteria-text--head" :class="headCriteriaClass(row.headCriteriaVote as string)">
           HEAD {{ row.headCriteriaVote === 'UPVOTE' ? 'PASS' : row.headCriteriaVote === 'DOWNVOTE' ? 'FAIL' : 'NEUTRAL' }}
@@ -411,6 +418,10 @@ function criteriaClassName(row: Record<string, unknown>): string {
                 {{ row.status === 'QUALIFIED' ? 'Qualified' : 'In Queue' }}
               </span>
               <ComplexityBadge v-if="row.complexity != null" :complexity="row.complexity as number" />
+              <span v-if="row.avgComplexity != null" class="ranking-dashboard__mobile-avg">
+                <span class="ranking-dashboard__mobile-avg-label">Vote</span>
+                <ComplexityBadge :complexity="row.avgComplexity as number" />
+              </span>
               <span v-if="row.headCriteriaVote" class="ranking-dashboard__criteria criteria-text--head" :class="headCriteriaClass(row.headCriteriaVote as string)">
                 HEAD {{ row.headCriteriaVote === 'UPVOTE' ? 'PASS' : row.headCriteriaVote === 'DOWNVOTE' ? 'FAIL' : 'NEUTRAL' }}
               </span>
@@ -572,6 +583,19 @@ function criteriaClassName(row: Record<string, unknown>): string {
   align-items: center;
   gap: var(--space-sm);
   margin-top: var(--space-xs);
+}
+
+.ranking-dashboard__mobile-avg {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.ranking-dashboard__mobile-avg-label {
+  font-size: var(--text-caption);
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 @media (max-width: 767px) {

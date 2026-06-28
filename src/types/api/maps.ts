@@ -59,6 +59,7 @@ export interface MapDifficultyResponse {
   blLeaderboardId: string | null
   maxScore: number
   complexity: number
+  averageVoteComplexity: number | null
   rankedAt: string | null
   createdAt: string
   createdBy: string | null
@@ -157,6 +158,7 @@ export interface VoteResponse {
   coverUrl: string | null
   cdnCoverUrl?: string | null
   difficulty: Difficulty | null
+  complexity: number | null
   categoryId: string | null
 }
 
