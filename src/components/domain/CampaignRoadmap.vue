@@ -145,12 +145,16 @@ interface CheckpointLabel {
   key: string
   label: string
   color: string
+  fontSize: number
   x: number
   y: number
 }
 
 const checkpointLabels = computed<CheckpointLabel[]>(() => {
-  const groups = new Map<string, { nodes: NodeLayout[]; color: string | null; label: string }>()
+  const groups = new Map<
+    string,
+    { nodes: NodeLayout[]; color: string | null; size: string | null; label: string }
+  >()
   for (const d of props.difficulties) {
     if (!d.checkpointLabel) continue
     const node = nodeById.value.get(d.id)
@@ -160,8 +164,14 @@ const checkpointLabels = computed<CheckpointLabel[]>(() => {
     if (existing) {
       existing.nodes.push(node)
       if (!existing.color && d.checkpointColor) existing.color = d.checkpointColor
+      if (!existing.size && d.checkpointSize) existing.size = d.checkpointSize
     } else {
-      groups.set(key, { nodes: [node], color: d.checkpointColor, label: d.checkpointLabel })
+      groups.set(key, {
+        nodes: [node],
+        color: d.checkpointColor,
+        size: d.checkpointSize,
+        label: d.checkpointLabel,
+      })
     }
   }
   const out: CheckpointLabel[] = []
@@ -172,10 +182,12 @@ const checkpointLabels = computed<CheckpointLabel[]>(() => {
     const topNode = g.nodes.reduce((a, b) => (b.cy < a.cy ? b : a))
     const topSize = parseNumericSize(difficultyById.value.get(topNode.id)?.size, props.unit)
     const color = g.color || 'var(--accent-overall)'
+    const fontSize = parseNumericSize(g.size, Math.max(props.unit * 0.34, 14))
     out.push({
       key,
       label: g.label,
       color,
+      fontSize,
       x: (minX + maxX) / 2,
       y: topNode.cy - (topSize * 1.3 + props.unit * 0.7),
     })
@@ -730,7 +742,7 @@ const arrowDecorations = computed(() =>
 
         <g class="campaign-roadmap__checkpoints">
           <text v-for="cp in checkpointLabels" :key="cp.key" :x="cp.x" :y="cp.y"
-            :font-size="Math.max(unit * 0.34, 14)" text-anchor="middle"
+            :font-size="cp.fontSize" text-anchor="middle"
             class="campaign-roadmap__checkpoint-text"
             :style="{ fill: cp.color, '--checkpoint-color': cp.color }">
             {{ cp.label }}
