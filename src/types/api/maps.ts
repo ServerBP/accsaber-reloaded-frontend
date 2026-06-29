@@ -184,6 +184,7 @@ export interface DifficultyListParams extends PaginationParams {
   complexityMin?: number
   complexityMax?: number
   search?: string
+  batchId?: string
 }
 
 export interface DifficultyScoreParams extends PaginationParams {

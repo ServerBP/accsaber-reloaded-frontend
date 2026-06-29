@@ -52,8 +52,8 @@ const initial = computed(() => displayName.value.charAt(0).toUpperCase())
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 56px;
+  height: 56px;
   background: var(--bg-base);
   border: 1px solid var(--rarity-color);
   border-radius: var(--radius-card);

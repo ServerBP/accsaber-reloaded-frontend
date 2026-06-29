@@ -100,7 +100,11 @@ async function load() {
       void ensureRewardItems()
     }
   } catch (err) {
-    error.value = getApiErrorMessage(err, 'Failed to load campaign')
+    if (err instanceof ApiError && err.status === 404) {
+      campaign.value = null
+    } else {
+      error.value = getApiErrorMessage(err, 'Failed to load campaign')
+    }
   } finally {
     loading.value = false
   }

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BaseButton from '@/components/common/BaseButton.vue'
 import BaseTabs from '@/components/common/BaseTabs.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -16,6 +17,7 @@ import { useCategoryStore } from '@/stores/categories'
 import { useRankingQueueStore } from '@/stores/rankingQueue'
 import MapFilterSidebar from '@/views/maps/MapFilterSidebar.vue'
 
+import type { BatchResponse } from '@/types/api/batches'
 import type { MapDifficultyResponse } from '@/types/api/maps'
 import type { Tab, TableColumn } from '@/types/display'
 import type { MapDifficultyStatus } from '@/types/enums'
@@ -48,6 +50,10 @@ const pageTitle = computed(() =>
 const accent = computed(() => MAP_STATUS_ACCENT[activeStatus.value] ?? 'var(--accent-overall)')
 
 const subtitleText = computed(() => {
+  if (activeStatus.value === 'RANKED' && focusingLatestBatch.value) {
+    const count = totalElements.value ? ` · ${totalElements.value} maps` : ''
+    return `Latest batch: ${latestBatch.value!.name}${count}`
+  }
   if (!totalElements.value) return ''
   if (activeStatus.value === 'RANKED') return `${totalElements.value} ranked maps`
   return `${totalElements.value} maps in queue`
@@ -63,11 +69,49 @@ const activeStatus = computed<MapDifficultyStatus>({
       query.status = val
     } else {
       delete query.status
+      delete query.scope
     }
     delete query.page
     router.replace({ query })
   },
 })
+
+const latestBatch = ref<BatchResponse | null>(null)
+const latestBatchLoading = ref(false)
+
+// Reweighting tab focuses the latest released batch by default; `scope=all` widens to every reweightable map.
+const reweightScope = computed<'latest' | 'all'>({
+  get() {
+    return route.query.scope === 'all' ? 'all' : 'latest'
+  },
+  set(val) {
+    const query = { ...route.query }
+    if (val === 'all') {
+      query.scope = 'all'
+    } else {
+      delete query.scope
+    }
+    delete query.page
+    router.replace({ query })
+  },
+})
+
+async function ensureLatestBatch() {
+  if (latestBatch.value || latestBatchLoading.value) return
+  latestBatchLoading.value = true
+  try {
+    const { listBatches } = await import('@/api/ranking/batches')
+    const res = await listBatches({ status: 'RELEASED', page: 0, size: 1, sort: 'releasedAt,desc' })
+    latestBatch.value = res.content[0] ?? null
+  } catch {
+    latestBatch.value = null
+  }
+  latestBatchLoading.value = false
+}
+
+const focusingLatestBatch = computed(
+  () => activeStatus.value === 'RANKED' && reweightScope.value === 'latest' && latestBatch.value != null,
+)
 
 const selectedCategories = computed<string[]>({
   get() {
@@ -187,6 +231,9 @@ function buildFetchParams(): Record<string, unknown> {
     ...paginationParams.value,
     status: activeStatus.value === 'RANKED' ? 'RANKED' : 'QUEUE,QUALIFIED',
   }
+  if (focusingLatestBatch.value) {
+    params.batchId = latestBatch.value!.id
+  }
   if (selectedCategories.value.length === 1) {
     params.categoryId = selectedCategories.value[0]
   }
@@ -197,6 +244,15 @@ function buildFetchParams(): Record<string, unknown> {
 }
 
 async function fetchDifficulties() {
+  if (activeStatus.value === 'RANKED') {
+    // In latest scope the batch id is needed before building params, so await it; in all scope
+    // resolve it in the background so the "show latest batch only" toggle can still appear.
+    if (reweightScope.value === 'latest') {
+      await ensureLatestBatch()
+    } else {
+      ensureLatestBatch()
+    }
+  }
   const params = buildFetchParams()
   const cached = queueCache.getCached(params)
   if (cached) {
@@ -231,7 +287,7 @@ async function fetchDifficulties() {
 }
 
 watch(
-  [() => activeStatus.value, selectedCategories, complexityRange, paginationParams, () => searchQuery.value],
+  [() => activeStatus.value, () => reweightScope.value, selectedCategories, complexityRange, paginationParams, () => searchQuery.value],
   fetchDifficulties,
   { immediate: true },
 )
@@ -446,6 +502,15 @@ function criteriaClassName(row: Record<string, unknown>): string {
       :total-pages="totalPages"
       @update:page="setPage"
     />
+
+    <div v-if="activeStatus === 'RANKED' && latestBatch" class="ranking-dashboard__scope-toggle">
+      <BaseButton v-if="reweightScope === 'latest'" @click="reweightScope = 'all'">
+        View all reweightable maps
+      </BaseButton>
+      <BaseButton v-else @click="reweightScope = 'latest'">
+        Show latest batch only
+      </BaseButton>
+    </div>
   </div>
 </template>
 
@@ -464,6 +529,12 @@ function criteriaClassName(row: Record<string, unknown>): string {
   align-items: flex-end;
   justify-content: space-between;
   gap: var(--space-md);
+}
+
+.ranking-dashboard__scope-toggle {
+  display: flex;
+  justify-content: center;
+  padding-top: var(--space-sm);
 }
 
 .ranking-dashboard__filters {

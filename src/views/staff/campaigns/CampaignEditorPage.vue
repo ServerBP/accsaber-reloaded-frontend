@@ -33,7 +33,7 @@ import {
   uploadCampaignBackground,
   uploadCampaignIcon,
 } from '@/api/cdn'
-import { getApiErrorMessage } from '@/api/client'
+import { ApiError, getApiErrorMessage } from '@/api/client'
 import BaseBanner from '@/components/common/BaseBanner.vue'
 import BaseButton from '@/components/common/BaseButton.vue'
 import BaseModal from '@/components/common/BaseModal.vue'
@@ -182,7 +182,9 @@ async function load() {
     }
     void loadDifficultyMeta(c.difficulties)
   } catch (err) {
-    error.value = getApiErrorMessage(err, 'Failed to load campaign')
+    if (!(err instanceof ApiError && err.status === 404)) {
+      error.value = getApiErrorMessage(err, 'Failed to load campaign')
+    }
   } finally {
     loading.value = false
   }
