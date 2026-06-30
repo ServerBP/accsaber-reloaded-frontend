@@ -73,6 +73,8 @@ const {
   setPrereqMode,
   removeNodeItem,
   openNodeItemPicker,
+  canAddNodeReward,
+  nodeRewardLimit,
 } = useCampaignEditorContext()
 </script>
 
@@ -301,6 +303,26 @@ const {
     class="campaign-editor__section"
     :disabled="!editable"
   >
+    <p v-if="campaign.status !== 'CURATED'" class="campaign-editor__reward-note">
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path
+          d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+        />
+        <line x1="12" y1="9" x2="12" y2="13" />
+        <line x1="12" y1="17" x2="12" y2="17.01" />
+      </svg>
+      <span>Rewards are only handed out once the campaign is curated.</span>
+    </p>
     <label v-if="isCurator" class="campaign-editor__field">
       <span>Completion XP</span>
       <div class="campaign-editor__slider-row">
@@ -677,6 +699,26 @@ const {
     class="campaign-editor__section"
     :disabled="!editable"
   >
+    <p v-if="campaign && campaign.status !== 'CURATED'" class="campaign-editor__reward-note">
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path
+          d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+        />
+        <line x1="12" y1="9" x2="12" y2="13" />
+        <line x1="12" y1="17" x2="12" y2="17.01" />
+      </svg>
+      <span>Rewards are only handed out once the campaign is curated.</span>
+    </p>
     <label class="campaign-editor__field">
       <span>XP on clear</span>
       <div class="campaign-editor__slider-row">
@@ -738,7 +780,7 @@ const {
       Players who clear this node only get the XP. Add items to make it sweeter.
     </p>
     <button
-      v-if="editable"
+      v-if="editable && canAddNodeReward"
       type="button"
       class="campaign-editor__add-reward"
       @click="openNodeItemPicker"
@@ -759,6 +801,9 @@ const {
       </svg>
       Add reward
     </button>
+    <p v-else-if="editable" class="campaign-editor__hint">
+      Limit of {{ nodeRewardLimit }} item rewards per node reached.
+    </p>
   </fieldset>
 </template>
 
@@ -928,6 +973,26 @@ const {
   font-family: var(--font-sans);
   font-size: var(--text-caption);
   color: var(--text-tertiary);
+}
+
+.campaign-editor__reward-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  padding: 7px 9px;
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  line-height: 1.4;
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
+  border-radius: 3px;
+}
+
+.campaign-editor__reward-note svg {
+  flex-shrink: 0;
+  margin-top: 1px;
 }
 
 .campaign-editor__reward-list {

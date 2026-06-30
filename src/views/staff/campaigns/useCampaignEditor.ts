@@ -830,13 +830,19 @@ export function useCampaignEditor() {
     }
   }
 
+  const NODE_REWARD_LIMIT = 3
+
+  const canAddNodeReward = computed(
+    () => !!selectedDifficulty.value && selectedDifficulty.value.items.length < NODE_REWARD_LIMIT,
+  )
+
   function openCampaignItemPicker() {
     if (!editable.value) return
     itemPickerFor.value = 'campaign'
   }
 
   function openNodeItemPicker() {
-    if (!editable.value || !selectedDifficulty.value) return
+    if (!editable.value || !canAddNodeReward.value) return
     itemPickerFor.value = 'node'
   }
 
@@ -893,7 +899,7 @@ export function useCampaignEditor() {
 
   async function addNodeItem(payload: { itemId: string; quantity: number }) {
     const d = selectedDifficulty.value
-    if (!editable.value || !d) return
+    if (!editable.value || !d || d.items.length >= NODE_REWARD_LIMIT) return
     const dId = d.id
     actionPending.value = true
     actionError.value = null
@@ -1168,10 +1174,17 @@ export function useCampaignEditor() {
       if (formNode.value.requirementType === 'ACC') {
         const clamped = Math.max(70, Math.min(100, Number(v) || 70))
         formNode.value.requirementValue = clamped / 100
+      } else if (formNode.value.requirementType === 'SCORE') {
+        formNode.value.requirementValue = Math.max(0, Math.min(scoreCap.value, Number(v) || 0))
       } else {
         formNode.value.requirementValue = Number(v) || 0
       }
     },
+  })
+
+  const scoreCap = computed(() => {
+    const maxScore = selectedMeta.value?.maxScore
+    return maxScore && maxScore > 0 ? maxScore : 1_500_000
   })
 
   const requirementBounds = computed(() => {
@@ -1180,7 +1193,7 @@ export function useCampaignEditor() {
     if (formNode.value.requirementType === 'STREAK_115')
       return { min: 0, max: 30, step: 1, unit: '' }
     if (formNode.value.requirementType === 'FC') return { min: 1, max: 1, step: 1, unit: '' }
-    return { min: 0, max: 1_500_000, step: 1000, unit: '' }
+    return { min: 0, max: scoreCap.value, step: 1000, unit: '' }
   })
 
   const requirementNumberBounds = computed(() => {
@@ -1580,6 +1593,8 @@ export function useCampaignEditor() {
     handleDeselect,
     openCampaignItemPicker,
     openNodeItemPicker,
+    canAddNodeReward,
+    nodeRewardLimit: NODE_REWARD_LIMIT,
     handleItemPicked,
     removeCompletionItem,
     removeNodeItem,
