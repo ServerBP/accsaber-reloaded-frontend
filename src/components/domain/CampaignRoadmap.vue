@@ -19,33 +19,36 @@ import {
 } from '@/utils/campaignLayout'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 
-const props = withDefaults(defineProps<{
-  difficulties: CampaignDifficultyResponse[]
-  progress?: CampaignDifficultyProgressResponse[]
-  accentColor?: string
-  nodeAccents?: Map<string, string>
-  backgroundUrl?: string | null
-  focusId?: string | null
-  defaultScale?: number
-  showStarfield?: boolean
-  selectedId?: string | null
-  editable?: boolean
-  mode?: 'drag' | 'connect'
-  unit?: number
-  markNext?: boolean
-}>(), {
-  accentColor: 'var(--accent)',
-  nodeAccents: () => new Map(),
-  backgroundUrl: null,
-  focusId: null,
-  defaultScale: 1.25,
-  showStarfield: false,
-  selectedId: null,
-  editable: false,
-  mode: 'drag',
-  unit: 48,
-  markNext: false,
-})
+const props = withDefaults(
+  defineProps<{
+    difficulties: CampaignDifficultyResponse[]
+    progress?: CampaignDifficultyProgressResponse[]
+    accentColor?: string
+    nodeAccents?: Map<string, string>
+    backgroundUrl?: string | null
+    focusId?: string | null
+    defaultScale?: number
+    showStarfield?: boolean
+    selectedId?: string | null
+    editable?: boolean
+    mode?: 'drag' | 'connect'
+    unit?: number
+    markNext?: boolean
+  }>(),
+  {
+    accentColor: 'var(--accent)',
+    nodeAccents: () => new Map(),
+    backgroundUrl: null,
+    focusId: null,
+    defaultScale: 1.25,
+    showStarfield: false,
+    selectedId: null,
+    editable: false,
+    mode: 'drag',
+    unit: 48,
+    markNext: false,
+  },
+)
 
 const themeStore = useThemeStore()
 
@@ -66,6 +69,12 @@ const emit = defineEmits<{
 const connectFromId = ref<string | null>(null)
 const connectPoint = ref<{ x: number; y: number } | null>(null)
 const connectHoverId = ref<string | null>(null)
+const hoverNodeId = ref<string | null>(null)
+
+function onNodeHover(id: string | null) {
+  hoverNodeId.value = id
+  emit('hover', id)
+}
 
 const stage = ref<HTMLDivElement | null>(null)
 const stageWidth = ref(800)
@@ -222,12 +231,20 @@ const edges = computed<Edge[]>(() => {
       if (!fromDiff) continue
       const fromFootprint = nodeFootprint(fromDiff)
       const a = edgePointOnShape(
-        fromFootprint.shape, fromFootprint.outerSize,
-        from.cx, from.cy, to.cx, to.cy,
+        fromFootprint.shape,
+        fromFootprint.outerSize,
+        from.cx,
+        from.cy,
+        to.cx,
+        to.cy,
       )
       const b = edgePointOnShape(
-        toFootprint.shape, toFootprint.outerSize,
-        to.cx, to.cy, from.cx, from.cy,
+        toFootprint.shape,
+        toFootprint.outerSize,
+        to.cx,
+        to.cy,
+        from.cx,
+        from.cy,
       )
       const fromProg = progressById.value.get(fromId)
       const toProg = progressById.value.get(d.id)
@@ -295,9 +312,9 @@ function clampPan() {
   const padX = 80
   const padY = 80
   const minTx = -(b.x + b.width) * scale.value + padX
-  const maxTx = stageWidth.value - (b.x * scale.value) - padX
+  const maxTx = stageWidth.value - b.x * scale.value - padX
   const minTy = -(b.y + b.height) * scale.value + padY
-  const maxTy = stageHeight.value - (b.y * scale.value) - padY
+  const maxTy = stageHeight.value - b.y * scale.value - padY
   if (cw < stageWidth.value) {
     translateX.value = Math.min(Math.max(translateX.value, minTx), maxTx)
   } else {
@@ -436,9 +453,13 @@ function onPointerMove(e: PointerEvent) {
   translateY.value = dragStart.ty + dy
 }
 
-function settleOverlay(nodeId: string, from: { cx: number; cy: number }, to: { cx: number; cy: number }) {
-  const reduced = typeof window !== 'undefined'
-    && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+function settleOverlay(
+  nodeId: string,
+  from: { cx: number; cy: number },
+  to: { cx: number; cy: number },
+) {
+  const reduced =
+    typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
   if (reduced) {
     dragOverlay.value.delete(nodeId)
     dragOverlay.value = new Map(dragOverlay.value)
@@ -473,9 +494,8 @@ function onPointerUp(e: PointerEvent) {
 
   if (connectFromId.value) {
     const fromId = connectFromId.value
-    const targetNodeId = connectHoverId.value
-      ?? nodeIdAtPoint(e.clientX, e.clientY)
-      ?? nodeIdFromEvent(e.target)
+    const targetNodeId =
+      connectHoverId.value ?? nodeIdAtPoint(e.clientX, e.clientY) ?? nodeIdFromEvent(e.target)
     connectFromId.value = null
     connectPoint.value = null
     connectHoverId.value = null
@@ -492,8 +512,8 @@ function onPointerUp(e: PointerEvent) {
     if (final) {
       const { positionX, positionY } = contentToGrid(final.cx, final.cy)
       const snapCx = positionX * props.unit * 1.5
-      const snapCy = positionY * props.unit * SQRT3
-        + (positionX % 2 !== 0 ? (props.unit * SQRT3) / 2 : 0)
+      const snapCy =
+        positionY * props.unit * SQRT3 + (positionX % 2 !== 0 ? (props.unit * SQRT3) / 2 : 0)
       emit('move', { id: nodeId, positionX, positionY })
       settleOverlay(nodeId, final, { cx: snapCx, cy: snapCy })
     } else {
@@ -591,13 +611,19 @@ onUnmounted(() => {
   resizeObserver?.disconnect()
 })
 
-watch(() => props.difficulties.length, () => {
-  initialPosition()
-})
+watch(
+  () => props.difficulties.length,
+  () => {
+    initialPosition()
+  },
+)
 
-watch(() => props.focusId, (id) => {
-  if (id && didInitialPosition) focusNode(id)
-})
+watch(
+  () => props.focusId,
+  (id) => {
+    if (id && didInitialPosition) focusNode(id)
+  },
+)
 
 defineExpose({ fitToContent, focusNode })
 
@@ -659,92 +685,202 @@ const arrowDecorations = computed(() =>
 </script>
 
 <template>
-  <div ref="stage" class="campaign-roadmap" @wheel="onWheel" @pointerdown="onPointerDown"
-    @pointermove="onPointerMove" @pointerup="onPointerUp" @pointercancel="onPointerUp">
-    <div v-if="backgroundUrl" class="campaign-roadmap__bg"
-      :style="{ backgroundImage: `url(${backgroundUrl})` }" aria-hidden="true" />
+  <div
+    ref="stage"
+    class="campaign-roadmap"
+    @wheel="onWheel"
+    @pointerdown="onPointerDown"
+    @pointermove="onPointerMove"
+    @pointerup="onPointerUp"
+    @pointercancel="onPointerUp"
+  >
+    <div
+      v-if="backgroundUrl"
+      class="campaign-roadmap__bg"
+      :style="{ backgroundImage: `url(${backgroundUrl})` }"
+      aria-hidden="true"
+    />
     <template v-else-if="showStarfield">
-      <div class="campaign-roadmap__glow" :style="{ '--starfield-accent': accentColor }" aria-hidden="true" />
-      <ParticleCanvas class="campaign-roadmap__particles" :dark-mode="themeStore.theme === 'dark'" />
+      <div
+        class="campaign-roadmap__glow"
+        :style="{ '--starfield-accent': accentColor }"
+        aria-hidden="true"
+      />
+      <ParticleCanvas
+        class="campaign-roadmap__particles"
+        :dark-mode="themeStore.theme === 'dark'"
+      />
     </template>
     <svg class="campaign-roadmap__svg" :width="stageWidth" :height="stageHeight">
       <defs>
-        <pattern id="campaign-roadmap-grid" :width="unit * 1.5" :height="unit * SQRT3"
-          patternUnits="userSpaceOnUse">
+        <pattern
+          id="campaign-roadmap-grid"
+          :width="unit * 1.5"
+          :height="unit * SQRT3"
+          patternUnits="userSpaceOnUse"
+        >
           <circle :cx="0" :cy="0" r="1.2" fill="var(--bg-overlay)" />
         </pattern>
       </defs>
 
-      <rect v-if="!backgroundUrl && !showStarfield" x="0" y="0" :width="stageWidth"
-        :height="stageHeight" fill="url(#campaign-roadmap-grid)" opacity="0.4" />
+      <rect
+        v-if="!backgroundUrl && !showStarfield"
+        x="0"
+        y="0"
+        :width="stageWidth"
+        :height="stageHeight"
+        fill="url(#campaign-roadmap-grid)"
+        opacity="0.4"
+      />
 
       <g :transform="transformStyle">
         <g v-if="editable" class="campaign-roadmap__origin" aria-hidden="true">
           <line x1="-10" y1="0" x2="10" y2="0" stroke="var(--text-tertiary)" stroke-width="1" />
           <line x1="0" y1="-10" x2="0" y2="10" stroke="var(--text-tertiary)" stroke-width="1" />
           <circle cx="0" cy="0" r="3" fill="none" stroke="var(--text-tertiary)" stroke-width="1" />
-          <text x="14" y="14" font-size="11" fill="var(--text-tertiary)"
-            font-family="var(--font-mono)">0,0</text>
+          <text
+            x="14"
+            y="14"
+            font-size="11"
+            fill="var(--text-tertiary)"
+            font-family="var(--font-mono)"
+          >
+            0,0
+          </text>
         </g>
 
         <g class="campaign-roadmap__edges">
-          <g v-for="e in arrowDecorations" :key="`edge-${e.fromId}-${e.toId}`"
-            class="campaign-roadmap__edge-group">
-            <line class="campaign-roadmap__edge-hit"
-              :x1="e.fromX" :y1="e.fromY" :x2="e.toX" :y2="e.toY"
-              stroke="transparent" :stroke-width="Math.max(unit * 0.3, 14)" />
-            <line :x1="e.fromX" :y1="e.fromY" :x2="e.toX" :y2="e.toY"
-              :stroke="e.cleared ? '#ffffff' : e.available ? 'var(--text-secondary)' : 'var(--text-tertiary)'"
+          <g
+            v-for="e in arrowDecorations"
+            :key="`edge-${e.fromId}-${e.toId}`"
+            class="campaign-roadmap__edge-group"
+            :class="{
+              'campaign-roadmap__edge-group--highlight':
+                hoverNodeId === e.fromId || hoverNodeId === e.toId,
+            }"
+          >
+            <line
+              class="campaign-roadmap__edge-hit"
+              :x1="e.fromX"
+              :y1="e.fromY"
+              :x2="e.toX"
+              :y2="e.toY"
+              stroke="transparent"
+              :stroke-width="Math.max(unit * 0.3, 14)"
+            />
+            <line
+              class="campaign-roadmap__edge-line"
+              :x1="e.fromX"
+              :y1="e.fromY"
+              :x2="e.toX"
+              :y2="e.toY"
+              :stroke="
+                e.cleared
+                  ? '#ffffff'
+                  : e.available
+                    ? 'var(--text-secondary)'
+                    : 'var(--text-tertiary)'
+              "
               :stroke-width="e.cleared ? 2 : 1.25"
               :stroke-dasharray="e.locked ? `${unit * 0.12} ${unit * 0.1}` : undefined"
-              :opacity="e.cleared ? 0.95 : e.available ? 0.85 : 0.45" />
-            <polygon :points="e.arrowPoints"
+              :opacity="e.cleared ? 0.95 : e.available ? 0.85 : 0.45"
+            />
+            <polygon
+              class="campaign-roadmap__edge-arrow"
+              :points="e.arrowPoints"
               :fill="e.cleared ? '#ffffff' : e.available ? 'var(--text-secondary)' : 'transparent'"
-              :stroke="e.cleared ? '#ffffff' : e.available ? 'var(--text-secondary)' : 'var(--text-tertiary)'"
-              stroke-width="1" :opacity="e.cleared ? 0.95 : e.available ? 0.85 : 0.4" />
-            <g v-if="editable" class="campaign-roadmap__edge-x"
+              :stroke="
+                e.cleared
+                  ? '#ffffff'
+                  : e.available
+                    ? 'var(--text-secondary)'
+                    : 'var(--text-tertiary)'
+              "
+              stroke-width="1"
+              :opacity="e.cleared ? 0.95 : e.available ? 0.85 : 0.4"
+            />
+            <g
+              v-if="editable"
+              class="campaign-roadmap__edge-x"
               :transform="`translate(${e.midX}, ${e.midY})`"
-              @click.stop="emit('disconnect', { fromId: e.fromId, toId: e.toId })">
+              @click.stop="emit('disconnect', { fromId: e.fromId, toId: e.toId })"
+            >
               <circle r="10" fill="var(--bg-base)" stroke="var(--error)" stroke-width="1.5" />
-              <path d="M-4 -4L4 4M-4 4L4 -4" stroke="var(--error)" stroke-width="2"
-                stroke-linecap="round" fill="none" />
+              <path
+                d="M-4 -4L4 4M-4 4L4 -4"
+                stroke="var(--error)"
+                stroke-width="2"
+                stroke-linecap="round"
+                fill="none"
+              />
             </g>
           </g>
         </g>
 
-        <g v-if="snapTarget" class="campaign-roadmap__snap" aria-hidden="true"
-          :style="{ transform: `translate(${snapTarget.cx}px, ${snapTarget.cy}px)` }">
+        <g
+          v-if="snapTarget"
+          class="campaign-roadmap__snap"
+          aria-hidden="true"
+          :style="{ transform: `translate(${snapTarget.cx}px, ${snapTarget.cy}px)` }"
+        >
           <circle v-if="snapTarget.shape === 'circle'" :r="snapTarget.size * 1.04" />
           <polygon v-else :points="snapShapePoints" />
         </g>
 
-        <g v-if="connectFromId && connectPoint && nodeById.get(connectFromId)"
-          class="campaign-roadmap__connecting" aria-hidden="true">
-          <line :x1="nodeById.get(connectFromId)!.cx" :y1="nodeById.get(connectFromId)!.cy"
-            :x2="connectPoint.x" :y2="connectPoint.y"
-            stroke="var(--accent)" stroke-width="2" stroke-dasharray="6 4" />
+        <g
+          v-if="connectFromId && connectPoint && nodeById.get(connectFromId)"
+          class="campaign-roadmap__connecting"
+          aria-hidden="true"
+        >
+          <line
+            :x1="nodeById.get(connectFromId)!.cx"
+            :y1="nodeById.get(connectFromId)!.cy"
+            :x2="connectPoint.x"
+            :y2="connectPoint.y"
+            stroke="var(--accent)"
+            stroke-width="2"
+            stroke-dasharray="6 4"
+          />
         </g>
 
-        <g v-for="n in renderedNodes" :key="n.id" data-node :data-id="n.id"
+        <g
+          v-for="n in renderedNodes"
+          :key="n.id"
+          data-node
+          :data-id="n.id"
           :class="{
             'campaign-roadmap__node--editable': editable,
             'campaign-roadmap__node--connect-target': connectHoverId === n.id,
           }"
-          @mouseenter="emit('hover', n.id)"
-          @mouseleave="emit('hover', null)"
-          @click.capture="onNodeClickCapture">
-          <CampaignNode :difficulty="difficulties.find((d) => d.id === n.id)!"
-            :progress="progressById.get(n.id) ?? null" :cx="n.cx" :cy="n.cy" :size="unit"
-            :accent-color="nodeAccentFor(n.id)" :selected="selectedId === n.id"
-            :is-next="nextIds.has(n.id)" :label-placement="labelLayout.get(n.id) ?? null"
-            @select="emit('select', $event)" />
+          @mouseenter="onNodeHover(n.id)"
+          @mouseleave="onNodeHover(null)"
+          @click.capture="onNodeClickCapture"
+        >
+          <CampaignNode
+            :difficulty="difficulties.find((d) => d.id === n.id)!"
+            :progress="progressById.get(n.id) ?? null"
+            :cx="n.cx"
+            :cy="n.cy"
+            :size="unit"
+            :accent-color="nodeAccentFor(n.id)"
+            :selected="selectedId === n.id"
+            :is-next="nextIds.has(n.id)"
+            :label-placement="labelLayout.get(n.id) ?? null"
+            @select="emit('select', $event)"
+          />
         </g>
 
         <g class="campaign-roadmap__checkpoints">
-          <text v-for="cp in checkpointLabels" :key="cp.key" :x="cp.x" :y="cp.y"
-            :font-size="cp.fontSize" text-anchor="middle"
+          <text
+            v-for="cp in checkpointLabels"
+            :key="cp.key"
+            :x="cp.x"
+            :y="cp.y"
+            :font-size="cp.fontSize"
+            text-anchor="middle"
             class="campaign-roadmap__checkpoint-text"
-            :style="{ fill: cp.color, '--checkpoint-color': cp.color }">
+            :style="{ fill: cp.color, '--checkpoint-color': cp.color }"
+          >
             {{ cp.label }}
           </text>
         </g>
@@ -754,32 +890,88 @@ const arrowDecorations = computed(() =>
     <div class="campaign-roadmap__bottom-stack">
       <div class="campaign-roadmap__hint" aria-hidden="true">drag · scroll to zoom</div>
       <div class="campaign-roadmap__controls" aria-label="Roadmap controls">
-        <button type="button" class="campaign-roadmap__btn" aria-label="Zoom in" @click="adjustZoom(1.2)">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <button
+          type="button"
+          class="campaign-roadmap__btn"
+          aria-label="Zoom in"
+          @click="adjustZoom(1.2)"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
             <line x1="12" y1="5" x2="12" y2="19" />
             <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
         </button>
-        <button type="button" class="campaign-roadmap__btn" aria-label="Zoom out" @click="adjustZoom(1 / 1.2)">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <button
+          type="button"
+          class="campaign-roadmap__btn"
+          aria-label="Zoom out"
+          @click="adjustZoom(1 / 1.2)"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
             <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
         </button>
-        <button type="button" class="campaign-roadmap__btn" aria-label="Fit roadmap" @click="fitToContent">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <button
+          type="button"
+          class="campaign-roadmap__btn"
+          aria-label="Fit roadmap"
+          @click="fitToContent"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
             <polyline points="4 8 4 4 8 4" />
             <polyline points="20 8 20 4 16 4" />
             <polyline points="4 16 4 20 8 20" />
             <polyline points="20 16 20 20 16 20" />
           </svg>
         </button>
-        <button v-if="canRecenter" type="button" class="campaign-roadmap__btn"
-          aria-label="Recenter on current progress" @click="recenter">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <button
+          v-if="canRecenter"
+          type="button"
+          class="campaign-roadmap__btn"
+          aria-label="Recenter on current progress"
+          @click="recenter"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
             <circle cx="12" cy="12" r="7" />
             <line x1="12" y1="1.5" x2="12" y2="4.5" />
             <line x1="12" y1="19.5" x2="12" y2="22.5" />
@@ -829,6 +1021,26 @@ const arrowDecorations = computed(() =>
   pointer-events: stroke;
 }
 
+.campaign-roadmap__edge-line,
+.campaign-roadmap__edge-arrow {
+  transition:
+    stroke 120ms ease,
+    fill 120ms ease,
+    opacity 120ms ease;
+}
+
+.campaign-roadmap__edge-group--highlight .campaign-roadmap__edge-line {
+  stroke: #ffffff;
+  stroke-width: 2.5;
+  opacity: 1;
+}
+
+.campaign-roadmap__edge-group--highlight .campaign-roadmap__edge-arrow {
+  fill: #ffffff;
+  stroke: #ffffff;
+  opacity: 1;
+}
+
 .campaign-roadmap__edge-x {
   opacity: 0;
   cursor: pointer;
@@ -860,8 +1072,13 @@ const arrowDecorations = computed(() =>
 }
 
 @keyframes snap-breathe {
-  0%, 100% { opacity: 0.65; }
-  50% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.65;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -883,8 +1100,7 @@ const arrowDecorations = computed(() =>
   letter-spacing: 0.22em;
   text-transform: uppercase;
   pointer-events: none;
-  filter:
-    drop-shadow(0 0 4px color-mix(in srgb, var(--checkpoint-color) 75%, transparent))
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--checkpoint-color) 75%, transparent))
     drop-shadow(0 0 14px color-mix(in srgb, var(--checkpoint-color) 45%, transparent));
 }
 
@@ -903,12 +1119,16 @@ const arrowDecorations = computed(() =>
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse 70% 60% at 50% 35%,
+    radial-gradient(
+      ellipse 70% 60% at 50% 35%,
       color-mix(in srgb, var(--starfield-accent) 14%, transparent),
-      transparent 70%),
-    radial-gradient(ellipse 90% 100% at 50% 110%,
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 90% 100% at 50% 110%,
       color-mix(in srgb, var(--starfield-accent) 8%, transparent),
-      transparent 75%);
+      transparent 75%
+    );
   pointer-events: none;
 }
 
@@ -950,7 +1170,9 @@ const arrowDecorations = computed(() =>
   border-radius: 2px;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: color 120ms ease, background 120ms ease;
+  transition:
+    color 120ms ease,
+    background 120ms ease;
 }
 
 .campaign-roadmap__btn:hover {
