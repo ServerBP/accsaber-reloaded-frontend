@@ -30,8 +30,9 @@ const props = withDefaults(
     defaultScale?: number
     showStarfield?: boolean
     selectedId?: string | null
+    selectedIds?: string[]
     editable?: boolean
-    mode?: 'drag' | 'connect'
+    mode?: 'drag' | 'connect' | 'select'
     unit?: number
     markNext?: boolean
   }>(),
@@ -43,6 +44,7 @@ const props = withDefaults(
     defaultScale: 1.25,
     showStarfield: false,
     selectedId: null,
+    selectedIds: () => [],
     editable: false,
     mode: 'drag',
     unit: 48,
@@ -58,13 +60,18 @@ function nodeAccentFor(id: string): string {
 
 const emit = defineEmits<{
   select: [id: string]
+  selectMany: [ids: string[]]
+  toggleSelect: [id: string]
   hover: [id: string | null]
   deselect: []
   move: [payload: { id: string; positionX: number; positionY: number }]
+  moveMany: [payloads: Array<{ id: string; positionX: number; positionY: number }>]
   emptyClick: [payload: { x: number; y: number }]
   connect: [payload: { fromId: string; toId: string }]
   disconnect: [payload: { fromId: string; toId: string }]
 }>()
+
+const selectedSet = computed(() => new Set(props.selectedIds))
 
 const connectFromId = ref<string | null>(null)
 const connectPoint = ref<{ x: number; y: number } | null>(null)
@@ -356,6 +363,9 @@ interface DragState {
 
 let dragStart: DragState | null = null
 let suppressClick = false
+let groupDragStart: Map<string, { cx: number; cy: number }> | null = null
+let marqueeStart: { x: number; y: number; additive: boolean } | null = null
+const marquee = ref<{ x0: number; y0: number; x1: number; y1: number } | null>(null)
 
 const CLICK_THRESHOLD_PX = 4
 
@@ -412,6 +422,46 @@ function onPointerDown(e: PointerEvent) {
     }
     return
   }
+
+  if (props.editable && props.mode === 'select') {
+    if (nodeId) {
+      if (selectedSet.value.has(nodeId) && props.selectedIds.length > 1) {
+        groupDragStart = new Map()
+        for (const id of props.selectedIds) {
+          const gn = nodeById.value.get(id)
+          if (gn) groupDragStart.set(id, { cx: gn.cx, cy: gn.cy })
+        }
+      } else {
+        groupDragStart = null
+      }
+      dragStart = {
+        x: e.clientX,
+        y: e.clientY,
+        tx: translateX.value,
+        ty: translateY.value,
+        nodeId,
+        startCx: node?.cx ?? 0,
+        startCy: node?.cy ?? 0,
+        moved: false,
+      }
+      return
+    }
+    const p = clientToContent(e.clientX, e.clientY)
+    marqueeStart = { x: p.x, y: p.y, additive: e.shiftKey }
+    marquee.value = { x0: p.x, y0: p.y, x1: p.x, y1: p.y }
+    dragStart = {
+      x: e.clientX,
+      y: e.clientY,
+      tx: translateX.value,
+      ty: translateY.value,
+      nodeId: null,
+      startCx: 0,
+      startCy: 0,
+      moved: false,
+    }
+    return
+  }
+
   dragStart = {
     x: e.clientX,
     y: e.clientY,
@@ -437,7 +487,29 @@ function onPointerMove(e: PointerEvent) {
     connectHoverId.value = hover && hover !== connectFromId.value ? hover : null
     return
   }
-  if (dragStart.nodeId && props.editable && props.mode === 'drag') {
+  if (marqueeStart) {
+    const p = clientToContent(e.clientX, e.clientY)
+    marquee.value = {
+      x0: Math.min(marqueeStart.x, p.x),
+      y0: Math.min(marqueeStart.y, p.y),
+      x1: Math.max(marqueeStart.x, p.x),
+      y1: Math.max(marqueeStart.y, p.y),
+    }
+    return
+  }
+  if (dragStart.nodeId && props.editable && groupDragStart) {
+    if (!dragStart.moved) return
+    const ratio = 1 / scale.value
+    const ddx = dx * ratio
+    const ddy = dy * ratio
+    for (const [id, start] of groupDragStart) {
+      dragOverlay.value.set(id, { cx: start.cx + ddx, cy: start.cy + ddy })
+    }
+    dragOverlay.value = new Map(dragOverlay.value)
+    draggingNodeId.value = dragStart.nodeId
+    return
+  }
+  if (dragStart.nodeId && props.editable && (props.mode === 'drag' || props.mode === 'select')) {
     if (!dragStart.moved) return
     const ratio = 1 / scale.value
     dragOverlay.value.set(dragStart.nodeId, {
@@ -507,7 +579,61 @@ function onPointerUp(e: PointerEvent) {
     return
   }
 
-  if (nodeId && props.editable && props.mode === 'drag' && moved) {
+  if (marqueeStart) {
+    const rect = marquee.value
+    const additive = marqueeStart.additive
+    marquee.value = null
+    marqueeStart = null
+    dragStart = null
+    if (moved) suppressClick = true
+    if (moved && rect) {
+      const inside = renderedNodes.value
+        .filter((n) => n.cx >= rect.x0 && n.cx <= rect.x1 && n.cy >= rect.y0 && n.cy <= rect.y1)
+        .map((n) => n.id)
+      const ids = additive ? Array.from(new Set([...props.selectedIds, ...inside])) : inside
+      emit('selectMany', ids)
+    } else if (!additive) {
+      emit('selectMany', [])
+    }
+    return
+  }
+
+  if (nodeId && props.editable && groupDragStart && moved) {
+    const draggedFinal = dragOverlay.value.get(nodeId)
+    const start = groupDragStart.get(nodeId)
+    if (draggedFinal && start) {
+      const { positionX, positionY } = contentToGrid(draggedFinal.cx, draggedFinal.cy)
+      const snapCx = positionX * props.unit * 1.5
+      const snapCy =
+        positionY * props.unit * SQRT3 + (positionX % 2 !== 0 ? (props.unit * SQRT3) / 2 : 0)
+      const shiftX = snapCx - start.cx
+      const shiftY = snapCy - start.cy
+      const payloads: Array<{ id: string; positionX: number; positionY: number }> = []
+      for (const [id, st] of groupDragStart) {
+        const targetCx = st.cx + shiftX
+        const targetCy = st.cy + shiftY
+        const grid = contentToGrid(targetCx, targetCy)
+        payloads.push({ id, positionX: grid.positionX, positionY: grid.positionY })
+        const settledCx = grid.positionX * props.unit * 1.5
+        const settledCy =
+          grid.positionY * props.unit * SQRT3 +
+          (grid.positionX % 2 !== 0 ? (props.unit * SQRT3) / 2 : 0)
+        settleOverlay(id, dragOverlay.value.get(id) ?? { cx: targetCx, cy: targetCy }, {
+          cx: settledCx,
+          cy: settledCy,
+        })
+      }
+      emit('moveMany', payloads)
+    } else {
+      draggingNodeId.value = null
+    }
+    groupDragStart = null
+    suppressClick = true
+    dragStart = null
+    return
+  }
+
+  if (nodeId && props.editable && (props.mode === 'drag' || props.mode === 'select') && moved) {
     const final = dragOverlay.value.get(nodeId)
     if (final) {
       const { positionX, positionY } = contentToGrid(final.cx, final.cy)
@@ -519,13 +645,19 @@ function onPointerUp(e: PointerEvent) {
     } else {
       draggingNodeId.value = null
     }
+    groupDragStart = null
     suppressClick = true
     dragStart = null
     return
   }
 
   if (nodeId && !moved) {
-    emit('select', nodeId)
+    if (props.mode === 'select' && e.shiftKey) {
+      emit('toggleSelect', nodeId)
+    } else {
+      emit('select', nodeId)
+    }
+    groupDragStart = null
     suppressClick = true
     dragStart = null
     return
@@ -539,6 +671,7 @@ function onPointerUp(e: PointerEvent) {
       emit('deselect')
     }
   }
+  groupDragStart = null
   dragStart = null
 }
 
@@ -688,6 +821,7 @@ const arrowDecorations = computed(() =>
   <div
     ref="stage"
     class="campaign-roadmap"
+    :class="{ 'campaign-roadmap--select': editable && mode === 'select' }"
     @wheel="onWheel"
     @pointerdown="onPointerDown"
     @pointermove="onPointerMove"
@@ -843,6 +977,16 @@ const arrowDecorations = computed(() =>
           />
         </g>
 
+        <rect
+          v-if="marquee"
+          class="campaign-roadmap__marquee"
+          :x="marquee.x0"
+          :y="marquee.y0"
+          :width="marquee.x1 - marquee.x0"
+          :height="marquee.y1 - marquee.y0"
+          aria-hidden="true"
+        />
+
         <g
           v-for="n in renderedNodes"
           :key="n.id"
@@ -863,7 +1007,7 @@ const arrowDecorations = computed(() =>
             :cy="n.cy"
             :size="unit"
             :accent-color="nodeAccentFor(n.id)"
-            :selected="selectedId === n.id"
+            :selected="selectedSet.has(n.id)"
             :is-next="nextIds.has(n.id)"
             :label-placement="labelLayout.get(n.id) ?? null"
             @select="emit('select', $event)"
@@ -1002,6 +1146,22 @@ const arrowDecorations = computed(() =>
 
 .campaign-roadmap:active {
   cursor: grabbing;
+}
+
+.campaign-roadmap--select {
+  cursor: crosshair;
+}
+
+.campaign-roadmap--select:active {
+  cursor: crosshair;
+}
+
+.campaign-roadmap__marquee {
+  fill: color-mix(in srgb, var(--page-accent, var(--accent)) 10%, transparent);
+  stroke: var(--page-accent, var(--accent));
+  stroke-width: 1;
+  stroke-dasharray: 5 4;
+  pointer-events: none;
 }
 
 .campaign-roadmap__node--editable {

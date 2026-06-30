@@ -2,7 +2,7 @@
 import CampaignTrayIcon from './CampaignTrayIcon.vue'
 import { useCampaignEditorContext } from './campaignEditorContext'
 
-const { campaignTrays, nodeTrays, activeTray, selectedDifficulty, toggleTray } =
+const { campaignTrays, nodeTrays, activeTray, selectedCount, toggleTray } =
   useCampaignEditorContext()
 </script>
 
@@ -30,7 +30,7 @@ const { campaignTrays, nodeTrays, activeTray, selectedDifficulty, toggleTray } =
 
     <div class="campaign-editor__tray-group">
       <span class="campaign-editor__tray-group-label">Node</span>
-      <p v-if="!selectedDifficulty" class="campaign-editor__tray-empty">Select a node</p>
+      <p v-if="selectedCount === 0" class="campaign-editor__tray-empty">Select a node</p>
       <button
         v-for="tray in nodeTrays"
         v-else

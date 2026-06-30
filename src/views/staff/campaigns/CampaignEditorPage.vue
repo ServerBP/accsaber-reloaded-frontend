@@ -28,6 +28,8 @@ const {
   actionNotice,
   showMapPicker,
   selectedId,
+  selectedIdList,
+  existingMapDifficultyIds,
   canvasMode,
   itemPickerFor,
   requirementDirtyIds,
@@ -41,13 +43,16 @@ const {
   selectedMeta,
   breadcrumbs,
   handleMove,
+  handleMoveMany,
   handleConnect,
   handleDisconnect,
   handleEmptyClick,
   openMapPicker,
-  handleMapPicked,
+  handleMapsPicked,
   removeSelectedNode,
   handleSelect,
+  handleSelectMany,
+  handleToggleSelect,
   handleDeselect,
   handleItemPicked,
   performPublish,
@@ -94,11 +99,15 @@ const {
           :focus-id="selectedId"
           :default-scale="1.3"
           :selected-id="selectedId"
+          :selected-ids="selectedIdList"
           :editable="editable"
           :mode="canvasMode"
           @select="handleSelect"
+          @select-many="handleSelectMany"
+          @toggle-select="handleToggleSelect"
           @deselect="handleDeselect"
           @move="handleMove"
+          @move-many="handleMoveMany"
           @empty-click="handleEmptyClick"
           @connect="handleConnect"
           @disconnect="handleDisconnect"
@@ -214,6 +223,16 @@ const {
           >
             Connect
           </button>
+          <button
+            type="button"
+            role="radio"
+            :aria-checked="canvasMode === 'select'"
+            class="campaign-editor__mode-btn"
+            :class="{ 'campaign-editor__mode-btn--active': canvasMode === 'select' }"
+            @click="canvasMode = 'select'"
+          >
+            Select
+          </button>
         </div>
       </main>
 
@@ -290,8 +309,9 @@ const {
       <CampaignMapPicker
         v-if="showMapPicker"
         :loading="actionPending"
+        :existing-ids="Array.from(existingMapDifficultyIds)"
         @close="closeMapPicker"
-        @pick="handleMapPicked"
+        @pick="handleMapsPicked"
       />
 
       <CampaignItemPicker

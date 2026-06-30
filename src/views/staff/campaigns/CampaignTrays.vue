@@ -3,6 +3,8 @@ import BaseButton from '@/components/common/BaseButton.vue'
 import BaseSelect from '@/components/common/BaseSelect.vue'
 import ImageUploader from '@/components/common/ImageUploader.vue'
 import CampaignRewardItem from '@/components/domain/CampaignRewardItem.vue'
+import CampaignEditorTile from './CampaignEditorTile.vue'
+import CampaignShapeGlyph from './CampaignShapeGlyph.vue'
 import { useCampaignEditorContext } from './campaignEditorContext'
 
 const {
@@ -51,6 +53,7 @@ const {
   onRequirementTypeChange,
   requirementBounds,
   requirementNumberBounds,
+  requirementEquivalents,
   requirementValueDisplay,
   commitNodeField,
   commitAvatarUrl,
@@ -60,7 +63,13 @@ const {
   resetNodeColor,
   parseSizeInt,
   shapeTiles,
+  sizeTiles,
   selectBorderShape,
+  selectNodeSize,
+  selectedCount,
+  applyBulkSize,
+  applyBulkShape,
+  removeSelectedNodes,
   setPrereqMode,
   removeNodeItem,
   openNodeItemPicker,
@@ -436,26 +445,13 @@ const {
           @blur="commitNodeField('requirementValue')"
         />
       </div>
-    </label>
-    <label class="campaign-editor__field">
-      <span>XP on clear</span>
-      <div class="campaign-editor__slider-row">
-        <input
-          type="range"
-          min="0"
-          max="5000"
-          step="50"
-          v-model.number="formNode.xp"
-          @change="commitNodeField('xp')"
-        />
-        <input
-          type="number"
-          min="0"
-          step="10"
-          v-model.number="formNode.xp"
-          @blur="commitNodeField('xp')"
-        />
-      </div>
+      <p v-if="requirementEquivalents.length" class="campaign-editor__equiv">
+        <span class="campaign-editor__equiv-approx" aria-hidden="true">≈</span>
+        <template v-for="(e, i) in requirementEquivalents" :key="e.key">
+          <span v-if="i > 0" class="campaign-editor__equiv-sep" aria-hidden="true">·</span>
+          <span class="campaign-editor__equiv-val">{{ e.text }}</span>
+        </template>
+      </p>
     </label>
     <label class="campaign-editor__field">
       <span>Description <small>(optional)</small></span>
@@ -541,84 +537,102 @@ const {
     <label class="campaign-editor__field">
       <span>Border shape</span>
       <div class="campaign-editor__shape-row">
-        <button
+        <CampaignEditorTile
           v-for="t in shapeTiles"
           :key="t.label"
-          type="button"
-          class="campaign-editor__shape-tile"
-          :class="{ 'campaign-editor__shape-tile--active': formNode.borderShape === t.value }"
-          :aria-label="t.label"
-          :title="t.label"
-          @click="selectBorderShape(t.value)"
+          :active="formNode.borderShape === t.value"
+          :label="t.label"
+          @select="selectBorderShape(t.value)"
         >
-          <svg width="22" height="22" viewBox="-12 -12 24 24" aria-hidden="true">
-            <polygon
-              v-if="t.path === 'hex'"
-              points="10,0 5,8.66 -5,8.66 -10,0 -5,-8.66 5,-8.66"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.6"
-            />
-            <rect
-              v-else-if="t.path === 'square'"
-              x="-9"
-              y="-9"
-              width="18"
-              height="18"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.6"
-            />
-            <circle
-              v-else-if="t.path === 'circle'"
-              r="10"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.6"
-            />
-            <polygon
-              v-else-if="t.path === 'diamond'"
-              points="0,-10 10,0 0,10 -10,0"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.6"
-            />
-          </svg>
+          <CampaignShapeGlyph :shape="t.value" />
+        </CampaignEditorTile>
+      </div>
+    </label>
+    <div class="campaign-editor__field">
+      <span>Node size: {{ parseSizeInt(formNode.size, 48) }}px</span>
+      <div class="campaign-editor__shape-row">
+        <CampaignEditorTile
+          v-for="t in sizeTiles"
+          :key="t.value"
+          :active="parseSizeInt(formNode.size, 48) === t.value"
+          :label="`${t.label} (${t.value}px)`"
+          @select="selectNodeSize(t.value)"
+        >
+          <CampaignShapeGlyph shape="hex" :radius="t.glyph" />
+        </CampaignEditorTile>
+      </div>
+      <input
+        type="range"
+        min="24"
+        max="96"
+        step="1"
+        :value="parseSizeInt(formNode.size, 48)"
+        @input="formNode.size = ($event.target as HTMLInputElement).value"
+        @change="commitNodeField('size')"
+      />
+    </div>
+    <label class="campaign-editor__field">
+      <span>Border color</span>
+      <div class="campaign-editor__color-row">
+        <input
+          type="color"
+          :value="formNode.borderColor || defaultColorHex"
+          @input="formNode.borderColor = ($event.target as HTMLInputElement).value"
+          @change="commitNodeField('borderColor')"
+        />
+        <button
+          type="button"
+          class="campaign-editor__inline-btn"
+          @click="resetNodeColor('borderColor')"
+        >
+          Auto
         </button>
       </div>
     </label>
-    <div class="campaign-editor__field-row">
-      <label class="campaign-editor__field">
-        <span>Border color</span>
-        <div class="campaign-editor__color-row">
-          <input
-            type="color"
-            :value="formNode.borderColor || defaultColorHex"
-            @input="formNode.borderColor = ($event.target as HTMLInputElement).value"
-            @change="commitNodeField('borderColor')"
-          />
-          <button
-            type="button"
-            class="campaign-editor__inline-btn"
-            @click="resetNodeColor('borderColor')"
-          >
-            Auto
-          </button>
-        </div>
-      </label>
-      <label class="campaign-editor__field">
-        <span>Node size: {{ parseSizeInt(formNode.size, 48) }}px</span>
-        <input
-          type="range"
-          min="24"
-          max="96"
-          step="1"
-          :value="parseSizeInt(formNode.size, 48)"
-          @input="formNode.size = ($event.target as HTMLInputElement).value"
-          @change="commitNodeField('size')"
-        />
-      </label>
-    </div>
+  </fieldset>
+
+  <fieldset
+    v-else-if="activeTray === 'bulk'"
+    class="campaign-editor__section"
+    :disabled="!editable"
+  >
+    <p class="campaign-editor__hint">
+      {{ selectedCount }} nodes selected. Changes apply to all of them.
+    </p>
+    <label class="campaign-editor__field">
+      <span>Node size</span>
+      <div class="campaign-editor__shape-row">
+        <CampaignEditorTile
+          v-for="t in sizeTiles"
+          :key="t.value"
+          :label="`${t.label} (${t.value}px)`"
+          @select="applyBulkSize(t.value)"
+        >
+          <CampaignShapeGlyph shape="hex" :radius="t.glyph" />
+        </CampaignEditorTile>
+      </div>
+    </label>
+    <label class="campaign-editor__field">
+      <span>Border shape</span>
+      <div class="campaign-editor__shape-row">
+        <CampaignEditorTile
+          v-for="t in shapeTiles"
+          :key="t.label"
+          :label="t.label"
+          @select="applyBulkShape(t.value)"
+        >
+          <CampaignShapeGlyph :shape="t.value" />
+        </CampaignEditorTile>
+      </div>
+    </label>
+    <BaseButton
+      size="sm"
+      variant="destructive"
+      :loading="actionPending"
+      @click="removeSelectedNodes"
+    >
+      Remove {{ selectedCount }} nodes
+    </BaseButton>
   </fieldset>
 
   <fieldset
@@ -663,6 +677,26 @@ const {
     class="campaign-editor__section"
     :disabled="!editable"
   >
+    <label class="campaign-editor__field">
+      <span>XP on clear</span>
+      <div class="campaign-editor__slider-row">
+        <input
+          type="range"
+          min="0"
+          max="5000"
+          step="50"
+          v-model.number="formNode.xp"
+          @change="commitNodeField('xp')"
+        />
+        <input
+          type="number"
+          min="0"
+          step="10"
+          v-model.number="formNode.xp"
+          @blur="commitNodeField('xp')"
+        />
+      </div>
+    </label>
     <ul v-if="selectedDifficulty.items.length > 0" class="campaign-editor__reward-list">
       <li
         v-for="item in selectedDifficulty.items"
@@ -823,6 +857,22 @@ const {
   background: transparent;
   border: none;
   accent-color: var(--page-accent);
+}
+
+.campaign-editor__equiv {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px;
+  margin: 2px 0 0;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--text-secondary);
+}
+
+.campaign-editor__equiv-approx,
+.campaign-editor__equiv-sep {
+  color: var(--text-tertiary);
 }
 
 .campaign-editor__color-row {
@@ -1082,34 +1132,6 @@ const {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-}
-
-.campaign-editor__shape-tile {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  background: transparent;
-  border: 1px solid var(--bg-overlay);
-  border-radius: 3px;
-  color: var(--text-tertiary);
-  cursor: pointer;
-  transition:
-    color 120ms ease,
-    border-color 120ms ease,
-    background 120ms ease;
-}
-
-.campaign-editor__shape-tile:hover {
-  color: var(--text-primary);
-  border-color: var(--text-tertiary);
-}
-
-.campaign-editor__shape-tile--active {
-  color: var(--page-accent);
-  border-color: var(--page-accent);
-  background: color-mix(in srgb, var(--page-accent) 12%, transparent);
 }
 
 .campaign-editor__prereq-mode {

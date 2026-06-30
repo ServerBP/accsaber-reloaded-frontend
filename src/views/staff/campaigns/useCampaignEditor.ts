@@ -35,8 +35,10 @@ import {
 import { ApiError, getApiErrorMessage } from '@/api/client'
 import type { Crumb } from '@/components/common/Breadcrumbs.vue'
 import { useItemCatalog } from '@/composables/useItemCatalog'
+import { getCurve } from '@/api/curves'
 import { useAuthStore } from '@/stores/auth'
 import { useCategoryStore } from '@/stores/categories'
+import { calculateAp, reverseApToAccuracyByComplexity } from '@/utils/curveEval'
 import { isAdminSubdomain } from '@/utils/subdomain'
 import type {
   AddCampaignDifficultyRequest,
@@ -48,6 +50,7 @@ import type {
   CampaignDifficultyResponse,
   CampaignTagResponse,
 } from '@/types/api/campaigns'
+import type { CurveResponse } from '@/types/api/categories'
 import type { PublicMapDifficultyResponse } from '@/types/api/maps'
 import type { CampaignRequirementType } from '@/types/enums'
 import { computed, onMounted, ref, watch } from 'vue'
@@ -65,6 +68,7 @@ export type TrayId =
   | 'shape'
   | 'unlock'
   | 'rewards'
+  | 'bulk'
 
 export type TrayDef = { id: TrayId; label: string; icon: string; count?: number; tone?: string }
 
@@ -84,13 +88,35 @@ export function useCampaignEditor() {
   const actionError = ref<string | null>(null)
   const actionNotice = ref<string | null>(null)
   const showMapPicker = ref(false)
-  const pendingPosition = ref<{ x: number; y: number } | null>(null)
-  const selectedId = ref<string | null>(null)
-  const canvasMode = ref<'drag' | 'connect'>('drag')
+  const selectedIds = ref<Set<string>>(new Set())
+  const canvasMode = ref<'drag' | 'connect' | 'select'>('drag')
   const itemPickerFor = ref<'campaign' | 'node' | null>(null)
   const requirementDirtyIds = ref(new Set<string>())
   const editedLiveCampaign = ref(false)
   const showRepublishWarning = ref(false)
+
+  const selectedId = computed<string | null>(() =>
+    selectedIds.value.size === 1 ? (selectedIds.value.values().next().value ?? null) : null,
+  )
+  const selectedIdList = computed<string[]>(() => Array.from(selectedIds.value))
+  const selectedCount = computed(() => selectedIds.value.size)
+  const isMultiSelect = computed(() => selectedIds.value.size > 1)
+
+  function selectOnly(id: string) {
+    selectedIds.value = new Set([id])
+  }
+  function setSelection(ids: string[]) {
+    selectedIds.value = new Set(ids)
+  }
+  function toggleInSelection(id: string) {
+    const next = new Set(selectedIds.value)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    selectedIds.value = next
+  }
+  function clearSelection() {
+    selectedIds.value = new Set()
+  }
 
   const campaignId = computed(() => String(route.params.campaignId ?? ''))
 
@@ -182,8 +208,8 @@ export function useCampaignEditor() {
       if (allTags.value.length === 0) {
         allTags.value = await getCampaignTags()
       }
-      if (!selectedId.value && c.difficulties.length > 0) {
-        selectedId.value = c.difficulties[0].id
+      if (selectedIds.value.size === 0 && c.difficulties.length > 0) {
+        selectOnly(c.difficulties[0].id)
       }
       void loadDifficultyMeta(c.difficulties)
     } catch (err) {
@@ -230,7 +256,7 @@ export function useCampaignEditor() {
       suppressNextCampaignIdWatch = false
       return
     }
-    selectedId.value = null
+    clearSelection()
     void load()
   })
 
@@ -948,29 +974,47 @@ export function useCampaignEditor() {
   }
 
   function handleEmptyClick() {
-    selectedId.value = null
+    clearSelection()
   }
+
+  const existingMapDifficultyIds = computed(
+    () => new Set((campaign.value?.difficulties ?? []).map((d) => d.mapDifficultyId)),
+  )
 
   function openMapPicker() {
     if (!editable.value) return
-    pendingPosition.value = { x: 0, y: 0 }
     showMapPicker.value = true
   }
 
-  async function handleMapPicked(mapDifficultyId: string) {
-    if (!pendingPosition.value) return
-    const { x, y } = pendingPosition.value
-    const positionX = Math.round(x / (48 * 1.5))
-    const offsetY = positionX % 2 !== 0 ? (48 * Math.sqrt(3)) / 2 : 0
-    const positionY = Math.round((y - offsetY) / (48 * Math.sqrt(3)))
-    const req: AddCampaignDifficultyRequest = {
-      mapDifficultyId,
-      requirementType: 'ACC',
-      requirementValue: 0.95,
-      positionX,
-      positionY,
-      xp: 0,
+  function allocateCells(count: number): Array<{ x: number; y: number }> {
+    const occupied = new Set<string>()
+    const diffs = campaign.value?.difficulties ?? []
+    let baseY = 0
+    if (diffs.length > 0) {
+      let maxY = -Infinity
+      for (const d of diffs) {
+        occupied.add(`${d.positionX},${d.positionY}`)
+        if (d.positionY > maxY) maxY = d.positionY
+      }
+      baseY = maxY + 2
     }
+    const perRow = Math.min(6, Math.max(1, count))
+    const cells: Array<{ x: number; y: number }> = []
+    for (let row = 0; cells.length < count && row < count + 4; row++) {
+      for (let col = 0; col < perRow && cells.length < count; col++) {
+        const x = col
+        const y = baseY + row * 2
+        const key = `${x},${y}`
+        if (occupied.has(key)) continue
+        occupied.add(key)
+        cells.push({ x, y })
+      }
+    }
+    return cells
+  }
+
+  async function handleMapsPicked(mapDifficultyIds: string[]) {
+    if (mapDifficultyIds.length === 0) return
     actionPending.value = true
     actionError.value = null
     try {
@@ -979,15 +1023,34 @@ export function useCampaignEditor() {
         c = await ensureCampaign()
         if (!c) return
       }
-      const created = useAdminEndpoint.value
-        ? await addCampaignDifficulty(c.id, req)
-        : await addPlayerCampaignDifficulty(c.id, req)
-      selectedId.value = created.id
+      const cells = allocateCells(mapDifficultyIds.length)
+      const createdIds: string[] = []
+      for (let i = 0; i < mapDifficultyIds.length; i++) {
+        const cell = cells[i] ?? { x: i, y: 0 }
+        const req: AddCampaignDifficultyRequest = {
+          mapDifficultyId: mapDifficultyIds[i],
+          requirementType: 'ACC',
+          requirementValue: 0.95,
+          positionX: cell.x,
+          positionY: cell.y,
+          xp: 0,
+        }
+        const created = useAdminEndpoint.value
+          ? await addCampaignDifficulty(c.id, req)
+          : await addPlayerCampaignDifficulty(c.id, req)
+        createdIds.push(created.id)
+      }
+      if (createdIds.length === 1) {
+        selectOnly(createdIds[0])
+        activeTray.value = 'requirement'
+      } else if (createdIds.length > 1) {
+        setSelection(createdIds)
+        activeTray.value = 'bulk'
+      }
       showMapPicker.value = false
-      pendingPosition.value = null
       await load()
     } catch (err) {
-      actionError.value = getApiErrorMessage(err, 'Failed to add node')
+      actionError.value = getApiErrorMessage(err, 'Failed to add nodes')
     } finally {
       actionPending.value = false
     }
@@ -1005,7 +1068,7 @@ export function useCampaignEditor() {
       } else {
         await deletePlayerCampaignDifficulty(campaign.value.id, d.id)
       }
-      selectedId.value = null
+      clearSelection()
       await load()
     } catch (err) {
       actionError.value = getApiErrorMessage(err, 'Failed to remove node')
@@ -1014,14 +1077,70 @@ export function useCampaignEditor() {
     }
   }
 
+  async function handleMoveMany(
+    payloads: Array<{ id: string; positionX: number; positionY: number }>,
+  ) {
+    if (!campaign.value || payloads.length === 0) return
+    const prevById = new Map(
+      campaign.value.difficulties.map((d) => [d.id, { x: d.positionX, y: d.positionY }]),
+    )
+    const moves = payloads.filter((p) => {
+      const prev = prevById.get(p.id)
+      return prev && (prev.x !== p.positionX || prev.y !== p.positionY)
+    })
+    if (moves.length === 0) return
+    const moveById = new Map(moves.map((m) => [m.id, m]))
+    campaign.value = {
+      ...campaign.value,
+      difficulties: campaign.value.difficulties.map((d) => {
+        const m = moveById.get(d.id)
+        return m ? { ...d, positionX: m.positionX, positionY: m.positionY } : d
+      }),
+    }
+    try {
+      actionError.value = null
+      await Promise.all(
+        moves.map((m) => {
+          const patch = { positionX: m.positionX, positionY: m.positionY }
+          return useAdminEndpoint.value
+            ? updateCampaignDifficulty(m.id, patch)
+            : updatePlayerCampaignDifficulty(m.id, patch)
+        }),
+      )
+    } catch (err) {
+      actionError.value = getApiErrorMessage(err, 'Failed to move nodes')
+      if (campaign.value) {
+        campaign.value = {
+          ...campaign.value,
+          difficulties: campaign.value.difficulties.map((d) => {
+            const prev = prevById.get(d.id)
+            return prev ? { ...d, positionX: prev.x, positionY: prev.y } : d
+          }),
+        }
+      }
+    }
+  }
+
   function handleSelect(id: string) {
-    selectedId.value = id
+    selectOnly(id)
     activeTray.value = 'requirement'
+  }
+
+  function handleToggleSelect(id: string) {
+    toggleInSelection(id)
+    if (selectedIds.value.size >= 2) activeTray.value = 'bulk'
+    else if (selectedIds.value.size === 1) activeTray.value = 'requirement'
+  }
+
+  function handleSelectMany(ids: string[]) {
+    setSelection(ids)
+    if (selectedIds.value.size >= 2) activeTray.value = 'bulk'
+    else if (selectedIds.value.size === 1) activeTray.value = 'requirement'
   }
 
   function handleDeselect() {
     if (showMapPicker.value) return
-    selectedId.value = null
+    clearSelection()
   }
 
   const requirementTypeOptions: Array<{ value: CampaignRequirementType; label: string }> = [
@@ -1059,7 +1178,7 @@ export function useCampaignEditor() {
     if (formNode.value.requirementType === 'ACC') return { min: 70, max: 100, step: 0.1, unit: '%' }
     if (formNode.value.requirementType === 'AP') return { min: 400, max: 1200, step: 1, unit: 'AP' }
     if (formNode.value.requirementType === 'STREAK_115')
-      return { min: 0, max: 2000, step: 1, unit: '' }
+      return { min: 0, max: 30, step: 1, unit: '' }
     if (formNode.value.requirementType === 'FC') return { min: 1, max: 1, step: 1, unit: '' }
     return { min: 0, max: 1_500_000, step: 1000, unit: '' }
   })
@@ -1069,6 +1188,82 @@ export function useCampaignEditor() {
       return { min: 0, max: Number.MAX_SAFE_INTEGER, step: 1 }
     }
     return requirementBounds.value
+  })
+
+  function formatScoreCompact(value: number): string {
+    if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`
+    if (value >= 1_000) return `${Math.round(value / 1_000)}k`
+    return String(Math.round(value))
+  }
+
+  const scoreCurves = ref(new Map<string, CurveResponse>())
+  const pendingCurveIds = new Set<string>()
+
+  async function ensureScoreCurve(curveId: string | undefined) {
+    if (!curveId || scoreCurves.value.has(curveId) || pendingCurveIds.has(curveId)) return
+    pendingCurveIds.add(curveId)
+    try {
+      const curve = await getCurve(curveId)
+      const next = new Map(scoreCurves.value)
+      next.set(curveId, curve)
+      scoreCurves.value = next
+    } catch {
+    } finally {
+      pendingCurveIds.delete(curveId)
+    }
+  }
+
+  function scoreCurveIdFor(categoryId: string | null | undefined): string | undefined {
+    return categoryId ? categoryStore.byId.get(categoryId)?.scoreCurve?.id : undefined
+  }
+
+  watch(
+    () => selectedMeta.value?.categoryId,
+    (categoryId) => void ensureScoreCurve(scoreCurveIdFor(categoryId)),
+    { immediate: true },
+  )
+
+  const requirementEquivalents = computed<Array<{ key: string; text: string }>>(() => {
+    const type = formNode.value.requirementType
+    if (type !== 'ACC' && type !== 'AP' && type !== 'SCORE') return []
+    const meta = selectedMeta.value
+    if (!meta) return []
+    const complexity = meta.complexity
+    const maxScore = meta.maxScore
+    const curveId = scoreCurveIdFor(meta.categoryId)
+    const curve = curveId ? (scoreCurves.value.get(curveId) ?? null) : null
+    const raw = formNode.value.requirementValue
+
+    let acc: number | null = null
+    let ap: number | null = null
+    let score: number | null = null
+
+    if (type === 'ACC') {
+      acc = raw
+    } else if (type === 'SCORE') {
+      score = raw
+      if (maxScore > 0) acc = raw / maxScore
+    } else {
+      ap = raw
+      if (curve && complexity != null) acc = reverseApToAccuracyByComplexity(curve, raw, complexity)
+    }
+
+    if (acc != null && Number.isFinite(acc)) {
+      if (score == null && maxScore > 0) score = acc * maxScore
+      if (ap == null && curve && complexity != null) ap = calculateAp(curve, acc, complexity)
+    }
+
+    const out: Array<{ key: string; text: string }> = []
+    if (type !== 'ACC' && acc != null && Number.isFinite(acc)) {
+      out.push({ key: 'ACC', text: `${(acc * 100).toFixed(2)}%` })
+    }
+    if (type !== 'AP' && ap != null && Number.isFinite(ap)) {
+      out.push({ key: 'AP', text: `${Math.round(ap)} AP` })
+    }
+    if (type !== 'SCORE' && score != null && Number.isFinite(score)) {
+      out.push({ key: 'SCORE', text: `${formatScoreCompact(score)} pts` })
+    }
+    return out
   })
 
   const isMilestone = ref(false)
@@ -1146,6 +1341,13 @@ export function useCampaignEditor() {
     { value: 'diamond', label: 'Diamond', path: 'diamond' },
   ] as const
 
+  const sizeTiles = [
+    { value: 32, label: 'Small', glyph: 5 },
+    { value: 48, label: 'Medium', glyph: 7.5 },
+    { value: 64, label: 'Large', glyph: 9.5 },
+    { value: 80, label: 'Huge', glyph: 11.5 },
+  ] as const
+
   function onCompletionModeChange(value: string) {
     formMeta.value.completionMode = value as 'TERMINAL' | 'ALL'
     commitMetaField('completionMode')
@@ -1166,9 +1368,51 @@ export function useCampaignEditor() {
     commitNodeField('borderShape')
   }
 
+  function selectNodeSize(value: number) {
+    formNode.value.size = String(value)
+    commitNodeField('size')
+  }
+
+  async function applyBulkSize(value: number) {
+    if (!editable.value) return
+    for (const id of selectedIdList.value) {
+      await applyNodePatch(id, { size: String(value) })
+    }
+  }
+
+  async function applyBulkShape(value: string) {
+    if (!editable.value) return
+    for (const id of selectedIdList.value) {
+      await applyNodePatch(id, { borderShape: value })
+    }
+  }
+
+  async function removeSelectedNodes() {
+    if (!editable.value || !campaign.value) return
+    const ids = selectedIdList.value
+    if (ids.length === 0) return
+    if (!window.confirm(`Remove ${ids.length} nodes from this campaign?`)) return
+    actionPending.value = true
+    actionError.value = null
+    try {
+      for (const id of ids) {
+        if (useAdminEndpoint.value) {
+          await deactivateCampaignDifficulty(campaign.value.id, id)
+        } else {
+          await deletePlayerCampaignDifficulty(campaign.value.id, id)
+        }
+      }
+      clearSelection()
+      await load()
+    } catch (err) {
+      actionError.value = getApiErrorMessage(err, 'Failed to remove nodes')
+    } finally {
+      actionPending.value = false
+    }
+  }
+
   function closeMapPicker() {
     showMapPicker.value = false
-    pendingPosition.value = null
   }
 
   const breadcrumbs = computed<Crumb[]>(() => {
@@ -1205,6 +1449,9 @@ export function useCampaignEditor() {
   })
 
   const nodeTrays = computed<TrayDef[]>(() => {
+    if (isMultiSelect.value) {
+      return [{ id: 'bulk', label: 'Selection', icon: 'layers', count: selectedCount.value }]
+    }
     const d = selectedDifficulty.value
     if (!d) return []
     const trays: TrayDef[] = [
@@ -1231,6 +1478,7 @@ export function useCampaignEditor() {
     shape: 'Shape',
     unlock: 'Unlock when',
     rewards: 'Node rewards',
+    bulk: 'Selection',
   }
 
   const activeTrayIsNode = computed(
@@ -1245,8 +1493,10 @@ export function useCampaignEditor() {
     activeTray.value = null
   }
 
-  watch(selectedId, (id) => {
-    if (!id && activeTrayIsNode.value) activeTray.value = null
+  watch(selectedIds, () => {
+    if (selectedIds.value.size === 0 && (activeTrayIsNode.value || activeTray.value === 'bulk')) {
+      activeTray.value = null
+    }
   })
 
   watch(nodeTrays, (list) => {
@@ -1266,6 +1516,10 @@ export function useCampaignEditor() {
     actionNotice,
     showMapPicker,
     selectedId,
+    selectedIdList,
+    selectedCount,
+    isMultiSelect,
+    existingMapDifficultyIds,
     canvasMode,
     itemPickerFor,
     requirementDirtyIds,
@@ -1312,13 +1566,17 @@ export function useCampaignEditor() {
     doUncurate,
     doDeactivate,
     handleMove,
+    handleMoveMany,
     handleConnect,
     handleDisconnect,
     handleEmptyClick,
     openMapPicker,
-    handleMapPicked,
+    handleMapsPicked,
     removeSelectedNode,
+    removeSelectedNodes,
     handleSelect,
+    handleSelectMany,
+    handleToggleSelect,
     handleDeselect,
     openCampaignItemPicker,
     openNodeItemPicker,
@@ -1330,11 +1588,16 @@ export function useCampaignEditor() {
     requirementValueDisplay,
     requirementBounds,
     requirementNumberBounds,
+    requirementEquivalents,
     isMilestone,
     setMilestone,
     parseSizeInt,
     defaultColorHex,
     shapeTiles,
+    sizeTiles,
+    selectNodeSize,
+    applyBulkSize,
+    applyBulkShape,
     onCompletionModeChange,
     onRequirementTypeChange,
     resetNodeColor,

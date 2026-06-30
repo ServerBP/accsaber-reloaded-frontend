@@ -76,5 +76,10 @@ defineProps<{ name: string; size?: number }>()
       <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
       <line x1="12" y1="22.08" x2="12" y2="12" />
     </template>
+    <template v-else-if="name === 'layers'">
+      <polygon points="12 2 2 7 12 12 22 7 12 2" />
+      <polyline points="2 17 12 22 22 17" />
+      <polyline points="2 12 12 17 22 12" />
+    </template>
   </svg>
 </template>
