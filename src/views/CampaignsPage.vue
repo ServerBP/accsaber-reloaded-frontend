@@ -4,6 +4,7 @@ import BaseButton from '@/components/common/BaseButton.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import PageHeaderBleed from '@/components/common/PageHeaderBleed.vue'
 import PaginationControls from '@/components/common/PaginationControls.vue'
+import SearchBox from '@/components/common/SearchBox.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import CampaignRow from '@/components/domain/CampaignRow.vue'
 import { usePageableRoute } from '@/composables/usePageableRoute'
@@ -41,6 +42,11 @@ const pane = computed<Pane>(() => {
 })
 
 const curatedOnly = computed(() => route.query.curated === '1')
+
+const searchTerm = computed(() => {
+  const raw = route.query.q
+  return typeof raw === 'string' ? raw.trim() : ''
+})
 
 const selectedTagIds = computed<string[]>(() => {
   const raw = route.query.tags
@@ -213,6 +219,7 @@ async function loadCampaigns() {
         sort: paginationParams.value.sort,
         tagIds: selectedTagIds.value.length > 0 ? selectedTagIds.value : undefined,
         status: statusFilter.value,
+        search: searchTerm.value || undefined,
       })
       items.value = page.content
       totalPages.value = page.totalPages || 1
@@ -241,6 +248,15 @@ function setPane(next: Pane) {
   } else {
     query.pane = next
   }
+  delete query.page
+  router.replace({ query })
+}
+
+function setSearch(value: string) {
+  const trimmed = value.trim()
+  const query = { ...route.query }
+  if (trimmed) query.q = trimmed
+  else delete query.q
   delete query.page
   router.replace({ query })
 }
@@ -304,6 +320,7 @@ watch(
     pane.value,
     curatedOnly.value,
     selectedTagIds.value.join(','),
+    searchTerm.value,
     paginationParams.value.page,
   ],
   () => {
@@ -355,6 +372,9 @@ watch(
 
       <div class="campaigns-page__bar-actions">
         <template v-if="pane === 'all'">
+          <SearchBox class="campaigns-page__search" :model-value="searchTerm"
+            placeholder="Search title or creator..." @update:model-value="setSearch" />
+
           <button type="button" class="campaigns-page__chip campaigns-page__chip--toggle"
             :class="{ 'campaigns-page__chip--active': curatedOnly }" @click="toggleCuratedOnly">
             Curated only
@@ -589,6 +609,11 @@ watch(
   gap: var(--space-sm);
 }
 
+.campaigns-page__bar-actions :deep(.search-box) {
+  flex: 0 1 260px;
+  min-width: 190px;
+}
+
 .campaigns-page__chip--toggle {
   padding: 6px 12px;
   font-size: 0.6875rem;
@@ -801,6 +826,11 @@ watch(
 }
 
 @media (max-width: 560px) {
+  .campaigns-page__bar-actions :deep(.search-box) {
+    flex-basis: 100%;
+    min-width: 0;
+  }
+
   .campaigns-page__invite {
     flex-direction: column;
     align-items: stretch;

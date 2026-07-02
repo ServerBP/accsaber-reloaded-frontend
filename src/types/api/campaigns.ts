@@ -185,6 +185,7 @@ export interface CampaignListParams extends PaginationParams {
   status?: CampaignStatus[]
   tagIds?: string[]
   creatorId?: string
+  search?: string
 }
 
 export interface CampaignTagListParams {

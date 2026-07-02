@@ -206,9 +206,23 @@ function goToEditor() {
   })
 }
 
+const effectiveDifficultyProgress = computed<CampaignDifficultyProgressResponse[] | undefined>(() => {
+  const diffs = progress.value?.difficulties
+  if (!diffs) return undefined
+  if (isAbandoned.value) return diffs.map((p) => ({ ...p, unlocked: false, completed: false }))
+  return diffs
+})
+
+const effectiveBarrierProgress = computed<BarrierProgressResponse[] | undefined>(() => {
+  const barrs = progress.value?.barriers
+  if (!barrs) return undefined
+  if (isAbandoned.value) return barrs.map((p) => ({ ...p, unlocked: false, satisfied: false }))
+  return barrs
+})
+
 const progressByDifficulty = computed(() => {
   const map = new Map<string, CampaignDifficultyProgressResponse>()
-  for (const p of progress.value?.difficulties ?? []) {
+  for (const p of effectiveDifficultyProgress.value ?? []) {
     map.set(p.node.id, p)
   }
   return map
@@ -230,7 +244,7 @@ const displayedProgress = computed(() => {
 
 const progressByBarrier = computed(() => {
   const map = new Map<string, BarrierProgressResponse>()
-  for (const p of progress.value?.barriers ?? []) map.set(p.barrier.id, p)
+  for (const p of effectiveBarrierProgress.value ?? []) map.set(p.barrier.id, p)
   return map
 })
 
@@ -268,6 +282,11 @@ const briefingOpen = ref(false)
 const nodeAccents = computed(() => {
   const map = new Map<string, string>()
   for (const d of campaign.value?.difficulties ?? []) {
+    const custom = d.checkpointColor || d.borderColor
+    if (custom) {
+      map.set(d.id, custom)
+      continue
+    }
     const meta = difficultyMeta.value.get(d.id)
     if (!meta) continue
     const code = categoryStore.getCategoryCode(meta.categoryId)
@@ -381,7 +400,7 @@ async function onAbandon() {
   actionError.value = null
   try {
     await abandonCampaign(campaign.value.id)
-    progress.value = null
+    progress.value = await getMyCampaignProgress(campaign.value.id)
   } catch (err) {
     actionError.value = getApiErrorMessage(err, 'Failed to abandon campaign')
   } finally {
@@ -466,7 +485,7 @@ function unpinTooltip() {
     <template v-else>
       <main class="campaign-detail__canvas" aria-label="Campaign roadmap">
         <CampaignRoadmap :difficulties="campaign.difficulties" :barriers="campaign.barriers"
-          :texts="campaign.texts" :progress="progress?.difficulties" :barrier-progress="progress?.barriers"
+          :texts="campaign.texts" :progress="effectiveDifficultyProgress" :barrier-progress="effectiveBarrierProgress"
           :accent-color="accent" :node-accents="nodeAccents" :background-url="campaign.backgroundUrl"
           :show-starfield="!campaign.backgroundUrl" :focus-id="focusNodeId" :default-scale="1.35"
           :selected-id="selectedId" :mark-next="isInProgress && !campaign.progressionAgnostic"

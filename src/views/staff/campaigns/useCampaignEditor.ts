@@ -2,52 +2,35 @@ import {
   addCampaignBarrier,
   addCampaignDifficulty,
   createCampaign,
-  curateCampaign,
   addCampaignText,
-  deactivateCampaign,
   deactivateCampaignBarrier,
   deactivateCampaignDifficulty,
   deactivateCampaignText,
-  publishCampaign,
-  reopenCampaignForEdit,
-  uncurateCampaign,
   updateCampaign,
   updateCampaignBarrier,
   updateCampaignDifficulty,
   updateCampaignText,
 } from '@/api/admin/campaigns'
 import {
-  addCampaignCompletionItem,
-  addCampaignDifficultyItem,
   addPlayerCampaignBarrier,
   addPlayerCampaignDifficulty,
   addPlayerCampaignText,
   createPlayerCampaign,
-  deletePlayerCampaign,
   deletePlayerCampaignBarrier,
   deletePlayerCampaignDifficulty,
   deletePlayerCampaignText,
   getCampaign,
   getCampaignByIdOrSlug,
-  getCampaignCollaborators,
   getCampaignTags,
-  inviteCampaignCollaborator,
-  publishPlayerCampaign,
-  removeCampaignCollaborator,
-  removeCampaignCompletionItem,
-  removeCampaignDifficultyItem,
-  unpublishPlayerCampaign,
   updatePlayerCampaign,
   updatePlayerCampaignBarrier,
   updatePlayerCampaignDifficulty,
   updatePlayerCampaignText,
 } from '@/api/campaigns'
-import {
-  deleteCampaignBackground,
-  deleteCampaignIcon,
-  uploadCampaignBackground,
-  uploadCampaignIcon,
-} from '@/api/cdn'
+import { useCampaignAssets } from './useCampaignAssets'
+import { useCampaignCollaborators } from './useCampaignCollaborators'
+import { useCampaignLifecycle } from './useCampaignLifecycle'
+import { useCampaignRewards } from './useCampaignRewards'
 import { ApiError, getApiErrorMessage } from '@/api/client'
 import type { Crumb } from '@/components/common/Breadcrumbs.vue'
 import { useItemCatalog } from '@/composables/useItemCatalog'
@@ -66,7 +49,6 @@ import type {
 } from '@/types/api/admin'
 import type {
   CampaignBarrierResponse,
-  CampaignCollaboratorResponse,
   CampaignDetailResponse,
   CampaignDifficultyResponse,
   CampaignTagResponse,
@@ -76,7 +58,7 @@ import type { CurveResponse } from '@/types/api/categories'
 import type { PublicMapDifficultyResponse } from '@/types/api/maps'
 import type { BarrierConditionType, CampaignRequirementType } from '@/types/enums'
 import { barrierConditionMeta } from '@/utils/campaignLayout'
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 export type TrayId =
@@ -99,7 +81,6 @@ export type TrayId =
   | 'barrierRewards'
   | 'text'
 
-const MAX_COLLABORATORS = 15
 const MAX_BARRIERS = 50
 const MAX_TEXTS = 50
 
@@ -123,13 +104,8 @@ export function useCampaignEditor() {
   const showMapPicker = ref(false)
   const selectedIds = ref<Set<string>>(new Set())
   const canvasMode = ref<'drag' | 'connect' | 'select'>('drag')
-  const itemPickerFor = ref<'campaign' | 'node' | 'barrier' | null>(null)
   const requirementDirtyIds = ref(new Set<string>())
   const editedLiveCampaign = ref(false)
-  const showRepublishWarning = ref(false)
-  const collaborators = ref<CampaignCollaboratorResponse[]>([])
-  const collaboratorsLoading = ref(false)
-  const showCollaboratorPicker = ref(false)
 
   const selectedId = computed<string | null>(() =>
     selectedIds.value.size === 1 ? (selectedIds.value.values().next().value ?? null) : null,
@@ -263,22 +239,6 @@ export function useCampaignEditor() {
     }
   }
 
-  async function loadCollaborators() {
-    const c = campaign.value
-    if (!c || c.id === '' || (!auth.isLoggedIn && !isCurator.value)) {
-      collaborators.value = []
-      return
-    }
-    collaboratorsLoading.value = true
-    try {
-      collaborators.value = await getCampaignCollaborators(c.id)
-    } catch {
-      collaborators.value = []
-    } finally {
-      collaboratorsLoading.value = false
-    }
-  }
-
   async function loadDifficultyMeta(difficulties: CampaignDifficultyResponse[]) {
     if (difficulties.length === 0) return
     const { getDifficulty } = await import('@/api/maps')
@@ -294,6 +254,41 @@ export function useCampaignEditor() {
     difficultyMeta.value = next
   }
 
+  let changeBroadcaster: (() => void) | null = null
+  let applyingRemote = 0
+  let broadcastTimer: ReturnType<typeof setTimeout> | null = null
+
+  function setChangeBroadcaster(fn: (() => void) | null) {
+    changeBroadcaster = fn
+  }
+
+  async function guardedLoad() {
+    applyingRemote++
+    try {
+      await load()
+    } finally {
+      await nextTick()
+      applyingRemote--
+    }
+  }
+
+  function scheduleBroadcast() {
+    if (applyingRemote > 0 || !changeBroadcaster) return
+    if (broadcastTimer) clearTimeout(broadcastTimer)
+    broadcastTimer = setTimeout(() => {
+      broadcastTimer = null
+      changeBroadcaster?.()
+    }, 400)
+  }
+
+  watch(campaign, () => {
+    scheduleBroadcast()
+  })
+
+  onBeforeUnmount(() => {
+    if (broadcastTimer) clearTimeout(broadcastTimer)
+  })
+
   onMounted(() => {
     if (isNewMode.value) {
       campaign.value = createPlaceholderCampaign()
@@ -305,7 +300,7 @@ export function useCampaignEditor() {
       loading.value = false
       return
     }
-    void load()
+    void guardedLoad()
   })
 
   watch(campaignId, (next, prev) => {
@@ -315,7 +310,7 @@ export function useCampaignEditor() {
       return
     }
     clearSelection()
-    void load()
+    void guardedLoad()
   })
 
   watch(
@@ -341,24 +336,26 @@ export function useCampaignEditor() {
     )
   })
 
-  const activeCollaborators = computed(() =>
-    collaborators.value.filter((c) => c.status !== 'DECLINED'),
-  )
-
-  const isCollaborator = computed(() => {
-    if (!auth.userId) return false
-    return collaborators.value.some(
-      (c) => c.status === 'ACCEPTED' && String(c.userId) === String(auth.userId),
-    )
-  })
-
-  const canInviteMore = computed(() => activeCollaborators.value.length < MAX_COLLABORATORS)
-
-  const existingCollaboratorIds = computed(() => {
-    const ids = new Set<string>()
-    if (campaign.value?.creatorId) ids.add(String(campaign.value.creatorId))
-    for (const c of activeCollaborators.value) ids.add(String(c.userId))
-    return ids
+  const {
+    collaboratorsLoading,
+    showCollaboratorPicker,
+    activeCollaborators,
+    isCollaborator,
+    canInviteMore,
+    existingCollaboratorIds,
+    collaboratorLimit,
+    loadCollaborators,
+    openCollaboratorPicker,
+    handleCollaboratorPicked,
+    removeCollaborator,
+    leaveCampaign,
+  } = useCampaignCollaborators({
+    campaign,
+    auth,
+    isCurator,
+    isCreator,
+    actionPending,
+    actionError,
   })
 
   const canAccess = computed(
@@ -398,6 +395,11 @@ export function useCampaignEditor() {
   const nodeAccents = computed(() => {
     const map = new Map<string, string>()
     for (const d of campaign.value?.difficulties ?? []) {
+      const custom = d.checkpointColor || d.borderColor
+      if (custom) {
+        map.set(d.id, custom)
+        continue
+      }
       const meta = difficultyMeta.value.get(d.id)
       if (!meta) continue
       const code = categoryStore.getCategoryCode(meta.categoryId)
@@ -874,136 +876,33 @@ export function useCampaignEditor() {
     void applyCampaignPatch({ tagIds: Array.from(current) })
   }
 
-  function doPlayerPublish() {
-    if (!campaign.value) return
-    if (editedLiveCampaign.value && requirementDirtyIds.value.size > 0) {
-      showRepublishWarning.value = true
-      return
-    }
-    void performPublish()
-  }
+  const {
+    showRepublishWarning,
+    doPlayerPublish,
+    performPublish,
+    doPlayerUnpublish,
+    deleteDraft,
+    doPublish,
+    doReopen,
+    doCurate,
+    doUncurate,
+    doDeactivate,
+  } = useCampaignLifecycle({
+    campaign,
+    actionPending,
+    actionError,
+    load,
+    editedLiveCampaign,
+    requirementDirtyIds,
+    isTerminal,
+    sinkCount,
+  })
 
-  async function performPublish() {
-    if (!campaign.value) return
-    showRepublishWarning.value = false
-    actionPending.value = true
-    actionError.value = null
-    try {
-      await publishPlayerCampaign(campaign.value.id)
-      await load()
-    } catch (err) {
-      actionError.value = getApiErrorMessage(err, 'Failed to publish campaign')
-    } finally {
-      actionPending.value = false
-    }
-  }
-
-  async function doPlayerUnpublish() {
-    if (!campaign.value) return
-    actionPending.value = true
-    actionError.value = null
-    try {
-      await unpublishPlayerCampaign(campaign.value.id)
-      await load()
-      editedLiveCampaign.value = true
-    } catch (err) {
-      actionError.value = getApiErrorMessage(err, 'Failed to unpublish campaign')
-    } finally {
-      actionPending.value = false
-    }
-  }
-
-  async function deleteDraft() {
-    if (!campaign.value) return
-    if (!window.confirm('Delete this draft? This cannot be undone.')) return
-    actionPending.value = true
-    actionError.value = null
-    try {
-      await deletePlayerCampaign(campaign.value.id)
-      window.location.assign('/campaigns')
-    } catch (err) {
-      actionError.value = getApiErrorMessage(err, 'Failed to delete draft')
-    } finally {
-      actionPending.value = false
-    }
-  }
-
-  function openCollaboratorPicker() {
-    if (!isCreator.value || !canInviteMore.value) return
-    showCollaboratorPicker.value = true
-  }
-
-  async function handleCollaboratorPicked(userId: string) {
-    const c = campaign.value
-    if (!c || c.id === '') return
-    actionPending.value = true
-    actionError.value = null
-    try {
-      await inviteCampaignCollaborator(c.id, { userId })
-      await loadCollaborators()
-      showCollaboratorPicker.value = false
-    } catch (err) {
-      actionError.value = getApiErrorMessage(err, 'Failed to invite collaborator')
-    } finally {
-      actionPending.value = false
-    }
-  }
-
-  async function removeCollaborator(userId: string) {
-    const c = campaign.value
-    if (!isCreator.value || !c) return
-    const row = collaborators.value.find((x) => String(x.userId) === String(userId))
-    if (!window.confirm(`Remove ${row?.userName ?? 'this collaborator'} from this campaign?`)) return
-    actionPending.value = true
-    actionError.value = null
-    try {
-      await removeCampaignCollaborator(c.id, userId)
-      await loadCollaborators()
-    } catch (err) {
-      actionError.value = getApiErrorMessage(err, 'Failed to remove collaborator')
-    } finally {
-      actionPending.value = false
-    }
-  }
-
-  async function leaveCampaign() {
-    const c = campaign.value
-    if (!c || !auth.userId) return
-    if (!window.confirm('Leave this campaign? You will lose edit access.')) return
-    actionPending.value = true
-    actionError.value = null
-    try {
-      await removeCampaignCollaborator(c.id, String(auth.userId))
-      window.location.assign('/campaigns')
-    } catch (err) {
-      actionError.value = getApiErrorMessage(err, 'Failed to leave campaign')
-      actionPending.value = false
-    }
-  }
-
-  async function uploadBackground(file: File) {
-    if (!campaign.value) return
-    await uploadCampaignBackground(campaign.value.id, file, useAdminEndpoint.value)
-    await load()
-  }
-
-  async function removeBackground() {
-    if (!campaign.value) return
-    await deleteCampaignBackground(campaign.value.id, useAdminEndpoint.value)
-    await load()
-  }
-
-  async function uploadIcon(file: File) {
-    if (!campaign.value) return
-    await uploadCampaignIcon(campaign.value.id, file, useAdminEndpoint.value)
-    await load()
-  }
-
-  async function removeIcon() {
-    if (!campaign.value) return
-    await deleteCampaignIcon(campaign.value.id, useAdminEndpoint.value)
-    await load()
-  }
+  const { uploadBackground, removeBackground, uploadIcon, removeIcon } = useCampaignAssets({
+    campaign,
+    load,
+    useAdminEndpoint,
+  })
 
   function wouldCreateCycle(fromId: string, toId: string): boolean {
     if (fromId === toId) return true
@@ -1050,84 +949,6 @@ export function useCampaignEditor() {
     if (!editable.value || !d) return
     if (d.prerequisiteMode === mode) return
     void applyNodePatch(d.id, { prerequisiteMode: mode })
-  }
-
-  async function doPublish() {
-    if (!campaign.value) return
-    actionPending.value = true
-    actionError.value = null
-    try {
-      await publishCampaign(campaign.value.id)
-      await load()
-    } catch (err) {
-      actionError.value = getApiErrorMessage(err, 'Failed to publish campaign')
-    } finally {
-      actionPending.value = false
-    }
-  }
-
-  async function doReopen() {
-    if (!campaign.value) return
-    actionPending.value = true
-    actionError.value = null
-    try {
-      await reopenCampaignForEdit(campaign.value.id)
-      await load()
-    } catch (err) {
-      actionError.value = getApiErrorMessage(err, 'Failed to reopen for editing')
-    } finally {
-      actionPending.value = false
-    }
-  }
-
-  async function doCurate() {
-    if (!campaign.value) return
-    if (isTerminal.value && sinkCount.value !== 1) {
-      actionError.value = `Terminal campaigns need exactly one sink node, found ${sinkCount.value}.`
-      return
-    }
-    actionPending.value = true
-    actionError.value = null
-    try {
-      await curateCampaign(campaign.value.id)
-      await load()
-    } catch (err) {
-      actionError.value = getApiErrorMessage(err, 'Failed to curate campaign')
-    } finally {
-      actionPending.value = false
-    }
-  }
-
-  async function doUncurate() {
-    if (!campaign.value) return
-    actionPending.value = true
-    actionError.value = null
-    try {
-      await uncurateCampaign(campaign.value.id)
-      await load()
-    } catch (err) {
-      actionError.value = getApiErrorMessage(err, 'Failed to uncurate campaign')
-    } finally {
-      actionPending.value = false
-    }
-  }
-
-  async function doDeactivate() {
-    if (!campaign.value) return
-    if (
-      !window.confirm('Deactivate this campaign? It will be hidden but player progress preserved.')
-    )
-      return
-    actionPending.value = true
-    actionError.value = null
-    try {
-      await deactivateCampaign(campaign.value.id)
-      await load()
-    } catch (err) {
-      actionError.value = getApiErrorMessage(err, 'Failed to deactivate campaign')
-    } finally {
-      actionPending.value = false
-    }
   }
 
   async function handleMove(payload: { id: string; positionX: number; positionY: number }) {
@@ -1200,132 +1021,27 @@ export function useCampaignEditor() {
     }
   }
 
-  const NODE_REWARD_LIMIT = 3
-
-  const canAddNodeReward = computed(
-    () => !!selectedDifficulty.value && selectedDifficulty.value.items.length < NODE_REWARD_LIMIT,
-  )
-
-  function openCampaignItemPicker() {
-    if (!editable.value) return
-    itemPickerFor.value = 'campaign'
-  }
-
-  function openNodeItemPicker() {
-    if (!editable.value || !canAddNodeReward.value) return
-    itemPickerFor.value = 'node'
-  }
-
-  async function handleItemPicked(payload: { itemId: string; quantity: number }) {
-    if (itemPickerFor.value === 'campaign') {
-      await addCompletionItem(payload)
-    } else if (itemPickerFor.value === 'node') {
-      await addNodeItem(payload)
-    } else if (itemPickerFor.value === 'barrier') {
-      await addBarrierItem(payload)
-    }
-    itemPickerFor.value = null
-  }
-
-  async function addCompletionItem(payload: { itemId: string; quantity: number }) {
-    let c = campaign.value
-    if (!c || c.id === '') {
-      c = await ensureCampaign()
-      if (!c) return
-    }
-    actionPending.value = true
-    actionError.value = null
-    try {
-      const updated = await addCampaignCompletionItem(c.id, payload)
-      if (campaign.value) {
-        campaign.value = { ...campaign.value, completionItems: updated }
-      }
-    } catch (err) {
-      actionError.value = getApiErrorMessage(err, 'Failed to add reward')
-    } finally {
-      actionPending.value = false
-    }
-  }
-
-  async function removeCompletionItem(itemId: string) {
-    if (!editable.value || !campaign.value) return
-    const cId = campaign.value.id
-    const prev = campaign.value.completionItems
-    campaign.value = {
-      ...campaign.value,
-      completionItems: prev.filter((i) => i.itemId !== itemId),
-    }
-    try {
-      actionError.value = null
-      const updated = await removeCampaignCompletionItem(cId, itemId)
-      if (campaign.value) {
-        campaign.value = { ...campaign.value, completionItems: updated }
-      }
-    } catch (err) {
-      actionError.value = getApiErrorMessage(err, 'Failed to remove reward')
-      if (campaign.value) {
-        campaign.value = { ...campaign.value, completionItems: prev }
-      }
-    }
-  }
-
-  async function addNodeItem(payload: { itemId: string; quantity: number }) {
-    const d = selectedDifficulty.value
-    if (!editable.value || !d || d.items.length >= NODE_REWARD_LIMIT) return
-    const dId = d.id
-    actionPending.value = true
-    actionError.value = null
-    try {
-      const updated = await addCampaignDifficultyItem(dId, payload)
-      if (campaign.value) {
-        campaign.value = {
-          ...campaign.value,
-          difficulties: campaign.value.difficulties.map((row) =>
-            row.id === dId ? { ...row, items: updated } : row,
-          ),
-        }
-      }
-    } catch (err) {
-      actionError.value = getApiErrorMessage(err, 'Failed to add reward')
-    } finally {
-      actionPending.value = false
-    }
-  }
-
-  async function removeNodeItem(itemId: string) {
-    const d = selectedDifficulty.value
-    if (!editable.value || !d || !campaign.value) return
-    const dId = d.id
-    const prevItems = d.items
-    campaign.value = {
-      ...campaign.value,
-      difficulties: campaign.value.difficulties.map((row) =>
-        row.id === dId ? { ...row, items: prevItems.filter((i) => i.itemId !== itemId) } : row,
-      ),
-    }
-    try {
-      actionError.value = null
-      const updated = await removeCampaignDifficultyItem(dId, itemId)
-      if (campaign.value) {
-        campaign.value = {
-          ...campaign.value,
-          difficulties: campaign.value.difficulties.map((row) =>
-            row.id === dId ? { ...row, items: updated } : row,
-          ),
-        }
-      }
-    } catch (err) {
-      actionError.value = getApiErrorMessage(err, 'Failed to remove reward')
-      if (campaign.value) {
-        campaign.value = {
-          ...campaign.value,
-          difficulties: campaign.value.difficulties.map((row) =>
-            row.id === dId ? { ...row, items: prevItems } : row,
-          ),
-        }
-      }
-    }
-  }
+  const {
+    itemPickerFor,
+    canAddNodeReward,
+    canAddBarrierReward,
+    nodeRewardLimit,
+    openCampaignItemPicker,
+    openNodeItemPicker,
+    openBarrierItemPicker,
+    handleItemPicked,
+    removeCompletionItem,
+    removeNodeItem,
+    removeBarrierItem,
+  } = useCampaignRewards({
+    campaign,
+    ensureCampaign,
+    actionPending,
+    actionError,
+    editable,
+    selectedDifficulty,
+    selectedBarrier,
+  })
 
   async function handleConnect(payload: { fromId: string; toId: string }) {
     const prev = vertexPrereqs(payload.toId)
@@ -2031,73 +1747,6 @@ export function useCampaignEditor() {
     commitBarrierField('conditionType')
   }
 
-  const canAddBarrierReward = computed(
-    () => !!selectedBarrier.value && selectedBarrier.value.items.length < NODE_REWARD_LIMIT,
-  )
-
-  function openBarrierItemPicker() {
-    if (!editable.value || !canAddBarrierReward.value) return
-    itemPickerFor.value = 'barrier'
-  }
-
-  async function addBarrierItem(payload: { itemId: string; quantity: number }) {
-    const b = selectedBarrier.value
-    if (!editable.value || !b || b.items.length >= NODE_REWARD_LIMIT) return
-    const bId = b.id
-    actionPending.value = true
-    actionError.value = null
-    try {
-      const updated = await addCampaignDifficultyItem(bId, payload)
-      if (campaign.value) {
-        campaign.value = {
-          ...campaign.value,
-          barriers: campaign.value.barriers.map((row) =>
-            row.id === bId ? { ...row, items: updated } : row,
-          ),
-        }
-      }
-    } catch (err) {
-      actionError.value = getApiErrorMessage(err, 'Failed to add reward')
-    } finally {
-      actionPending.value = false
-    }
-  }
-
-  async function removeBarrierItem(itemId: string) {
-    const b = selectedBarrier.value
-    if (!editable.value || !b || !campaign.value) return
-    const bId = b.id
-    const prevItems = b.items
-    campaign.value = {
-      ...campaign.value,
-      barriers: campaign.value.barriers.map((row) =>
-        row.id === bId ? { ...row, items: prevItems.filter((i) => i.itemId !== itemId) } : row,
-      ),
-    }
-    try {
-      actionError.value = null
-      const updated = await removeCampaignDifficultyItem(bId, itemId)
-      if (campaign.value) {
-        campaign.value = {
-          ...campaign.value,
-          barriers: campaign.value.barriers.map((row) =>
-            row.id === bId ? { ...row, items: updated } : row,
-          ),
-        }
-      }
-    } catch (err) {
-      actionError.value = getApiErrorMessage(err, 'Failed to remove reward')
-      if (campaign.value) {
-        campaign.value = {
-          ...campaign.value,
-          barriers: campaign.value.barriers.map((row) =>
-            row.id === bId ? { ...row, items: prevItems } : row,
-          ),
-        }
-      }
-    }
-  }
-
   function toggleAffectedPickMode() {
     if (!selectedBarrier.value) return
     affectedPickMode.value = !affectedPickMode.value
@@ -2380,7 +2029,7 @@ export function useCampaignEditor() {
         count: activeCollaborators.value.length,
       })
     }
-    if (isCurator.value) {
+    if (isCreator.value || isCollaborator.value || isCurator.value) {
       trays.push({
         id: 'tags',
         label: 'Tags',
@@ -2491,6 +2140,8 @@ export function useCampaignEditor() {
 
   return {
     auth,
+    setChangeBroadcaster,
+    reloadFromRemote: guardedLoad,
     rewardItemsById,
     campaign,
     loading,
@@ -2543,7 +2194,7 @@ export function useCampaignEditor() {
     activeCollaborators,
     collaboratorsLoading,
     canInviteMore,
-    collaboratorLimit: MAX_COLLABORATORS,
+    collaboratorLimit,
     showCollaboratorPicker,
     existingCollaboratorIds,
     openCollaboratorPicker,
@@ -2576,7 +2227,7 @@ export function useCampaignEditor() {
     openCampaignItemPicker,
     openNodeItemPicker,
     canAddNodeReward,
-    nodeRewardLimit: NODE_REWARD_LIMIT,
+    nodeRewardLimit,
     handleItemPicked,
     removeCompletionItem,
     removeNodeItem,

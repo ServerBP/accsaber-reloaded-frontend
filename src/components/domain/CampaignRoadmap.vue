@@ -50,6 +50,7 @@ const props = withDefaults(
     selectedIds?: string[]
     highlightBarrierId?: string | null
     barrierPlacement?: boolean
+    activeTray?: string | null
     followFocus?: boolean
     presencePeers?: PresencePeer[]
     editable?: boolean
@@ -73,6 +74,7 @@ const props = withDefaults(
     selectedIds: () => [],
     highlightBarrierId: null,
     barrierPlacement: false,
+    activeTray: null,
     followFocus: true,
     presencePeers: () => [],
     editable: false,
@@ -107,6 +109,7 @@ const emit = defineEmits<{
       action: PresenceAction
       targetId: string | null
       kind: PresenceKind
+      tray: string | null
     },
   ]
   cursoroff: []
@@ -134,12 +137,17 @@ const dragOverlay = ref(new Map<string, { cx: number; cy: number }>())
 
 const draggingNodeId = ref<string | null>(null)
 
-const renderedNodes = computed(() =>
-  layout.value.nodes.map((n) => {
-    const o = dragOverlay.value.get(n.id)
-    return o ? { ...n, cx: o.cx, cy: o.cy } : n
-  }),
-)
+const remoteDragById = ref(new Map<string, { cx: number; cy: number; color: string }>())
+
+function appliedPos<T extends { id: string; cx: number; cy: number }>(n: T): T {
+  const local = dragOverlay.value.get(n.id)
+  if (local) return { ...n, cx: local.cx, cy: local.cy }
+  const remote = remoteDragById.value.get(n.id)
+  if (remote) return { ...n, cx: remote.cx, cy: remote.cy }
+  return n
+}
+
+const renderedNodes = computed(() => layout.value.nodes.map(appliedPos))
 
 const nodeById = computed(() => {
   const map = new Map<string, NodeLayout>()
@@ -170,12 +178,7 @@ const difficultyById = computed(() => {
 
 const barrierLayout = computed(() => layoutNodes(props.barriers, props.unit))
 
-const renderedBarriers = computed(() =>
-  barrierLayout.value.nodes.map((n) => {
-    const o = dragOverlay.value.get(n.id)
-    return o ? { ...n, cx: o.cx, cy: o.cy } : n
-  }),
-)
+const renderedBarriers = computed(() => barrierLayout.value.nodes.map(appliedPos))
 
 const barrierById = computed(() => {
   const map = new Map<string, NodeLayout>()
@@ -197,12 +200,7 @@ const barrierProgressById = computed(() => {
 
 const textLayout = computed(() => layoutNodes(props.texts, props.unit))
 
-const renderedTexts = computed(() =>
-  textLayout.value.nodes.map((n) => {
-    const o = dragOverlay.value.get(n.id)
-    return o ? { ...n, cx: o.cx, cy: o.cy } : n
-  }),
-)
+const renderedTexts = computed(() => textLayout.value.nodes.map(appliedPos))
 
 const TEXT_FONTS: Record<string, string> = {
   mono: 'var(--font-mono)',
@@ -823,7 +821,14 @@ function emitPresence(x: number, y: number) {
     action = 'edit'
     targetId = props.selectedId
   }
-  emit('cursormove', { x, y, action, targetId, kind: targetId ? presenceKindOf(targetId) : null })
+  emit('cursormove', {
+    x,
+    y,
+    action,
+    targetId,
+    kind: targetId ? presenceKindOf(targetId) : null,
+    tray: props.activeTray ?? null,
+  })
 }
 
 function trackPresence(e: PointerEvent) {
@@ -838,7 +843,15 @@ function onPointerLeave() {
   emit('cursoroff')
 }
 
-watch([draggingNodeId, connectFromId, () => props.barrierPlacement, () => props.selectedId], () => {
+watch(
+  [
+    draggingNodeId,
+    connectFromId,
+    () => props.barrierPlacement,
+    () => props.selectedId,
+    () => props.activeTray,
+  ],
+  () => {
   if (lastPresence.has) emitPresence(lastPresence.x, lastPresence.y)
 })
 
@@ -873,8 +886,31 @@ function tickCursors() {
     }
   }
   if (changed) cursorDisplay.value = new Map(disp)
+
+  const drag = new Map(remoteDragById.value)
+  let dragChanged = false
+  for (const peer of props.presencePeers) {
+    if (peer.action === 'drag' && peer.targetId && peer.x != null && peer.y != null) {
+      const d = disp.get(peer.userId)
+      if (!d) continue
+      const prev = drag.get(peer.targetId)
+      if (!prev || prev.cx !== d.x || prev.cy !== d.y) {
+        drag.set(peer.targetId, { cx: d.x, cy: d.y, color: peer.color })
+        dragChanged = true
+      }
+    }
+  }
+  if (dragChanged) remoteDragById.value = drag
+
   cursorRaf = requestAnimationFrame(tickCursors)
 }
+
+watch(
+  () => [props.difficulties, props.barriers, props.texts],
+  () => {
+    if (remoteDragById.value.size) remoteDragById.value = new Map()
+  },
+)
 
 function startCursorLoop() {
   if (cursorRaf == null) cursorRaf = requestAnimationFrame(tickCursors)
@@ -894,6 +930,7 @@ watch(
     else {
       stopCursorLoop()
       if (cursorDisplay.value.size) cursorDisplay.value = new Map()
+      if (remoteDragById.value.size) remoteDragById.value = new Map()
     }
   },
   { immediate: true },
@@ -907,6 +944,31 @@ const renderedCursors = computed(() => {
   for (const peer of props.presencePeers) {
     const d = disp.get(peer.userId)
     if (d) out.push({ peer, x: d.x, y: d.y })
+  }
+  return out
+})
+
+const remoteConnects = computed(() => {
+  const disp = cursorDisplay.value
+  const out: Array<{ key: string; x1: number; y1: number; x2: number; y2: number; color: string }> =
+    []
+  for (const peer of props.presencePeers) {
+    if (peer.action !== 'connect' || !peer.targetId) continue
+    const from = vertexById.value.get(peer.targetId)
+    const to = disp.get(peer.userId)
+    if (from && to) {
+      out.push({ key: peer.userId, x1: from.cx, y1: from.cy, x2: to.x, y2: to.y, color: peer.color })
+    }
+  }
+  return out
+})
+
+const remoteRings = computed(() => {
+  const out: Array<{ key: string; cx: number; cy: number; color: string }> = []
+  for (const peer of props.presencePeers) {
+    if (!peer.targetId || peer.action === 'move') continue
+    const v = vertexById.value.get(peer.targetId)
+    if (v) out.push({ key: `${peer.userId}:${peer.targetId}`, cx: v.cx, cy: v.cy, color: peer.color })
   }
   return out
 })
@@ -1557,6 +1619,33 @@ const arrowDecorations = computed(() =>
           >
             {{ cp.label }}
           </text>
+        </g>
+
+        <g v-if="editable" class="campaign-roadmap__presence-fx">
+          <line
+            v-for="c in remoteConnects"
+            :key="`rconn-${c.key}`"
+            :x1="c.x1"
+            :y1="c.y1"
+            :x2="c.x2"
+            :y2="c.y2"
+            :stroke="c.color"
+            stroke-width="2"
+            stroke-dasharray="6 4"
+            opacity="0.75"
+          />
+          <circle
+            v-for="r in remoteRings"
+            :key="`rring-${r.key}`"
+            :cx="r.cx"
+            :cy="r.cy"
+            :r="unit * 0.82"
+            fill="none"
+            :stroke="r.color"
+            stroke-width="2"
+            stroke-dasharray="5 4"
+            opacity="0.8"
+          />
         </g>
 
         <g v-if="editable" class="campaign-roadmap__cursors">

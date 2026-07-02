@@ -11,6 +11,7 @@ import {
   useCampaignPresence,
   type PresenceAction,
   type PresenceKind,
+  type PresencePeer,
 } from '@/composables/useCampaignPresence'
 import { computed, provide } from 'vue'
 import CampaignCollaboratorPicker from './CampaignCollaboratorPicker.vue'
@@ -82,12 +83,16 @@ const {
   addText,
   selectedText,
   removeSelectedText,
+  reloadFromRemote,
+  setChangeBroadcaster,
 } = editor
 
-const { peers: presencePeers, sendCursor, sendCursorOff } = useCampaignPresence(
+const { peers: presencePeers, sendCursor, sendCursorOff, sendChange } = useCampaignPresence(
   computed(() => campaign.value?.id ?? null),
   editable,
+  { onRemoteChange: () => void reloadFromRemote() },
 )
+setChangeBroadcaster(sendChange)
 
 function onCursorMove(payload: {
   x: number
@@ -95,8 +100,46 @@ function onCursorMove(payload: {
   action: PresenceAction
   targetId: string | null
   kind: PresenceKind
+  tray: string | null
 }) {
-  sendCursor(payload.x, payload.y, payload.action, payload.targetId, payload.kind)
+  sendCursor(payload.x, payload.y, payload.action, payload.targetId, payload.kind, payload.tray)
+}
+
+const TRAY_ACTIVITY: Record<string, string> = {
+  rewards: 'Establishing rewards',
+  completion: 'Establishing rewards',
+  barrierRewards: 'Establishing rewards',
+  requirement: 'Setting a goal',
+  unlock: 'Setting a goal',
+  text: 'Writing text',
+  shape: 'Styling a node',
+  barrierCondition: 'Configuring a barrier',
+  barrierAffected: 'Configuring a barrier',
+  barrierStyle: 'Configuring a barrier',
+  milestone: 'Linking a milestone',
+  tags: 'Tagging the campaign',
+  identity: 'Editing campaign details',
+  settings: 'Editing campaign details',
+  images: 'Editing campaign details',
+  status: 'Editing campaign details',
+}
+
+function peerActivity(p: PresencePeer): string {
+  if (p.action === 'connect') return 'Connecting nodes'
+  if (p.action === 'place') return 'Building a barrier'
+  if (p.action === 'drag') {
+    if (p.kind === 'barrier') return 'Moving a barrier'
+    if (p.kind === 'text') return 'Moving text'
+    return 'Moving a node'
+  }
+  if (p.action === 'edit' || p.action === 'select') {
+    if (p.tray && TRAY_ACTIVITY[p.tray]) return TRAY_ACTIVITY[p.tray]
+    if (p.kind === 'text') return 'Writing text'
+    if (p.kind === 'barrier') return 'Editing a barrier'
+    if (p.kind === 'node') return 'Editing a node'
+    return 'Editing fields'
+  }
+  return 'Looking around'
 }
 </script>
 
@@ -141,6 +184,7 @@ function onCursorMove(payload: {
           :selected-ids="selectedIdList"
           :highlight-barrier-id="pickModeBarrierId"
           :barrier-placement="barrierPlacementMode"
+          :active-tray="activeTray"
           :presence-peers="presencePeers"
           :editable="editable"
           :mode="canvasMode"
@@ -239,10 +283,13 @@ function onCursorMove(payload: {
             :key="p.userId"
             class="campaign-editor__presence-avatar"
             :style="{ '--peer-color': p.color }"
-            :title="p.name"
           >
             <img v-if="p.avatarUrl" :src="p.avatarUrl" :alt="p.name" />
             <span v-else class="campaign-editor__presence-initial">{{ p.name.charAt(0) }}</span>
+            <span class="campaign-editor__presence-tip">
+              <strong>{{ p.name }}</strong>
+              <span>{{ peerActivity(p) }}</span>
+            </span>
           </span>
           <span v-if="presencePeers.length > 6" class="campaign-editor__presence-more">
             +{{ presencePeers.length - 6 }}
@@ -599,16 +646,23 @@ function onCursorMove(payload: {
 }
 
 .campaign-editor__presence-avatar {
+  position: relative;
   width: 30px;
   height: 30px;
   margin-left: -8px;
-  border-radius: 50%;
+  border-radius: 6px;
   border: 2px solid var(--peer-color);
   background: var(--bg-elevated);
-  overflow: hidden;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  pointer-events: auto;
+  transition: transform 120ms ease;
+}
+
+.campaign-editor__presence-avatar:hover {
+  transform: translateY(2px) scale(1.08);
+  z-index: 5;
 }
 
 .campaign-editor__presence-avatar:first-child {
@@ -619,6 +673,37 @@ function onCursorMove(payload: {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  border-radius: 4px;
+}
+
+.campaign-editor__presence-tip {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  display: none;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 10px;
+  white-space: nowrap;
+  background: var(--bg-elevated);
+  border: 1px solid var(--peer-color);
+  border-radius: 4px;
+  z-index: 10;
+}
+
+.campaign-editor__presence-avatar:hover .campaign-editor__presence-tip {
+  display: flex;
+}
+
+.campaign-editor__presence-tip strong {
+  font-size: var(--text-caption);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.campaign-editor__presence-tip span {
+  font-size: 0.6875rem;
+  color: var(--peer-color);
 }
 
 .campaign-editor__presence-initial {

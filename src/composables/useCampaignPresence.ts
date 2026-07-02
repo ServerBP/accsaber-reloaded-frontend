@@ -16,6 +16,7 @@ export interface PresencePeer {
   action: PresenceAction
   targetId: string | null
   kind: PresenceKind
+  tray: string | null
   lastSeen: number
   lastCursorAt: number
 }
@@ -63,15 +64,17 @@ function presenceBase(): string {
 }
 
 function colorForUser(userId: string): string {
-  return `hsl(${hashString(userId) % 360}, 68%, 56%)`
+  return `oklch(0.72 0.15 ${hashString(userId) % 360})`
 }
 
-function parseField(field: string | null | undefined): [PresenceAction, PresenceKind] {
-  if (!field || field === 'off') return ['move', null]
-  const [a, k] = field.split(':')
+function parseField(
+  field: string | null | undefined,
+): [PresenceAction, PresenceKind, string | null] {
+  if (!field || field === 'off') return ['move', null, null]
+  const [a, k, t] = field.split(':')
   const action = ACTIONS.includes(a as PresenceAction) ? (a as PresenceAction) : 'move'
   const kind = k === 'node' || k === 'barrier' || k === 'text' ? (k as PresenceKind) : null
-  return [action, kind]
+  return [action, kind, t || null]
 }
 
 interface UseCampaignPresenceReturn {
@@ -82,16 +85,20 @@ interface UseCampaignPresenceReturn {
     action: PresenceAction,
     targetId: string | null,
     kind: PresenceKind,
+    tray?: string | null,
   ) => void
   sendCursorOff: () => void
+  sendChange: () => void
 }
 
 export function useCampaignPresence(
   campaignId: Ref<string | null | undefined>,
   active: Ref<boolean>,
+  options: { onRemoteChange?: () => void } = {},
 ): UseCampaignPresenceReturn {
   const auth = useAuthStore()
   const peers = ref<PresencePeer[]>([])
+  let remoteChangeTimer: ReturnType<typeof setTimeout> | null = null
 
   const peerMap = new Map<string, PresencePeer>()
   let ws: WebSocket | null = null
@@ -108,6 +115,7 @@ export function useCampaignPresence(
     action: PresenceAction
     targetId: string | null
     kind: PresenceKind
+    tray: string | null
   } | null = null
   let sendTimer: ReturnType<typeof setTimeout> | null = null
   let lastSentAt = 0
@@ -134,6 +142,7 @@ export function useCampaignPresence(
         action: 'move',
         targetId: null,
         kind: null,
+        tray: null,
         lastSeen: Date.now(),
         lastCursorAt: 0,
       }
@@ -168,6 +177,15 @@ export function useCampaignPresence(
     const actorId = msg.actorUserId != null ? String(msg.actorUserId) : null
     if (!actorId || actorId === selfId()) return
 
+    if (type === 'change') {
+      if (remoteChangeTimer) clearTimeout(remoteChangeTimer)
+      remoteChangeTimer = setTimeout(() => {
+        remoteChangeTimer = null
+        options.onRemoteChange?.()
+      }, 500)
+      return
+    }
+
     if (type === 'presence_leave') {
       peerMap.delete(actorId)
       syncPeers()
@@ -176,9 +194,10 @@ export function useCampaignPresence(
 
     const peer = upsertPeer(actorId, msg.actorName, msg.actorAvatarUrl)
     if (type !== 'presence_join') {
-      const [action, kind] = parseField(msg.field)
+      const [action, kind, tray] = parseField(msg.field)
       peer.action = action
       peer.kind = kind
+      peer.tray = tray
       peer.targetId = msg.targetId ?? null
       if (msg.x == null || msg.y == null || msg.field === 'off') {
         peer.x = null
@@ -195,8 +214,8 @@ export function useCampaignPresence(
 
   function flushCursor() {
     if (!pending || ws?.readyState !== WebSocket.OPEN) return
-    const { x, y, action, targetId, kind } = pending
-    const field = kind ? `${action}:${kind}` : action
+    const { x, y, action, targetId, kind, tray } = pending
+    const field = `${action}:${kind ?? ''}:${tray ?? ''}`
     try {
       ws.send(JSON.stringify({ type: 'cursor', x, y, targetId: targetId ?? null, field }))
     } catch {
@@ -213,9 +232,10 @@ export function useCampaignPresence(
     action: PresenceAction,
     targetId: string | null,
     kind: PresenceKind,
+    tray: string | null = null,
   ) {
     if (ws?.readyState !== WebSocket.OPEN) return
-    pending = { x, y, action, targetId, kind }
+    pending = { x, y, action, targetId, kind, tray }
     const key = `${action}:${targetId ?? ''}`
     if (key !== lastSentKey) {
       if (sendTimer) {
@@ -246,6 +266,15 @@ export function useCampaignPresence(
     lastSentKey = 'off'
     try {
       ws.send(JSON.stringify({ type: 'cursor', x: null, y: null, field: 'off' }))
+    } catch {
+      return
+    }
+  }
+
+  function sendChange() {
+    if (ws?.readyState !== WebSocket.OPEN) return
+    try {
+      ws.send(JSON.stringify({ type: 'change' }))
     } catch {
       return
     }
@@ -354,6 +383,10 @@ export function useCampaignPresence(
       clearTimeout(sendTimer)
       sendTimer = null
     }
+    if (remoteChangeTimer) {
+      clearTimeout(remoteChangeTimer)
+      remoteChangeTimer = null
+    }
     stopTimers()
     if (ws) {
       ws.close()
@@ -390,5 +423,5 @@ export function useCampaignPresence(
 
   onUnmounted(disconnect)
 
-  return { peers, sendCursor, sendCursorOff }
+  return { peers, sendCursor, sendCursorOff, sendChange }
 }

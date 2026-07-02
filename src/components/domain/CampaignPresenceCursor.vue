@@ -34,14 +34,14 @@ const chipWidth = computed(() => 26 + displayName.value.length * 6.4 + (props.ki
     :transform="`translate(${x}, ${y}) scale(${invScale})`"
     aria-hidden="true"
   >
-    <path :d="ARROW" :fill="color" stroke="#08080d" stroke-width="1" stroke-linejoin="round" />
-    <path :d="ARROW" fill="none" stroke="#fff" stroke-width="0.7" stroke-linejoin="round" opacity="0.6" />
+    <path :d="ARROW" :fill="color" stroke="var(--bg-base)" stroke-width="1" stroke-linejoin="round" />
+    <path :d="ARROW" fill="none" stroke="var(--text-primary)" stroke-width="0.7" stroke-linejoin="round" opacity="0.6" />
 
     <g v-if="showBadge" transform="translate(13.5, 9)">
-      <circle r="8" :fill="color" stroke="#08080d" stroke-width="1" />
+      <circle r="8" :fill="color" stroke="var(--bg-base)" stroke-width="1" />
       <g
         transform="translate(-5, -5) scale(0.42)"
-        stroke="#fff"
+        stroke="var(--text-primary)"
         stroke-width="2"
         fill="none"
         stroke-linecap="round"
@@ -76,12 +76,12 @@ const chipWidth = computed(() => 26 + displayName.value.length * 6.4 + (props.ki
         :width="chipWidth"
         height="22"
         rx="4"
-        fill="#11111c"
+        fill="var(--bg-surface)"
         :stroke="color"
         stroke-width="1"
       />
       <clipPath :id="clipId">
-        <circle cx="13" cy="11" r="8" />
+        <rect x="5" y="3" width="16" height="16" rx="4" />
       </clipPath>
       <image
         v-if="avatarUrl"
@@ -93,10 +93,10 @@ const chipWidth = computed(() => 26 + displayName.value.length * 6.4 + (props.ki
         :clip-path="`url(#${clipId})`"
         preserveAspectRatio="xMidYMid slice"
       />
-      <circle v-else cx="13" cy="11" r="8" :fill="color" opacity="0.4" />
-      <circle cx="13" cy="11" r="8" fill="none" :stroke="color" stroke-width="1" />
+      <rect v-else x="5" y="3" width="16" height="16" rx="4" :fill="color" opacity="0.4" />
+      <rect x="5" y="3" width="16" height="16" rx="4" fill="none" :stroke="color" stroke-width="1" />
 
-      <text x="26" y="15" fill="#e6e4ee" font-size="11" font-weight="600" font-family="var(--font-sans)">
+      <text x="26" y="15" fill="var(--text-primary)" font-size="11" font-weight="600" font-family="var(--font-sans)">
         {{ displayName }}
       </text>
 

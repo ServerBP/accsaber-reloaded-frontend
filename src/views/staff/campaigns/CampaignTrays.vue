@@ -283,7 +283,7 @@ const defaultBarrierColor = computed(() => {
         collaboration.</small
       >
     </label>
-    <label v-if="isCurator" class="campaign-editor__field">
+    <label class="campaign-editor__field">
       <span>Slug</span>
       <input
         v-model="formMeta.slug"
