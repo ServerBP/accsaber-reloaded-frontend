@@ -51,6 +51,8 @@ export type CampaignRequirementType = 'ACC' | 'AP' | 'SCORE' | 'STREAK_115' | 'F
 
 export type CampaignPrerequisiteMode = 'AND' | 'OR'
 
+export type CheckpointLabelPosition = 'LEFT' | 'RIGHT' | 'UP' | 'DOWN' | 'NONE'
+
 export type BarrierConditionType =
   | 'AVERAGE_ACC'
   | 'AVERAGE_AP'

@@ -370,11 +370,11 @@ watch(
         </button>
       </nav>
 
+      <SearchBox v-if="pane === 'all'" class="campaigns-page__search" :model-value="searchTerm"
+        placeholder="Search title or creator..." @update:model-value="setSearch" />
+
       <div class="campaigns-page__bar-actions">
         <template v-if="pane === 'all'">
-          <SearchBox class="campaigns-page__search" :model-value="searchTerm"
-            placeholder="Search title or creator..." @update:model-value="setSearch" />
-
           <button type="button" class="campaigns-page__chip campaigns-page__chip--toggle"
             :class="{ 'campaigns-page__chip--active': curatedOnly }" @click="toggleCuratedOnly">
             Curated only
@@ -520,11 +520,10 @@ watch(
 }
 
 .campaigns-page__bar {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-md);
-  flex-wrap: wrap;
 }
 
 .campaigns-page__panes {
@@ -534,7 +533,8 @@ watch(
   background: var(--bg-base);
   border: 1px solid var(--bg-overlay);
   border-radius: 4px;
-  align-self: flex-start;
+  grid-column: 1;
+  justify-self: start;
 }
 
 .campaigns-page__new {
@@ -603,15 +603,20 @@ watch(
 }
 
 .campaigns-page__bar-actions {
+  grid-column: 3;
+  justify-self: end;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--space-sm);
 }
 
-.campaigns-page__bar-actions :deep(.search-box) {
-  flex: 0 1 260px;
-  min-width: 190px;
+.campaigns-page__search {
+  grid-column: 2;
+  justify-self: center;
+  width: 320px;
+  max-width: 100%;
 }
 
 .campaigns-page__chip--toggle {
@@ -825,12 +830,32 @@ watch(
   flex-shrink: 0;
 }
 
-@media (max-width: 560px) {
-  .campaigns-page__bar-actions :deep(.search-box) {
-    flex-basis: 100%;
-    min-width: 0;
+@media (max-width: 860px) {
+  .campaigns-page__bar {
+    grid-template-columns: 1fr;
   }
 
+  .campaigns-page__panes {
+    grid-column: 1;
+    justify-self: start;
+  }
+
+  .campaigns-page__search,
+  .campaigns-page__bar-actions {
+    grid-column: 1;
+    justify-self: stretch;
+  }
+
+  .campaigns-page__search {
+    width: 100%;
+  }
+
+  .campaigns-page__bar-actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 560px) {
   .campaigns-page__invite {
     flex-direction: column;
     align-items: stretch;

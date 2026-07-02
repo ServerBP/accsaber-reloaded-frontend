@@ -339,12 +339,13 @@ interface CheckpointLabel {
   fontSize: number
   x: number
   y: number
+  anchor: 'middle' | 'start' | 'end'
 }
 
 const checkpointLabels = computed<CheckpointLabel[]>(() => {
   const groups = new Map<
     string,
-    { nodes: NodeLayout[]; color: string | null; size: string | null; label: string }
+    { nodes: NodeLayout[]; color: string | null; size: string | null; label: string; position: string }
   >()
   for (const d of props.difficulties) {
     if (!d.checkpointLabel) continue
@@ -356,32 +357,80 @@ const checkpointLabels = computed<CheckpointLabel[]>(() => {
       existing.nodes.push(node)
       if (!existing.color && d.checkpointColor) existing.color = d.checkpointColor
       if (!existing.size && d.checkpointSize) existing.size = d.checkpointSize
+      if (!existing.position && d.checkpointLabelPosition) existing.position = d.checkpointLabelPosition
     } else {
       groups.set(key, {
         nodes: [node],
         color: d.checkpointColor,
         size: d.checkpointSize,
         label: d.checkpointLabel,
+        position: d.checkpointLabelPosition ?? '',
       })
     }
   }
   const out: CheckpointLabel[] = []
   for (const [key, g] of groups) {
+    if (g.position === 'NONE') continue
     const xs = g.nodes.map((n) => n.cx)
+    const ys = g.nodes.map((n) => n.cy)
     const minX = Math.min(...xs)
     const maxX = Math.max(...xs)
+    const midX = (minX + maxX) / 2
+    const midY = (Math.min(...ys) + Math.max(...ys)) / 2
+    const sizeOf = (n: NodeLayout) =>
+      parseNumericSize(difficultyById.value.get(n.id)?.size, props.unit)
     const topNode = g.nodes.reduce((a, b) => (b.cy < a.cy ? b : a))
-    const topSize = parseNumericSize(difficultyById.value.get(topNode.id)?.size, props.unit)
+    const bottomNode = g.nodes.reduce((a, b) => (b.cy > a.cy ? b : a))
+    const leftNode = g.nodes.reduce((a, b) => (b.cx < a.cx ? b : a))
+    const rightNode = g.nodes.reduce((a, b) => (b.cx > a.cx ? b : a))
     const color = g.color || 'var(--accent-overall)'
     const fontSize = parseNumericSize(g.size, Math.max(props.unit * 0.34, 14))
-    out.push({
-      key,
-      label: g.label,
-      color,
-      fontSize,
-      x: (minX + maxX) / 2,
-      y: topNode.cy - (topSize * 1.3 + props.unit * 0.7),
-    })
+    let x = midX
+    let y = topNode.cy - (sizeOf(topNode) * 1.3 + props.unit * 0.7)
+    let anchor: 'middle' | 'start' | 'end' = 'middle'
+    if (g.position === 'DOWN') {
+      y = bottomNode.cy + (sizeOf(bottomNode) * 1.3 + props.unit * 0.7)
+    } else if (g.position === 'LEFT') {
+      x = minX - (sizeOf(leftNode) * 1.15 + props.unit * 0.4)
+      y = midY + fontSize * 0.34
+      anchor = 'end'
+    } else if (g.position === 'RIGHT') {
+      x = maxX + (sizeOf(rightNode) * 1.15 + props.unit * 0.4)
+      y = midY + fontSize * 0.34
+      anchor = 'start'
+    }
+    out.push({ key, label: g.label, color, fontSize, x, y, anchor })
+  }
+  return out
+})
+
+const barrierCheckpointLabels = computed<CheckpointLabel[]>(() => {
+  const out: CheckpointLabel[] = []
+  for (const b of props.barriers) {
+    if (!b.checkpointLabel) continue
+    const position = b.checkpointLabelPosition ?? ''
+    if (position === 'NONE') continue
+    const node = barrierById.value.get(b.id)
+    if (!node) continue
+    const size = parseNumericSize(b.size, props.unit)
+    const color = b.checkpointColor || 'var(--warning)'
+    const fontSize = parseNumericSize(b.checkpointSize, Math.max(props.unit * 0.3, 13))
+    const gap = size * 1.2 + props.unit * 0.5
+    let x = node.cx
+    let y = node.cy - gap
+    let anchor: 'middle' | 'start' | 'end' = 'middle'
+    if (position === 'DOWN') {
+      y = node.cy + gap
+    } else if (position === 'LEFT') {
+      x = node.cx - gap
+      y = node.cy + fontSize * 0.34
+      anchor = 'end'
+    } else if (position === 'RIGHT') {
+      x = node.cx + gap
+      y = node.cy + fontSize * 0.34
+      anchor = 'start'
+    }
+    out.push({ key: `barrier-${b.id}`, label: b.checkpointLabel, color, fontSize, x, y, anchor })
   }
   return out
 })
@@ -1613,7 +1662,19 @@ const arrowDecorations = computed(() =>
             :x="cp.x"
             :y="cp.y"
             :font-size="cp.fontSize"
-            text-anchor="middle"
+            :text-anchor="cp.anchor"
+            class="campaign-roadmap__checkpoint-text"
+            :style="{ fill: cp.color, '--checkpoint-color': cp.color }"
+          >
+            {{ cp.label }}
+          </text>
+          <text
+            v-for="cp in barrierCheckpointLabels"
+            :key="cp.key"
+            :x="cp.x"
+            :y="cp.y"
+            :font-size="cp.fontSize"
+            :text-anchor="cp.anchor"
             class="campaign-roadmap__checkpoint-text"
             :style="{ fill: cp.color, '--checkpoint-color': cp.color }"
           >

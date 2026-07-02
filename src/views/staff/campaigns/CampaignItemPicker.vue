@@ -42,7 +42,7 @@ const rarityRank: Record<string, number> = {
 
 const filtered = computed(() => {
   const q = debounced.value.trim().toLowerCase()
-  const base = items.value.filter((i) => i.active && !i.deprecated)
+  const base = items.value.filter((i) => i.active && !i.deprecated && i.tradeable)
   const matched = q
     ? base.filter((i) =>
         i.name.toLowerCase().includes(q)
@@ -87,7 +87,7 @@ async function load() {
   fetching.value = true
   err.value = null
   try {
-    items.value = await getItems()
+    items.value = await getItems({ tradeable: true })
   } catch (e) {
     err.value = getApiErrorMessage(e, 'Failed to load items')
   } finally {

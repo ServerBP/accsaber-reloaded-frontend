@@ -372,6 +372,7 @@ export type EquippedItemsResponse = Partial<Record<ItemTypeKey, UserItemResponse
 
 export interface ItemListParams {
   typeId?: string
+  tradeable?: boolean
 }
 
 export interface AdminItemListParams extends ItemListParams {

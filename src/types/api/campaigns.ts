@@ -3,6 +3,7 @@ import type {
   CampaignCollaboratorStatus,
   CampaignCompletionMode,
   CampaignPrerequisiteMode,
+  CheckpointLabelPosition,
   CampaignRequirementType,
   CampaignStatus,
   CampaignTagKind,
@@ -65,6 +66,7 @@ export interface CampaignDifficultyResponse {
   requirementValue: number
   description: string | null
   checkpointLabel: string | null
+  checkpointLabelPosition: CheckpointLabelPosition | null
   checkpointAvatarUrl: string | null
   borderColor: string | null
   borderShape: string | null
@@ -85,6 +87,7 @@ export interface CampaignBarrierResponse {
   conditionValue: number | null
   description: string | null
   checkpointLabel: string | null
+  checkpointLabelPosition: CheckpointLabelPosition | null
   checkpointAvatarUrl: string | null
   checkpointColor: string | null
   borderColor: string | null

@@ -8,6 +8,7 @@ import CampaignRewardItem from '@/components/domain/CampaignRewardItem.vue'
 import CountryFlag from '@/components/domain/CountryFlag.vue'
 import CampaignEditorTile from './CampaignEditorTile.vue'
 import CampaignShapeGlyph from './CampaignShapeGlyph.vue'
+import CampaignLabelPositionPicker from './CampaignLabelPositionPicker.vue'
 import { useCampaignEditorContext } from './campaignEditorContext'
 import { onAvatarError } from '@/composables/useAvatarFallback'
 import { computed } from 'vue'
@@ -86,6 +87,7 @@ const {
   shapeTiles,
   sizeTiles,
   selectBorderShape,
+  selectNodeLabelPosition,
   selectNodeSize,
   selectedCount,
   applyBulkSize,
@@ -109,6 +111,7 @@ const {
   toggleAffectedPickMode,
   toggleAffected,
   resetBarrierColor,
+  selectBarrierLabelPosition,
   canAddBarrierReward,
   openBarrierItemPicker,
   removeBarrierItem,
@@ -678,6 +681,13 @@ const defaultBarrierColor = computed(() => {
           @blur="commitNodeField('checkpointLabel')"
         />
       </label>
+      <div class="campaign-editor__field">
+        <span>Label position</span>
+        <CampaignLabelPositionPicker
+          :model-value="formNode.checkpointLabelPosition"
+          @select="selectNodeLabelPosition"
+        />
+      </div>
       <label class="campaign-editor__field">
         <span>Avatar URL <small>(optional)</small></span>
         <input
@@ -1120,6 +1130,13 @@ const defaultBarrierColor = computed(() => {
         @blur="commitBarrierField('checkpointLabel')"
       />
     </label>
+    <div class="campaign-editor__field">
+      <span>Label position</span>
+      <CampaignLabelPositionPicker
+        :model-value="formBarrier.checkpointLabelPosition"
+        @select="selectBarrierLabelPosition"
+      />
+    </div>
   </fieldset>
 
   <fieldset
@@ -1644,9 +1661,19 @@ const defaultBarrierColor = computed(() => {
 }
 
 .campaign-editor__image-row {
-  display: grid;
-  grid-template-columns: 1.6fr 1fr;
-  gap: var(--space-sm);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-lg);
+}
+
+.campaign-editor__image-row :deep(.image-uploader) {
+  width: 100%;
+  max-width: 320px;
+}
+
+.campaign-editor__image-row :deep(.image-uploader:last-child) {
+  max-width: 200px;
 }
 
 .campaign-editor__tag-group {

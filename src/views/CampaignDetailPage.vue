@@ -13,6 +13,7 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import CampaignRoadmap from '@/components/domain/CampaignRoadmap.vue'
 import CampaignRewardItem from '@/components/domain/CampaignRewardItem.vue'
+import CampaignRewardNotice from '@/views/campaign/CampaignRewardNotice.vue'
 import ComplexityBadge from '@/components/domain/ComplexityBadge.vue'
 import DifficultyBadge from '@/components/domain/DifficultyBadge.vue'
 import { useItemCatalog } from '@/composables/useItemCatalog'
@@ -619,6 +620,7 @@ function unpinTooltip() {
 
           <section v-if="campaign.completionItems.length > 0" class="campaign-detail__rewards-block">
             <h2 class="campaign-detail__section-label">Completion rewards</h2>
+            <CampaignRewardNotice :curated="campaign.status === 'CURATED'" />
             <ul class="campaign-detail__rewards-list">
               <li v-for="item in campaign.completionItems" :key="item.itemId" class="campaign-detail__reward">
                 <CampaignRewardItem :name="item.itemName" :quantity="item.quantity"
@@ -736,6 +738,7 @@ function unpinTooltip() {
                   +{{ displayedDifficulty.xp.toLocaleString() }} XP
                 </span>
               </h3>
+              <CampaignRewardNotice :curated="campaign.status === 'CURATED'" />
               <ul class="campaign-detail__rewards-list">
                 <li v-for="item in displayedDifficulty.items" :key="item.itemId" class="campaign-detail__reward">
                   <CampaignRewardItem :name="item.itemName" :quantity="item.quantity"
@@ -871,6 +874,7 @@ function unpinTooltip() {
                   +{{ displayedBarrier.xp.toLocaleString() }} XP
                 </span>
               </h3>
+              <CampaignRewardNotice :curated="campaign.status === 'CURATED'" />
               <ul class="campaign-detail__rewards-list">
                 <li
                   v-for="item in displayedBarrier.items"

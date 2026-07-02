@@ -210,6 +210,7 @@ import type {
   CampaignRequirementType,
   CampaignPrerequisiteMode,
   CampaignTagKind,
+  CheckpointLabelPosition,
 } from '../enums'
 
 export interface CreateCampaignRequest {
@@ -247,6 +248,7 @@ export interface AddCampaignDifficultyRequest {
   requirementValue: number
   description?: string
   checkpointLabel?: string
+  checkpointLabelPosition?: CheckpointLabelPosition
   checkpointAvatarUrl?: string
   checkpointColor?: string
   checkpointSize?: string
@@ -265,6 +267,7 @@ export interface UpdateCampaignDifficultyRequest {
   requirementValue?: number
   description?: string | null
   checkpointLabel?: string | null
+  checkpointLabelPosition?: CheckpointLabelPosition | null
   checkpointAvatarUrl?: string | null
   checkpointColor?: string | null
   checkpointSize?: string | null
@@ -293,6 +296,7 @@ export interface AddCampaignBarrierRequest {
   conditionValue?: number | null
   description?: string
   checkpointLabel?: string
+  checkpointLabelPosition?: CheckpointLabelPosition
   checkpointAvatarUrl?: string
   checkpointColor?: string
   borderColor?: string
@@ -311,6 +315,7 @@ export interface UpdateCampaignBarrierRequest {
   conditionValue?: number | null
   description?: string | null
   checkpointLabel?: string | null
+  checkpointLabelPosition?: CheckpointLabelPosition | null
   checkpointAvatarUrl?: string | null
   checkpointColor?: string | null
   borderColor?: string | null

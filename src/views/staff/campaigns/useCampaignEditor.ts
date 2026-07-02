@@ -369,6 +369,7 @@ export function useCampaignEditor() {
   const useAdminEndpoint = computed(() => {
     if (!campaign.value) return false
     if (isCreator.value && campaign.value.status === 'DRAFT') return false
+    if (isCollaborator.value && campaign.value.status === 'DRAFT') return false
     return isCurator.value
   })
 
@@ -572,6 +573,7 @@ export function useCampaignEditor() {
     requirementValue: number
     description: string
     checkpointLabel: string
+    checkpointLabelPosition: string
     checkpointAvatarUrl: string
     checkpointColor: string
     checkpointSize: string
@@ -584,6 +586,7 @@ export function useCampaignEditor() {
     requirementValue: 0,
     description: '',
     checkpointLabel: '',
+    checkpointLabelPosition: '',
     checkpointAvatarUrl: '',
     checkpointColor: '',
     checkpointSize: '',
@@ -601,6 +604,7 @@ export function useCampaignEditor() {
       requirementValue: d.requirementValue,
       description: d.description ?? '',
       checkpointLabel: d.checkpointLabel ?? '',
+      checkpointLabelPosition: d.checkpointLabelPosition ?? '',
       checkpointAvatarUrl: d.checkpointAvatarUrl ?? '',
       checkpointColor: d.checkpointColor ?? '',
       checkpointSize: d.checkpointSize ?? '',
@@ -618,6 +622,7 @@ export function useCampaignEditor() {
     conditionValue: number
     description: string
     checkpointLabel: string
+    checkpointLabelPosition: string
     checkpointAvatarUrl: string
     checkpointColor: string
     checkpointSize: string
@@ -629,6 +634,7 @@ export function useCampaignEditor() {
     conditionValue: 0.9,
     description: '',
     checkpointLabel: '',
+    checkpointLabelPosition: '',
     checkpointAvatarUrl: '',
     checkpointColor: '',
     checkpointSize: '',
@@ -645,6 +651,7 @@ export function useCampaignEditor() {
       conditionValue: b.conditionValue ?? 0,
       description: b.description ?? '',
       checkpointLabel: b.checkpointLabel ?? '',
+      checkpointLabelPosition: b.checkpointLabelPosition ?? '',
       checkpointAvatarUrl: b.checkpointAvatarUrl ?? '',
       checkpointColor: b.checkpointColor ?? '',
       checkpointSize: b.checkpointSize ?? '',
@@ -1496,6 +1503,11 @@ export function useCampaignEditor() {
     commitNodeField('borderShape')
   }
 
+  function selectNodeLabelPosition(value: string) {
+    formNode.value.checkpointLabelPosition = value
+    commitNodeField('checkpointLabelPosition')
+  }
+
   function selectNodeSize(value: number) {
     formNode.value.size = String(value)
     commitNodeField('size')
@@ -1669,6 +1681,11 @@ export function useCampaignEditor() {
   function resetBarrierColor() {
     formBarrier.value.borderColor = ''
     commitBarrierField('borderColor')
+  }
+
+  function selectBarrierLabelPosition(value: string) {
+    formBarrier.value.checkpointLabelPosition = value
+    commitBarrierField('checkpointLabelPosition')
   }
 
   const barrierConditionOptions: Array<{ value: BarrierConditionType; label: string }> = [
@@ -2250,6 +2267,7 @@ export function useCampaignEditor() {
     onRequirementTypeChange,
     resetNodeColor,
     selectBorderShape,
+    selectNodeLabelPosition,
     closeMapPicker,
     breadcrumbs,
     activeTray,
@@ -2269,6 +2287,7 @@ export function useCampaignEditor() {
     onBarrierConditionTypeChange,
     commitBarrierField,
     resetBarrierColor,
+    selectBarrierLabelPosition,
     hasConnections,
     hasBarriers,
     canAddBarrier,
