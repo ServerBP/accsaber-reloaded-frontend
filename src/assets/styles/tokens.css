@@ -51,6 +51,12 @@
   --tier-diamond: #b9f2ff;
   --tier-apex: #a855f7;
 
+  /* --- XP Breakdown (profile XP delta tooltip) --- */
+  --xp-score: var(--accent);
+  --xp-milestone: var(--tier-gold);
+  --xp-set-bonus: var(--tier-platinum);
+  --xp-mission: var(--tier-diamond);
+
   /* --- Level Tier Colors --- */
   --tier-newcomer: #6b7280;
   --tier-apprentice: #3b82f6;
@@ -137,6 +143,12 @@
 
   --skeleton-base: var(--bg-elevated);
   --skeleton-highlight: color-mix(in srgb, var(--text-tertiary) 35%, var(--bg-elevated));
+
+  /* XP Breakdown (darkened counterparts for legibility on light background) */
+  --xp-score: #b45309;
+  --xp-milestone: #a16207;
+  --xp-set-bonus: #0f766e;
+  --xp-mission: #0369a1;
 
   /* Category Tints (Light) */
   --tint-true-acc: #d4f5e0;

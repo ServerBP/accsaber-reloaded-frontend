@@ -47,9 +47,22 @@ export type CampaignCompletionMode = 'TERMINAL' | 'ALL'
 
 export type CampaignTagKind = 'CATEGORY' | 'DIFFICULTY' | 'THEME' | 'GENRE'
 
-export type CampaignRequirementType = 'ACC' | 'AP' | 'SCORE' | 'STREAK_115' | 'FC'
+export type CampaignRequirementType = 'ACC' | 'AP' | 'SCORE' | 'STREAK_115' | 'FC' | 'RANK'
 
 export type CampaignPrerequisiteMode = 'AND' | 'OR'
+
+export type BarrierConditionType =
+  | 'AVERAGE_ACC'
+  | 'AVERAGE_AP'
+  | 'AP_MAX'
+  | 'ACC_MAX'
+  | 'STREAK_115_AVERAGE'
+  | 'STREAK_115_MAX'
+  | 'FC'
+  | 'AVERAGE_RANK'
+  | 'MAX_RANK'
+
+export type CampaignCollaboratorStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED'
 
 export type UserCampaignStatus = 'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED'
 

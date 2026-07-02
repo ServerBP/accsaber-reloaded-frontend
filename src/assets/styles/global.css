@@ -110,6 +110,19 @@ body {
 .diff-badge--expert { background: color-mix(in srgb, var(--diff-expert) 20%, transparent); color: var(--diff-expert); }
 .diff-badge--expert_plus { background: color-mix(in srgb, var(--diff-expert-plus) 20%, transparent); color: var(--diff-expert-plus); }
 
+/* Rich-text effect classes (campaign text + user bio, whole-element or per-run spans) */
+.glow {
+  text-shadow:
+    0 0 6px color-mix(in srgb, currentColor 70%, transparent),
+    0 0 14px color-mix(in srgb, currentColor 45%, transparent);
+}
+.outline {
+  -webkit-text-stroke: 0.6px var(--bg-base);
+}
+.shadow {
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.55);
+}
+
 @media (prefers-reduced-motion: reduce) {
 
   *,

@@ -48,6 +48,14 @@ export const useAuthStore = defineStore('auth', () => {
 
   const legacyUserIdDetected = ref<string | null>(null)
 
+  const restricted = ref(false)
+  function markRestricted() {
+    restricted.value = true
+  }
+  function clearRestricted() {
+    restricted.value = false
+  }
+
   const staffToken = ref<string | null>(localStorage.getItem('staffToken'))
   const staffRefreshToken = ref<string | null>(localStorage.getItem('staffRefreshToken'))
   const staffRole = ref<StaffRole | null>(
@@ -127,6 +135,7 @@ export const useAuthStore = defineStore('auth', () => {
     refreshTokenValue.value = session.refreshToken
     expiresAt.value = session.expiresAt
     userId.value = session.userId
+    restricted.value = false
     writePlayerSession(session)
     clearStaffAuth()
   }
@@ -137,6 +146,7 @@ export const useAuthStore = defineStore('auth', () => {
     expiresAt.value = 0
     userId.value = null
     authMe.value = null
+    restricted.value = false
     clearPlayerSession()
   }
 
@@ -302,6 +312,9 @@ export const useAuthStore = defineStore('auth', () => {
     authMe,
     userProfile,
     legacyUserIdDetected,
+    restricted,
+    markRestricted,
+    clearRestricted,
     hasPlayerSession,
     isLoggedIn,
     isPlayerTokenExpiringSoon,

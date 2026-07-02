@@ -143,18 +143,18 @@ function withSign(value: number | null | undefined): string {
 }
 
 .xp-trend__value--score {
-  color: var(--accent);
+  color: var(--xp-score);
 }
 
 .xp-trend__value--milestone {
-  color: var(--tier-gold);
+  color: var(--xp-milestone);
 }
 
 .xp-trend__value--set-bonus {
-  color: var(--tier-platinum);
+  color: var(--xp-set-bonus);
 }
 
 .xp-trend__value--mission {
-  color: var(--tier-diamond);
+  color: var(--xp-mission);
 }
 </style>

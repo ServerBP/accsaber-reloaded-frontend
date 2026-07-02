@@ -16,6 +16,12 @@ function dismissLegacyBanner() {
   authStore.dismissLegacyMigration()
 }
 
+const showRestrictedBanner = computed(() => authStore.restricted)
+
+function dismissRestrictedBanner() {
+  authStore.clearRestricted()
+}
+
 watch(
   () => authStore.isLoggedIn,
   (loggedIn) => {
@@ -35,6 +41,10 @@ watch(
 <template>
   <AppNavbar />
   <main class="main-content">
+    <BaseBanner v-if="showRestrictedBanner" variant="error" @close="dismissRestrictedBanner">
+      Your account is restricted. You can still browse, but creating or changing content is
+      disabled. Contact staff if you think this is a mistake.
+    </BaseBanner>
     <BaseBanner v-if="showLegacyBanner" variant="info" @close="dismissLegacyBanner">
       We've upgraded login. Please log in again with Discord, BeatLeader, or Steam to restore your
       personalized experience.

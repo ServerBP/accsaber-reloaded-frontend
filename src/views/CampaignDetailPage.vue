@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import {
   abandonCampaign,
-  getCampaign,
-  getCampaignBySlug,
+  getCampaignByIdOrSlug,
   getMyCampaignProgress,
   getPlaylistExportUrl,
   startCampaign,
@@ -20,6 +19,8 @@ import { useItemCatalog } from '@/composables/useItemCatalog'
 import { useAuthStore } from '@/stores/auth'
 import { useCategoryStore } from '@/stores/categories'
 import type {
+  BarrierProgressResponse,
+  CampaignBarrierResponse,
   CampaignDetailResponse,
   CampaignDifficultyProgressResponse,
   CampaignDifficultyResponse,
@@ -31,7 +32,12 @@ import {
   campaignDifficultyGradient,
   campaignDifficultyLabel,
 } from '@/utils/campaignDifficulty'
-import { formatRequirement, formatUserValue } from '@/utils/campaignLayout'
+import {
+  barrierConditionLabel,
+  barrierPairValue,
+  formatRequirement,
+  formatUserValue,
+} from '@/utils/campaignLayout'
 import { buildMapRoute } from '@/utils/mapRoute'
 import { isAdminSubdomain } from '@/utils/subdomain'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
@@ -60,15 +66,7 @@ async function load() {
   loading.value = true
   error.value = null
   try {
-    const value = idOrSlug.value
-    const fetched = value.includes('-') && /^[0-9a-f-]+$/i.test(value)
-      ? await getCampaign(value).catch(async (e: unknown) => {
-        if (e instanceof ApiError && e.status === 404) {
-          return await getCampaignBySlug(value)
-        }
-        throw e
-      })
-      : await getCampaignBySlug(value)
+    const fetched = await getCampaignByIdOrSlug(idOrSlug.value)
 
     if (fetched.status === 'DRAFT') {
       const isOwner = auth.isLoggedIn
@@ -76,7 +74,10 @@ async function load() {
         && !!auth.userId
         && String(fetched.creatorId) === String(auth.userId)
       if (isOwner) {
-        await router.replace({ name: 'campaign-editor', params: { campaignId: fetched.id } })
+        await router.replace({
+          name: 'campaign-editor',
+          params: { campaignId: fetched.slug || fetched.id },
+        })
         return
       }
       campaign.value = null
@@ -171,8 +172,7 @@ const completedCount = computed(() => progress.value?.completedDifficulties ?? 0
 
 const totalCount = computed(
   () =>
-    progress.value?.totalDifficulties
-    ?? campaign.value?.difficulties?.length
+    campaign.value?.difficulties?.length
     ?? campaign.value?.difficultyCount
     ?? 0,
 )
@@ -182,9 +182,9 @@ const completionPct = computed(() => {
   return Math.round((completedCount.value / totalCount.value) * 100)
 })
 
-const isInProgress = computed(() => progress.value?.status === 'IN_PROGRESS')
-const isCompleted = computed(() => progress.value?.status === 'COMPLETED')
-const isAbandoned = computed(() => progress.value?.status === 'ABANDONED')
+const isInProgress = computed(() => progress.value?.progressStatus === 'IN_PROGRESS')
+const isCompleted = computed(() => progress.value?.progressStatus === 'COMPLETED')
+const isAbandoned = computed(() => progress.value?.progressStatus === 'ABANDONED')
 
 const isOwner = computed(
   () =>
@@ -200,13 +200,16 @@ const canManage = computed(
 
 function goToEditor() {
   if (!campaign.value) return
-  void router.push({ name: 'campaign-editor', params: { campaignId: campaign.value.id } })
+  void router.push({
+    name: 'campaign-editor',
+    params: { campaignId: campaign.value.slug || campaign.value.id },
+  })
 }
 
 const progressByDifficulty = computed(() => {
   const map = new Map<string, CampaignDifficultyProgressResponse>()
   for (const p of progress.value?.difficulties ?? []) {
-    map.set(p.campaignDifficultyId, p)
+    map.set(p.node.id, p)
   }
   return map
 })
@@ -224,6 +227,26 @@ const displayedProgress = computed(() => {
   if (!id) return null
   return progressByDifficulty.value.get(id) ?? null
 })
+
+const progressByBarrier = computed(() => {
+  const map = new Map<string, BarrierProgressResponse>()
+  for (const p of progress.value?.barriers ?? []) map.set(p.barrier.id, p)
+  return map
+})
+
+const displayedBarrier = computed<CampaignBarrierResponse | null>(() => {
+  const id = displayedId.value
+  if (!id) return null
+  return campaign.value?.barriers.find((b) => b.id === id) ?? null
+})
+
+const displayedBarrierProgress = computed(() => {
+  const id = displayedId.value
+  if (!id) return null
+  return progressByBarrier.value.get(id) ?? null
+})
+
+const barrierAccent = computed(() => displayedBarrier.value?.borderColor || 'var(--warning)')
 
 const prereqsFor = computed(() => {
   if (!displayedDifficulty.value || !campaign.value) return []
@@ -315,23 +338,23 @@ const focusNodeId = computed<string | null>(() => {
   if (isInProgress.value && !c.progressionAgnostic) {
     const frontier = progress.value?.difficulties.filter((p) => p.unlocked && !p.completed) ?? []
     if (frontier.length > 0) {
-      let next = { id: frontier[0].campaignDifficultyId, depth: Infinity }
+      let next = { id: frontier[0].node.id, depth: Infinity }
       for (const f of frontier) {
-        const d = depthOf(f.campaignDifficultyId)
-        if (d < next.depth) next = { id: f.campaignDifficultyId, depth: d }
+        const d = depthOf(f.node.id)
+        if (d < next.depth) next = { id: f.node.id, depth: d }
       }
       return next.id
     }
   }
 
   if (c.completionMode === 'ALL' || c.progressionAgnostic) {
-    return cleared[cleared.length - 1].campaignDifficultyId
+    return cleared[cleared.length - 1].node.id
   }
 
-  let best = { id: cleared[0].campaignDifficultyId, depth: -1 }
+  let best = { id: cleared[0].node.id, depth: -1 }
   for (const c2 of cleared) {
-    const d = depthOf(c2.campaignDifficultyId)
-    if (d > best.depth) best = { id: c2.campaignDifficultyId, depth: d }
+    const d = depthOf(c2.node.id)
+    if (d > best.depth) best = { id: c2.node.id, depth: d }
   }
   return best.id
 })
@@ -398,7 +421,9 @@ const tooltipPos = computed(() => {
 const tooltipPinned = computed(() => !!selectedId.value)
 
 const tooltipVisible = computed(
-  () => !!displayedDifficulty.value && (!!hoverId.value || !!selectedId.value),
+  () =>
+    (!!displayedDifficulty.value || !!displayedBarrier.value) &&
+    (!!hoverId.value || !!selectedId.value),
 )
 
 function handleSelect(id: string) {
@@ -440,7 +465,8 @@ function unpinTooltip() {
 
     <template v-else>
       <main class="campaign-detail__canvas" aria-label="Campaign roadmap">
-        <CampaignRoadmap :difficulties="campaign.difficulties" :progress="progress?.difficulties"
+        <CampaignRoadmap :difficulties="campaign.difficulties" :barriers="campaign.barriers"
+          :texts="campaign.texts" :progress="progress?.difficulties" :barrier-progress="progress?.barriers"
           :accent-color="accent" :node-accents="nodeAccents" :background-url="campaign.backgroundUrl"
           :show-starfield="!campaign.backgroundUrl" :focus-id="focusNodeId" :default-scale="1.35"
           :selected-id="selectedId" :mark-next="isInProgress && !campaign.progressionAgnostic"
@@ -708,6 +734,140 @@ function unpinTooltip() {
             </router-link>
           </aside>
         </Transition>
+
+        <Transition name="campaign-detail__tooltip-fade">
+          <aside
+            v-if="tooltipVisible && displayedBarrier && !displayedDifficulty"
+            class="campaign-detail__tooltip campaign-detail__tooltip--barrier"
+            :class="{
+              'campaign-detail__tooltip--pinned': tooltipPinned,
+              'campaign-detail__tooltip--locked':
+                displayedBarrierProgress && !displayedBarrierProgress.unlocked,
+              'campaign-detail__tooltip--cleared': displayedBarrierProgress?.satisfied,
+            }"
+            :style="{
+              '--page-accent': barrierAccent,
+              left: tooltipPos.x + 'px',
+              top: tooltipPos.y + 'px',
+            }"
+          >
+            <header class="campaign-detail__node-head">
+              <div class="campaign-detail__tooltip-state">
+                <span
+                  v-if="displayedBarrierProgress?.satisfied"
+                  class="campaign-detail__node-state campaign-detail__node-state--done"
+                >
+                  Passed
+                </span>
+                <span
+                  v-else-if="displayedBarrierProgress && !displayedBarrierProgress.unlocked"
+                  class="campaign-detail__node-state campaign-detail__node-state--locked"
+                >
+                  Locked
+                </span>
+                <span v-else class="campaign-detail__node-state" :style="{ color: barrierAccent }">
+                  Gate
+                </span>
+                <button
+                  v-if="tooltipPinned"
+                  type="button"
+                  class="campaign-detail__tooltip-close"
+                  aria-label="Unpin"
+                  @click="unpinTooltip"
+                >
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                  </svg>
+                </button>
+              </div>
+            </header>
+
+            <div class="campaign-detail__barrier-head">
+              <span
+                class="campaign-detail__barrier-icon"
+                :style="{ color: barrierAccent }"
+                aria-hidden="true"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <line x1="12" y1="3" x2="12" y2="21" />
+                  <line x1="7" y1="6" x2="17" y2="6" />
+                  <line x1="7" y1="18" x2="17" y2="18" />
+                </svg>
+              </span>
+              <div class="campaign-detail__node-meta">
+                <h2 class="campaign-detail__node-title">
+                  {{ displayedBarrier.checkpointLabel || 'Checkpoint gate' }}
+                </h2>
+                <p class="campaign-detail__node-artist">
+                  {{ barrierConditionLabel(displayedBarrier.conditionType) }} across
+                  {{ displayedBarrier.affectedCampaignDifficultyIds.length }}
+                  {{ displayedBarrier.affectedCampaignDifficultyIds.length === 1 ? 'map' : 'maps' }}
+                </p>
+              </div>
+            </div>
+
+            <div v-if="displayedBarrier.conditionType !== 'FC'" class="campaign-detail__targets">
+              <div class="campaign-detail__target">
+                <span class="campaign-detail__target-label">Goal</span>
+                <span class="campaign-detail__target-value" :style="{ color: barrierAccent }">
+                  {{ barrierPairValue(displayedBarrier.conditionType, displayedBarrier.conditionValue) }}
+                </span>
+              </div>
+              <div v-if="displayedBarrierProgress" class="campaign-detail__target">
+                <span class="campaign-detail__target-label">Your best</span>
+                <span class="campaign-detail__target-value">
+                  {{ barrierPairValue(displayedBarrier.conditionType, displayedBarrierProgress.currentValue) }}
+                </span>
+              </div>
+            </div>
+
+            <p v-if="displayedBarrier.description" class="campaign-detail__node-desc">
+              {{ displayedBarrier.description }}
+            </p>
+
+            <div v-if="displayedBarrier.items.length > 0" class="campaign-detail__node-rewards">
+              <h3 class="campaign-detail__section-label">
+                Awards
+                <span v-if="displayedBarrier.xp > 0" class="campaign-detail__node-xp">
+                  +{{ displayedBarrier.xp.toLocaleString() }} XP
+                </span>
+              </h3>
+              <ul class="campaign-detail__rewards-list">
+                <li
+                  v-for="item in displayedBarrier.items"
+                  :key="item.itemId"
+                  class="campaign-detail__reward"
+                >
+                  <CampaignRewardItem
+                    :name="item.itemName"
+                    :quantity="item.quantity"
+                    :item="rewardItemsById.get(item.itemId) ?? null"
+                  />
+                </li>
+              </ul>
+            </div>
+          </aside>
+        </Transition>
       </div>
     </template>
   </div>
@@ -778,6 +938,24 @@ function unpinTooltip() {
 
 .campaign-detail__tooltip:not(.campaign-detail__tooltip--pinned) {
   pointer-events: none;
+}
+
+.campaign-detail__barrier-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.campaign-detail__barrier-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border: 1px solid color-mix(in srgb, currentColor 45%, transparent);
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  border-radius: 4px;
 }
 
 .campaign-detail__tooltip--pinned {

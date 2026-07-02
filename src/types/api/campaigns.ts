@@ -1,4 +1,6 @@
 import type {
+  BarrierConditionType,
+  CampaignCollaboratorStatus,
   CampaignCompletionMode,
   CampaignPrerequisiteMode,
   CampaignRequirementType,
@@ -77,50 +79,106 @@ export interface CampaignDifficultyResponse {
   items: CampaignItemAwardResponse[]
 }
 
+export interface CampaignBarrierResponse {
+  id: string
+  conditionType: BarrierConditionType
+  conditionValue: number | null
+  description: string | null
+  checkpointLabel: string | null
+  checkpointAvatarUrl: string | null
+  checkpointColor: string | null
+  borderColor: string | null
+  borderShape: string | null
+  size: string | null
+  checkpointSize: string | null
+  positionX: number
+  positionY: number
+  xp: number
+  prerequisiteCampaignDifficultyIds: string[]
+  affectedCampaignDifficultyIds: string[]
+  items: CampaignItemAwardResponse[]
+}
+
+export interface CampaignTextResponse {
+  id: string
+  content: string
+  positionX: number
+  positionY: number
+  font: string | null
+  scale: number | null
+  color: string | null
+  effects: string | null
+}
+
 export interface CampaignDetailResponse extends CampaignResponse {
   curatorNotes: string | null
   difficulties: CampaignDifficultyResponse[]
+  barriers: CampaignBarrierResponse[]
+  texts: CampaignTextResponse[]
   completionItems: CampaignItemAwardResponse[]
 }
 
 export interface CampaignDifficultyProgressResponse {
-  campaignDifficultyId: string
-  mapDifficultyId: string
-  songName: string
-  difficulty: string
-  characteristic: string
-  requirementType: CampaignRequirementType
-  requirementValue: number
+  node: CampaignDifficultyResponse
   userValue: number | null
   userScore: number | null
   completed: boolean
   unlocked: boolean
-  checkpointLabel: string | null
-  checkpointAvatarUrl: string | null
+}
+
+export interface BarrierProgressResponse {
+  barrier: CampaignBarrierResponse
+  currentValue: number | null
+  satisfied: boolean
+  unlocked: boolean
 }
 
 export interface CampaignProgressResponse {
-  campaignId: string
-  campaignName: string
-  campaignSlug: string
-  status: UserCampaignStatus | null
+  id: string
+  campaign: CampaignResponse
+  progressStatus: UserCampaignStatus | null
   startedAt: string | null
   completedAt: string | null
-  totalDifficulties: number
   completedDifficulties: number
   difficulties: CampaignDifficultyProgressResponse[]
+  barriers: BarrierProgressResponse[]
 }
 
 export interface UserCampaignResponse {
   id: string
+  campaign: CampaignResponse
+  progressStatus: UserCampaignStatus
+  startedAt: string
+  completedAt: string | null
+  completedDifficulties: number
+}
+
+export interface CampaignProgressSummary {
+  progressStatus: UserCampaignStatus | null
+  completedDifficulties: number
+}
+
+export interface CampaignCollaboratorResponse {
+  id: string
   campaignId: string
   campaignName: string
   campaignSlug: string
-  status: UserCampaignStatus
-  startedAt: string
-  completedAt: string | null
-  totalDifficulties: number
-  completedDifficulties: number
+  userId: string
+  userName: string
+  userAvatarUrl: string | null
+  userCdnAvatarUrl: string | null
+  userCountry: string | null
+  status: CampaignCollaboratorStatus
+  invitedById: string
+  createdAt: string
+}
+
+export interface InviteCampaignCollaboratorRequest {
+  userId: string
+}
+
+export interface CampaignCollaborationListParams extends PaginationParams {
+  status?: CampaignCollaboratorStatus
 }
 
 export interface CampaignListParams extends PaginationParams {

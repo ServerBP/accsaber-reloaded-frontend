@@ -7,7 +7,13 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import CampaignRoadmap from '@/components/domain/CampaignRoadmap.vue'
 import { formatDifficulty } from '@/utils/mappers'
-import { provide } from 'vue'
+import {
+  useCampaignPresence,
+  type PresenceAction,
+  type PresenceKind,
+} from '@/composables/useCampaignPresence'
+import { computed, provide } from 'vue'
+import CampaignCollaboratorPicker from './CampaignCollaboratorPicker.vue'
 import CampaignItemPicker from './CampaignItemPicker.vue'
 import CampaignMapPicker from './CampaignMapPicker.vue'
 import CampaignTrayRail from './CampaignTrayRail.vue'
@@ -32,6 +38,9 @@ const {
   existingMapDifficultyIds,
   canvasMode,
   itemPickerFor,
+  showCollaboratorPicker,
+  existingCollaboratorIds,
+  handleCollaboratorPicked,
   requirementDirtyIds,
   showRepublishWarning,
   isCurator,
@@ -60,8 +69,35 @@ const {
   activeTray,
   trayTitles,
   activeTrayIsNode,
+  activeTrayIsBarrier,
   closeTray,
+  hasConnections,
+  canAddBarrier,
+  barrierPlacementMode,
+  toggleBarrierPlacement,
+  placeBarrierOnEdge,
+  selectedBarrier,
+  removeSelectedBarrier,
+  pickModeBarrierId,
+  addText,
+  selectedText,
+  removeSelectedText,
 } = editor
+
+const { peers: presencePeers, sendCursor, sendCursorOff } = useCampaignPresence(
+  computed(() => campaign.value?.id ?? null),
+  editable,
+)
+
+function onCursorMove(payload: {
+  x: number
+  y: number
+  action: PresenceAction
+  targetId: string | null
+  kind: PresenceKind
+}) {
+  sendCursor(payload.x, payload.y, payload.action, payload.targetId, payload.kind)
+}
 </script>
 
 <template>
@@ -92,16 +128,24 @@ const {
       <main class="campaign-editor__canvas" aria-label="Campaign roadmap">
         <CampaignRoadmap
           :difficulties="campaign.difficulties"
+          :barriers="campaign.barriers"
+          :texts="campaign.texts"
           :accent-color="accent"
           :node-accents="nodeAccents"
           :background-url="campaign.backgroundUrl"
           :show-starfield="!campaign.backgroundUrl"
           :focus-id="selectedId"
+          :follow-focus="false"
           :default-scale="1.3"
           :selected-id="selectedId"
           :selected-ids="selectedIdList"
+          :highlight-barrier-id="pickModeBarrierId"
+          :barrier-placement="barrierPlacementMode"
+          :presence-peers="presencePeers"
           :editable="editable"
           :mode="canvasMode"
+          @cursormove="onCursorMove"
+          @cursoroff="sendCursorOff"
           @select="handleSelect"
           @select-many="handleSelectMany"
           @toggle-select="handleToggleSelect"
@@ -111,6 +155,7 @@ const {
           @empty-click="handleEmptyClick"
           @connect="handleConnect"
           @disconnect="handleDisconnect"
+          @place-barrier="placeBarrierOnEdge"
         >
           <template #actions>
             <div v-if="editable" class="campaign-editor__add-cluster" aria-label="Add to roadmap">
@@ -131,9 +176,78 @@ const {
                 </svg>
                 Add node
               </button>
+              <button
+                type="button"
+                class="campaign-editor__add-btn"
+                :class="{ 'campaign-editor__add-btn--barrier': barrierPlacementMode }"
+                :disabled="!canAddBarrier"
+                :title="
+                  campaign.progressionAgnostic
+                    ? 'Barriers need an ordered campaign. Turn off progression-agnostic in Settings'
+                    : !hasConnections
+                      ? 'Connect two nodes first, then drop a gate on the arrow'
+                      : ''
+                "
+                @click="toggleBarrierPlacement"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <line x1="12" y1="3" x2="12" y2="21" />
+                  <line x1="7" y1="6" x2="17" y2="6" />
+                  <line x1="7" y1="18" x2="17" y2="18" />
+                </svg>
+                {{ barrierPlacementMode ? 'Pick an arrow' : 'Add barrier' }}
+              </button>
+              <button type="button" class="campaign-editor__add-btn" @click="addText">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <polyline points="4 7 4 4 20 4 20 7" />
+                  <line x1="9" y1="20" x2="15" y2="20" />
+                  <line x1="12" y1="4" x2="12" y2="20" />
+                </svg>
+                Add text
+              </button>
             </div>
           </template>
         </CampaignRoadmap>
+
+        <div
+          v-if="presencePeers.length"
+          class="campaign-editor__presence"
+          aria-label="Collaborators editing now"
+        >
+          <span
+            v-for="p in presencePeers.slice(0, 6)"
+            :key="p.userId"
+            class="campaign-editor__presence-avatar"
+            :style="{ '--peer-color': p.color }"
+            :title="p.name"
+          >
+            <img v-if="p.avatarUrl" :src="p.avatarUrl" :alt="p.name" />
+            <span v-else class="campaign-editor__presence-initial">{{ p.name.charAt(0) }}</span>
+          </span>
+          <span v-if="presencePeers.length > 6" class="campaign-editor__presence-more">
+            +{{ presencePeers.length - 6 }}
+          </span>
+        </div>
 
         <Breadcrumbs class="campaign-editor__breadcrumbs" :crumbs="breadcrumbs" />
 
@@ -300,6 +414,82 @@ const {
             </BaseButton>
           </div>
 
+          <div
+            v-if="activeTrayIsBarrier && selectedBarrier"
+            class="campaign-editor__barrier-head"
+          >
+            <span class="campaign-editor__barrier-head-icon" aria-hidden="true">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <line x1="12" y1="3" x2="12" y2="21" />
+                <line x1="7" y1="6" x2="17" y2="6" />
+                <line x1="7" y1="18" x2="17" y2="18" />
+              </svg>
+            </span>
+            <div class="campaign-editor__barrier-head-meta">
+              <h3>Barrier gate</h3>
+              <p>
+                grid
+                <code>{{ selectedBarrier.positionX }},{{ selectedBarrier.positionY }}</code>
+              </p>
+            </div>
+            <BaseButton
+              v-if="editable"
+              size="sm"
+              variant="destructive"
+              :loading="actionPending"
+              @click="removeSelectedBarrier"
+            >
+              Remove
+            </BaseButton>
+          </div>
+
+          <div v-if="activeTray === 'text' && selectedText" class="campaign-editor__barrier-head">
+            <span
+              class="campaign-editor__barrier-head-icon campaign-editor__barrier-head-icon--text"
+              aria-hidden="true"
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="4 7 4 4 20 4 20 7" />
+                <line x1="9" y1="20" x2="15" y2="20" />
+                <line x1="12" y1="4" x2="12" y2="20" />
+              </svg>
+            </span>
+            <div class="campaign-editor__barrier-head-meta">
+              <h3>Text element</h3>
+              <p>
+                grid
+                <code>{{ selectedText.positionX }},{{ selectedText.positionY }}</code>
+              </p>
+            </div>
+            <BaseButton
+              v-if="editable"
+              size="sm"
+              variant="destructive"
+              :loading="actionPending"
+              @click="removeSelectedText"
+            >
+              Remove
+            </BaseButton>
+          </div>
+
           <div class="campaign-editor__tray-body">
             <CampaignTrays />
           </div>
@@ -319,6 +509,14 @@ const {
         :loading="actionPending"
         @close="itemPickerFor = null"
         @pick="handleItemPicked"
+      />
+
+      <CampaignCollaboratorPicker
+        v-if="showCollaboratorPicker"
+        :loading="actionPending"
+        :existing-ids="Array.from(existingCollaboratorIds)"
+        @close="showCollaboratorPicker = false"
+        @pick="handleCollaboratorPicked"
       />
 
       <BaseModal
@@ -390,6 +588,53 @@ const {
   pointer-events: auto;
 }
 
+.campaign-editor__presence {
+  position: absolute;
+  top: var(--space-md);
+  right: var(--space-md);
+  display: flex;
+  align-items: center;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.campaign-editor__presence-avatar {
+  width: 30px;
+  height: 30px;
+  margin-left: -8px;
+  border-radius: 50%;
+  border: 2px solid var(--peer-color);
+  background: var(--bg-elevated);
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.campaign-editor__presence-avatar:first-child {
+  margin-left: 0;
+}
+
+.campaign-editor__presence-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.campaign-editor__presence-initial {
+  font-size: var(--text-caption);
+  font-weight: 600;
+  color: var(--text-primary);
+  text-transform: uppercase;
+}
+
+.campaign-editor__presence-more {
+  margin-left: 6px;
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
 .campaign-editor__banners {
   position: absolute;
   top: calc(var(--space-md) + 44px);
@@ -457,6 +702,21 @@ const {
 
 .campaign-editor__add-btn:hover {
   background: var(--bg-elevated);
+}
+
+.campaign-editor__add-btn:disabled {
+  color: var(--text-tertiary);
+  cursor: not-allowed;
+}
+
+.campaign-editor__add-btn:disabled:hover {
+  background: transparent;
+}
+
+.campaign-editor__add-btn--barrier,
+.campaign-editor__add-btn--barrier:hover {
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
 }
 
 .campaign-editor__mode-toggle {
@@ -653,6 +913,64 @@ const {
 
 .campaign-editor__node-remove {
   align-self: start;
+}
+
+.campaign-editor__tray > .campaign-editor__barrier-head {
+  padding: var(--space-md) var(--space-md) var(--space-sm);
+  border-bottom: 1px solid var(--bg-overlay);
+}
+
+.campaign-editor__barrier-head {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+.campaign-editor__barrier-head-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent);
+  border-radius: 4px;
+}
+
+.campaign-editor__barrier-head-icon--text {
+  color: var(--page-accent);
+  background: color-mix(in srgb, var(--page-accent) 12%, transparent);
+  border-color: color-mix(in srgb, var(--page-accent) 40%, transparent);
+}
+
+.campaign-editor__barrier-head-meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.campaign-editor__barrier-head-meta h3 {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.campaign-editor__barrier-head-meta p {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  color: var(--text-tertiary);
+}
+
+.campaign-editor__barrier-head-meta code {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--text-secondary);
 }
 
 .campaign-editor__warn {

@@ -1,11 +1,17 @@
 import type {
+  AddCampaignBarrierRequest,
   AddCampaignDifficultyRequest,
   AddCampaignItemRequest,
+  CampaignTextRequest,
   CreateCampaignRequest,
+  UpdateCampaignBarrierRequest,
   UpdateCampaignDifficultyRequest,
   UpdateCampaignRequest,
 } from '@/types/api/admin'
 import type {
+  CampaignBarrierResponse,
+  CampaignCollaborationListParams,
+  CampaignCollaboratorResponse,
   CampaignDetailResponse,
   CampaignDifficultyResponse,
   CampaignItemAwardResponse,
@@ -14,12 +20,15 @@ import type {
   CampaignResponse,
   CampaignTagListParams,
   CampaignTagResponse,
+  CampaignTextResponse,
+  InviteCampaignCollaboratorRequest,
   UserCampaignResponse,
 } from '@/types/api/campaigns'
 import type { PaginationParams } from '@/types/pagination'
 import type { Page } from '@/types/pagination'
-import { del, get, patch, post } from './client'
+import { ApiError, del, get, patch, post } from './client'
 import { buildQuery } from './utils'
+import { isUuid } from '@/utils/mapRoute'
 
 export function getCampaigns(params?: CampaignListParams): Promise<Page<CampaignResponse>> {
   return get<Page<CampaignResponse>>(`/campaigns${buildQuery(params)}`)
@@ -37,6 +46,18 @@ export function getCampaign(campaignId: string): Promise<CampaignDetailResponse>
 
 export function getCampaignBySlug(slug: string): Promise<CampaignDetailResponse> {
   return get<CampaignDetailResponse>(`/campaigns/slug/${slug}`)
+}
+
+export async function getCampaignByIdOrSlug(value: string): Promise<CampaignDetailResponse> {
+  if (isUuid(value)) {
+    try {
+      return await getCampaign(value)
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) return getCampaignBySlug(value)
+      throw e
+    }
+  }
+  return getCampaignBySlug(value)
 }
 
 export function getCampaignTags(params?: CampaignTagListParams): Promise<CampaignTagResponse[]> {
@@ -167,4 +188,77 @@ export function removeCampaignDifficultyItem(
   itemId: string,
 ): Promise<CampaignItemAwardResponse[]> {
   return del<CampaignItemAwardResponse[]>(`/campaigns/difficulties/${difficultyId}/items/${itemId}`)
+}
+
+export function getCampaignCollaborators(
+  campaignId: string,
+): Promise<CampaignCollaboratorResponse[]> {
+  return get<CampaignCollaboratorResponse[]>(`/campaigns/${campaignId}/collaborators`)
+}
+
+export function inviteCampaignCollaborator(
+  campaignId: string,
+  req: InviteCampaignCollaboratorRequest,
+): Promise<CampaignCollaboratorResponse> {
+  return post<CampaignCollaboratorResponse>(`/campaigns/${campaignId}/collaborators`, req)
+}
+
+export function acceptCampaignCollaboration(
+  campaignId: string,
+): Promise<CampaignCollaboratorResponse> {
+  return post<CampaignCollaboratorResponse>(`/campaigns/${campaignId}/collaborators/accept`)
+}
+
+export function declineCampaignCollaboration(
+  campaignId: string,
+): Promise<CampaignCollaboratorResponse> {
+  return post<CampaignCollaboratorResponse>(`/campaigns/${campaignId}/collaborators/decline`)
+}
+
+export function removeCampaignCollaborator(campaignId: string, userId: string): Promise<void> {
+  return del<void>(`/campaigns/${campaignId}/collaborators/${userId}`)
+}
+
+export function getMyCollaborations(
+  params?: CampaignCollaborationListParams,
+): Promise<Page<CampaignCollaboratorResponse>> {
+  return get<Page<CampaignCollaboratorResponse>>(
+    `/campaigns/me/collaborations${buildQuery(params)}`,
+  )
+}
+
+export function addPlayerCampaignBarrier(
+  campaignId: string,
+  req: AddCampaignBarrierRequest,
+): Promise<CampaignBarrierResponse> {
+  return post<CampaignBarrierResponse>(`/campaigns/${campaignId}/barriers`, req)
+}
+
+export function updatePlayerCampaignBarrier(
+  barrierId: string,
+  req: UpdateCampaignBarrierRequest,
+): Promise<CampaignBarrierResponse> {
+  return patch<CampaignBarrierResponse>(`/campaigns/barriers/${barrierId}`, req)
+}
+
+export function deletePlayerCampaignBarrier(campaignId: string, barrierId: string): Promise<void> {
+  return del<void>(`/campaigns/${campaignId}/barriers/${barrierId}`)
+}
+
+export function addPlayerCampaignText(
+  campaignId: string,
+  req: CampaignTextRequest,
+): Promise<CampaignTextResponse> {
+  return post<CampaignTextResponse>(`/campaigns/${campaignId}/texts`, req)
+}
+
+export function updatePlayerCampaignText(
+  textId: string,
+  req: CampaignTextRequest,
+): Promise<CampaignTextResponse> {
+  return patch<CampaignTextResponse>(`/campaigns/texts/${textId}`, req)
+}
+
+export function deletePlayerCampaignText(campaignId: string, textId: string): Promise<void> {
+  return del<void>(`/campaigns/${campaignId}/texts/${textId}`)
 }

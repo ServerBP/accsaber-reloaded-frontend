@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useCategoryStore } from '@/stores/categories'
 import type {
-  CampaignProgressResponse,
+  CampaignProgressSummary,
   CampaignResponse,
   CampaignTagResponse,
 } from '@/types/api/campaigns'
@@ -15,13 +15,14 @@ import type { RouteLocationRaw } from 'vue-router'
 
 const props = defineProps<{
   campaign: CampaignResponse
-  progress?: CampaignProgressResponse | null
+  progress?: CampaignProgressSummary | null
   editorLink?: boolean
+  collab?: boolean
 }>()
 
 const cardTo = computed<RouteLocationRaw>(() =>
   props.editorLink
-    ? { name: 'campaign-editor', params: { campaignId: props.campaign.id } }
+    ? { name: 'campaign-editor', params: { campaignId: props.campaign.slug || props.campaign.id } }
     : { name: 'campaign-detail', params: { campaignId: props.campaign.slug || props.campaign.id } },
 )
 
@@ -51,9 +52,7 @@ const difficultyColor = computed(() =>
 
 const difficultyGradient = computed(() => campaignDifficultyGradient(props.campaign.tags))
 
-const totalNodes = computed(() =>
-  props.progress?.totalDifficulties || props.campaign.difficultyCount || 0,
-)
+const totalNodes = computed(() => props.campaign.difficultyCount || 0)
 
 const progressPct = computed(() => {
   if (!props.progress) return 0
@@ -62,8 +61,8 @@ const progressPct = computed(() => {
 })
 
 const statusLabel = computed(() => {
-  if (props.progress?.status === 'COMPLETED') return 'Completed'
-  if (props.progress?.status === 'IN_PROGRESS') return 'In progress'
+  if (props.progress?.progressStatus === 'COMPLETED') return 'Completed'
+  if (props.progress?.progressStatus === 'IN_PROGRESS') return 'In progress'
   if (props.campaign.status === 'DRAFT') return 'Draft'
   if (props.campaign.status === 'EDITING') return 'Editing'
   if (props.campaign.status === 'CURATED') return 'Curated'
@@ -72,8 +71,8 @@ const statusLabel = computed(() => {
 })
 
 const statusTone = computed(() => {
-  if (props.progress?.status === 'COMPLETED') return 'success'
-  if (props.progress?.status === 'IN_PROGRESS') return 'accent'
+  if (props.progress?.progressStatus === 'COMPLETED') return 'success'
+  if (props.progress?.progressStatus === 'IN_PROGRESS') return 'accent'
   if (props.campaign.status === 'DRAFT') return 'muted'
   if (props.campaign.status === 'CURATED') return 'accent'
   return 'muted'
@@ -120,7 +119,10 @@ const hasCover = computed(() => !!coverUrl.value)
     <div class="campaign-card__body">
       <header class="campaign-card__head">
         <h3 class="campaign-card__name">{{ campaign.name }}</h3>
-        <p class="campaign-card__creator">by {{ creator }}</p>
+        <p class="campaign-card__creator">
+          by {{ creator }}
+          <span v-if="collab" class="campaign-card__collab">· collaborating</span>
+        </p>
       </header>
 
       <p v-if="campaign.summary" class="campaign-card__summary">{{ campaign.summary }}</p>
@@ -273,6 +275,11 @@ const hasCover = computed(() => !!coverUrl.value)
   font-family: var(--font-sans);
   font-size: var(--text-caption);
   color: var(--text-tertiary);
+}
+
+.campaign-card__collab {
+  color: var(--card-accent);
+  font-weight: 600;
 }
 
 .campaign-card__summary {

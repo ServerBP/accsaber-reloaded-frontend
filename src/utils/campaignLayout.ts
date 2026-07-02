@@ -1,4 +1,5 @@
 import type { CampaignDifficultyResponse, CampaignNodeShape } from '@/types/api/campaigns'
+import type { BarrierConditionType } from '@/types/enums'
 
 export const SQRT3 = Math.sqrt(3)
 
@@ -312,7 +313,65 @@ export function formatUserValue(
       return `${Math.round(value)}`
     case 'FC':
       return value > 0 ? 'cleared' : 'not yet'
+    case 'RANK':
+      return `#${Math.round(value)}`
     default:
       return String(value)
+  }
+}
+
+type BarrierMetric = 'acc' | 'ap' | 'streak' | 'rank' | 'fc'
+
+interface BarrierConditionMeta {
+  agg: string
+  metric: BarrierMetric
+  lowerBetter: boolean
+  noValue: boolean
+  label: string
+}
+
+const BARRIER_CONDITION_META: Record<BarrierConditionType, BarrierConditionMeta> = {
+  AVERAGE_ACC: { agg: 'avg', metric: 'acc', lowerBetter: false, noValue: false, label: 'Average accuracy' },
+  ACC_MAX: { agg: 'best', metric: 'acc', lowerBetter: false, noValue: false, label: 'Best accuracy' },
+  AVERAGE_AP: { agg: 'avg', metric: 'ap', lowerBetter: false, noValue: false, label: 'Average AP' },
+  AP_MAX: { agg: 'best', metric: 'ap', lowerBetter: false, noValue: false, label: 'Best AP' },
+  STREAK_115_AVERAGE: { agg: 'avg', metric: 'streak', lowerBetter: false, noValue: false, label: 'Average 115 streak' },
+  STREAK_115_MAX: { agg: 'best', metric: 'streak', lowerBetter: false, noValue: false, label: 'Best 115 streak' },
+  AVERAGE_RANK: { agg: 'avg', metric: 'rank', lowerBetter: true, noValue: false, label: 'Average rank' },
+  MAX_RANK: { agg: 'best', metric: 'rank', lowerBetter: true, noValue: false, label: 'Best rank' },
+  FC: { agg: '', metric: 'fc', lowerBetter: false, noValue: true, label: 'Full combo' },
+}
+
+export function barrierConditionMeta(type: BarrierConditionType): BarrierConditionMeta {
+  return BARRIER_CONDITION_META[type]
+}
+
+const BARRIER_READOUT_LABEL: Record<BarrierConditionType, string> = {
+  AVERAGE_ACC: 'Avg Accuracy',
+  ACC_MAX: 'Best Accuracy',
+  AVERAGE_AP: 'Avg AP',
+  AP_MAX: 'Best AP',
+  STREAK_115_AVERAGE: 'Avg 115 Streak',
+  STREAK_115_MAX: 'Best 115 Streak',
+  AVERAGE_RANK: 'Avg Rank',
+  MAX_RANK: 'Best Rank',
+  FC: 'Full Combo',
+}
+
+export function barrierConditionLabel(type: BarrierConditionType): string {
+  return BARRIER_READOUT_LABEL[type]
+}
+
+export function barrierPairValue(type: BarrierConditionType, value: number | null): string {
+  if (value == null) return '—'
+  switch (BARRIER_CONDITION_META[type].metric) {
+    case 'acc':
+      return `${(value * 100).toFixed(2)}%`
+    case 'ap':
+    case 'streak':
+    case 'rank':
+      return `${Math.round(value)}`
+    default:
+      return ''
   }
 }

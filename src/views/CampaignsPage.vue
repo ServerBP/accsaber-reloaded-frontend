@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { getApiErrorMessage } from '@/api/client'
+import BaseButton from '@/components/common/BaseButton.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import PageHeaderBleed from '@/components/common/PageHeaderBleed.vue'
 import PaginationControls from '@/components/common/PaginationControls.vue'
@@ -9,8 +10,9 @@ import { usePageableRoute } from '@/composables/usePageableRoute'
 import { useAuthStore } from '@/stores/auth'
 import { useCategoryStore } from '@/stores/categories'
 import type {
+  CampaignCollaboratorResponse,
   CampaignDetailResponse,
-  CampaignProgressResponse,
+  CampaignProgressSummary,
   CampaignResponse,
   CampaignTagResponse,
 } from '@/types/api/campaigns'
@@ -20,7 +22,7 @@ import { isAdminSubdomain } from '@/utils/subdomain'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-type Pane = 'all' | 'mine' | 'started' | 'review'
+type Pane = 'all' | 'mine' | 'started' | 'review' | 'invites'
 
 const route = useRoute()
 const router = useRouter()
@@ -33,6 +35,7 @@ const canReview = computed(() => isCurator.value && isAdminSubdomain)
 const pane = computed<Pane>(() => {
   const v = (route.query.pane as string | undefined) ?? 'all'
   if (v === 'mine' || v === 'started') return v
+  if (v === 'invites' && auth.isLoggedIn) return 'invites'
   if (v === 'review' && canReview.value) return 'review'
   return 'all'
 })
@@ -58,7 +61,12 @@ const totalPages = ref(1)
 const loading = ref(false)
 const error = ref<string | null>(null)
 
-const progressMap = ref(new Map<string, CampaignProgressResponse>())
+const progressMap = ref(new Map<string, CampaignProgressSummary>())
+
+const pendingInvites = ref<CampaignCollaboratorResponse[]>([])
+const invitesLoading = ref(false)
+const respondingId = ref<string | null>(null)
+const mineCollabs = ref<CampaignDetailResponse[]>([])
 
 const { currentPage, paginationParams, setPage } = usePageableRoute({
   defaultSort: 'createdAt',
@@ -79,9 +87,76 @@ async function loadTags() {
   }
 }
 
+async function loadInvites() {
+  if (!auth.isLoggedIn) {
+    pendingInvites.value = []
+    return
+  }
+  invitesLoading.value = true
+  try {
+    const { getMyCollaborations } = await import('@/api/campaigns')
+    const page = await getMyCollaborations({ status: 'PENDING', size: 50 })
+    pendingInvites.value = page.content
+  } catch {
+    pendingInvites.value = []
+  } finally {
+    invitesLoading.value = false
+  }
+}
+
+async function acceptInvite(inv: CampaignCollaboratorResponse) {
+  respondingId.value = inv.id
+  error.value = null
+  try {
+    const { acceptCampaignCollaboration } = await import('@/api/campaigns')
+    await acceptCampaignCollaboration(inv.campaignId)
+    pendingInvites.value = pendingInvites.value.filter((i) => i.id !== inv.id)
+  } catch (err) {
+    error.value = getApiErrorMessage(err, 'Failed to accept invite')
+  } finally {
+    respondingId.value = null
+  }
+}
+
+async function declineInvite(inv: CampaignCollaboratorResponse) {
+  respondingId.value = inv.id
+  error.value = null
+  try {
+    const { declineCampaignCollaboration } = await import('@/api/campaigns')
+    await declineCampaignCollaboration(inv.campaignId)
+    pendingInvites.value = pendingInvites.value.filter((i) => i.id !== inv.id)
+  } catch (err) {
+    error.value = getApiErrorMessage(err, 'Failed to decline invite')
+  } finally {
+    respondingId.value = null
+  }
+}
+
+async function loadMineCollabs() {
+  if (!auth.isLoggedIn) {
+    mineCollabs.value = []
+    return
+  }
+  try {
+    const { getMyCollaborations, getCampaign } = await import('@/api/campaigns')
+    const page = await getMyCollaborations({ status: 'ACCEPTED', size: 50 })
+    const details = await Promise.all(
+      page.content.map((c) => getCampaign(c.campaignId).catch(() => null)),
+    )
+    mineCollabs.value = details.filter((c): c is CampaignDetailResponse => !!c)
+  } catch {
+    mineCollabs.value = []
+  }
+}
+
 async function loadCampaigns() {
+  if (pane.value === 'invites') {
+    void loadInvites()
+    return
+  }
   loading.value = true
   error.value = null
+  mineCollabs.value = []
   try {
     if (pane.value === 'started') {
       if (!auth.isLoggedIn) {
@@ -89,25 +164,16 @@ async function loadCampaigns() {
         totalPages.value = 1
         return
       }
-      const { getMyCampaigns, getCampaign, getMyCampaignProgressBulk } = await import('@/api/campaigns')
+      const { getMyCampaigns } = await import('@/api/campaigns')
       const page = await getMyCampaigns({
         page: paginationParams.value.page,
         size: paginationParams.value.size,
         sort: paginationParams.value.sort,
       })
-      const ids = page.content.map((c) => c.campaignId)
       totalPages.value = page.totalPages || 1
-      if (ids.length === 0) {
-        items.value = []
-        return
-      }
-      const details = await Promise.all(
-        ids.map((id) => getCampaign(id).catch(() => null)),
-      )
-      items.value = details.filter((c): c is CampaignDetailResponse => !!c)
-      const progressList = await getMyCampaignProgressBulk(ids)
+      items.value = page.content.map((c) => c.campaign)
       const nextMap = new Map(progressMap.value)
-      for (const p of progressList) nextMap.set(p.campaignId, p)
+      for (const c of page.content) nextMap.set(c.campaign.id, c)
       progressMap.value = nextMap
     } else if (pane.value === 'mine') {
       if (!auth.isLoggedIn || !auth.userId) {
@@ -124,6 +190,7 @@ async function loadCampaigns() {
       })
       items.value = page.content
       totalPages.value = page.totalPages || 1
+      if (currentPage.value === 1) await loadMineCollabs()
     } else if (pane.value === 'review') {
       if (!canReview.value) {
         items.value = []
@@ -154,7 +221,7 @@ async function loadCampaigns() {
         const ids = items.value.map((c) => c.id)
         const progressList = await getMyCampaignProgressBulk(ids)
         const nextMap = new Map(progressMap.value)
-        for (const p of progressList) nextMap.set(p.campaignId, p)
+        for (const p of progressList) nextMap.set(p.campaign.id, p)
         progressMap.value = nextMap
       }
     }
@@ -229,6 +296,7 @@ function tagAccent(tag: CampaignTagResponse): string | null {
 onMounted(() => {
   void loadTags()
   void loadCampaigns()
+  void loadInvites()
 })
 
 watch(
@@ -246,7 +314,10 @@ watch(
 watch(
   () => auth.isLoggedIn,
   (next, prev) => {
-    if (next !== prev) void loadCampaigns()
+    if (next !== prev) {
+      void loadCampaigns()
+      void loadInvites()
+    }
   },
 )
 </script>
@@ -268,6 +339,13 @@ watch(
         <button v-if="auth.isLoggedIn" class="campaigns-page__pane"
           :class="{ 'campaigns-page__pane--active': pane === 'mine' }" @click="setPane('mine')">
           Mine
+        </button>
+        <button v-if="auth.isLoggedIn" class="campaigns-page__pane"
+          :class="{ 'campaigns-page__pane--active': pane === 'invites' }" @click="setPane('invites')">
+          Invites
+          <span v-if="pendingInvites.length > 0" class="campaigns-page__pane-badge">
+            {{ pendingInvites.length }}
+          </span>
         </button>
         <button v-if="canReview" class="campaigns-page__pane"
           :class="{ 'campaigns-page__pane--active': pane === 'review' }" @click="setPane('review')">
@@ -346,37 +424,68 @@ watch(
 
     <div v-if="error" class="campaigns-page__error" role="alert">{{ error }}</div>
 
-    <div v-if="loading" class="campaigns-page__list">
-      <SkeletonLoader v-for="i in 4" :key="i" variant="card" />
-    </div>
+    <template v-if="pane === 'invites'">
+      <EmptyState v-if="!auth.isLoggedIn" message="Sign in to see your collaboration invites." />
+      <div v-else-if="invitesLoading" class="campaigns-page__list">
+        <SkeletonLoader v-for="i in 3" :key="i" variant="card" />
+      </div>
+      <EmptyState v-else-if="pendingInvites.length === 0"
+        message="No pending invites. When someone invites you to collaborate, it lands here." />
+      <ul v-else class="campaigns-page__invites">
+        <li v-for="inv in pendingInvites" :key="inv.id" class="campaigns-page__invite">
+          <router-link class="campaigns-page__invite-main"
+            :to="{ name: 'campaign-detail', params: { campaignId: inv.campaignSlug || inv.campaignId } }">
+            <span class="campaigns-page__invite-name">{{ inv.campaignName }}</span>
+            <span class="campaigns-page__invite-sub">Invitation to collaborate</span>
+          </router-link>
+          <div class="campaigns-page__invite-actions">
+            <BaseButton size="sm" variant="primary" :loading="respondingId === inv.id"
+              @click="acceptInvite(inv)">
+              Accept
+            </BaseButton>
+            <BaseButton size="sm" :disabled="respondingId === inv.id" @click="declineInvite(inv)">
+              Decline
+            </BaseButton>
+          </div>
+        </li>
+      </ul>
+    </template>
 
-    <EmptyState v-else-if="pane === 'started' && !auth.isLoggedIn"
-      message="Sign in to track campaigns you've started." />
+    <template v-else>
+      <div v-if="loading" class="campaigns-page__list">
+        <SkeletonLoader v-for="i in 4" :key="i" variant="card" />
+      </div>
 
-    <EmptyState v-else-if="pane === 'started' && items.length === 0"
-      message="You haven't started any campaigns yet. Browse the catalogue to begin one." />
+      <EmptyState v-else-if="pane === 'started' && !auth.isLoggedIn"
+        message="Sign in to track campaigns you've started." />
 
-    <EmptyState v-else-if="pane === 'mine' && !auth.isLoggedIn"
-      message="Sign in to see your created campaigns." />
+      <EmptyState v-else-if="pane === 'started' && items.length === 0"
+        message="You haven't started any campaigns yet. Browse the catalogue to begin one." />
 
-    <EmptyState v-else-if="pane === 'mine' && items.length === 0"
-      message="You haven't drafted any campaigns yet. Use New campaign to start one." />
+      <EmptyState v-else-if="pane === 'mine' && !auth.isLoggedIn"
+        message="Sign in to see your created campaigns." />
 
-    <EmptyState v-else-if="pane === 'review' && items.length === 0"
-      message="Nothing in the curation queue right now." />
+      <EmptyState v-else-if="pane === 'mine' && items.length === 0 && mineCollabs.length === 0"
+        message="You haven't drafted any campaigns yet. Use New campaign to start one." />
 
-    <EmptyState v-else-if="items.length === 0"
-      message="No campaigns match these filters." />
+      <EmptyState v-else-if="pane === 'review' && items.length === 0"
+        message="Nothing in the curation queue right now." />
 
-    <div v-else class="campaigns-page__list">
-      <CampaignRow v-for="campaign in items" :key="campaign.id" :campaign="campaign"
-        :progress="progressMap.get(campaign.id) ?? null"
-        :editor-link="pane === 'mine' || pane === 'review'" />
-    </div>
+      <EmptyState v-else-if="pane !== 'mine' && items.length === 0"
+        message="No campaigns match these filters." />
 
-    <div v-if="totalPages > 1 && !loading" class="campaigns-page__pagination">
-      <PaginationControls :page="currentPage" :total-pages="totalPages" @update:page="setPage" />
-    </div>
+      <div v-else class="campaigns-page__list">
+        <CampaignRow v-for="c in (pane === 'mine' ? mineCollabs : [])" :key="`collab-${c.id}`"
+          :campaign="c" :editor-link="true" collab />
+        <CampaignRow v-for="campaign in items" :key="campaign.id" :campaign="campaign"
+          :progress="progressMap.get(campaign.id) ?? null"
+          :editor-link="pane === 'mine' || pane === 'review'" />
+      </div>
+
+      <div v-if="totalPages > 1 && !loading" class="campaigns-page__pagination">
+        <PaginationControls :page="currentPage" :total-pages="totalPages" @update:page="setPage" />
+      </div>
+    </template>
   </div>
 </template>
 
@@ -431,6 +540,9 @@ watch(
 }
 
 .campaigns-page__pane {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 6px var(--space-md);
   background: none;
   border: none;
@@ -443,6 +555,22 @@ watch(
   color: var(--text-secondary);
   cursor: pointer;
   transition: color 120ms ease, background 120ms ease;
+}
+
+.campaigns-page__pane-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--page-accent);
+  background: color-mix(in srgb, var(--page-accent) 16%, transparent);
+  border-radius: 999px;
 }
 
 .campaigns-page__pane:hover {
@@ -614,5 +742,72 @@ watch(
   background: color-mix(in srgb, var(--error) 8%, transparent);
   border: 1px solid color-mix(in srgb, var(--error) 40%, transparent);
   border-radius: 4px;
+}
+
+.campaigns-page__invites {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.campaigns-page__invite {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  background: var(--bg-surface);
+  border: 1px solid var(--bg-overlay);
+  border-radius: 4px;
+}
+
+.campaigns-page__invite-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  text-decoration: none;
+  color: inherit;
+}
+
+.campaigns-page__invite-name {
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 120ms ease;
+}
+
+.campaigns-page__invite-main:hover .campaigns-page__invite-name {
+  color: var(--page-accent);
+}
+
+.campaigns-page__invite-sub {
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  color: var(--text-tertiary);
+}
+
+.campaigns-page__invite-actions {
+  display: inline-flex;
+  gap: var(--space-sm);
+  flex-shrink: 0;
+}
+
+@media (max-width: 560px) {
+  .campaigns-page__invite {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .campaigns-page__invite-actions {
+    justify-content: flex-end;
+  }
 }
 </style>

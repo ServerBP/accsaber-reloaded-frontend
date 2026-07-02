@@ -65,6 +65,21 @@ export function parseApiError(err: unknown, fallback = 'Request failed'): Parsed
   }
 }
 
+const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
+
+function detectBannedWrite(method: string, status: number, body: string): void {
+  if (status !== 403 || !WRITE_METHODS.has(method)) return
+  try {
+    const parsed = JSON.parse(body) as { code?: unknown; message?: unknown }
+    const message = typeof parsed.message === 'string' ? parsed.message : ''
+    if (parsed.code === 'FORBIDDEN' && /banned/i.test(message)) {
+      useAuthStore().markRestricted()
+    }
+  } catch {
+    /* non-JSON body */
+  }
+}
+
 const NO_AUTO_AUTH_PATHS = [
   '/auth/refresh',
   '/auth/logout',
@@ -177,6 +192,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText)
+    detectBannedWrite(method, res.status, text)
     throw new ApiError(res.status, text)
   }
 
@@ -228,6 +244,7 @@ export async function postMultipart<T>(path: string, formData: FormData): Promis
   const res = await fetch(url, { method: 'POST', headers, body: formData })
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText)
+    detectBannedWrite('POST', res.status, text)
     throw new ApiError(res.status, text)
   }
   if (res.status === 204 || res.status === 202) return undefined as T

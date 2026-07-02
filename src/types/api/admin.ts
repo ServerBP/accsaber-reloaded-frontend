@@ -205,6 +205,7 @@ export interface UpdatePrerequisiteRequest {
 export type { ActivateMilestonesRequest, AdminMilestoneListParams } from './milestones'
 
 import type {
+  BarrierConditionType,
   CampaignCompletionMode,
   CampaignRequirementType,
   CampaignPrerequisiteMode,
@@ -285,4 +286,50 @@ export interface CreateCampaignTagRequest {
 export interface AddCampaignItemRequest {
   itemId: string
   quantity?: number
+}
+
+export interface AddCampaignBarrierRequest {
+  conditionType: BarrierConditionType
+  conditionValue?: number | null
+  description?: string
+  checkpointLabel?: string
+  checkpointAvatarUrl?: string
+  checkpointColor?: string
+  borderColor?: string
+  borderShape?: string
+  size?: string
+  checkpointSize?: string
+  positionX: number
+  positionY: number
+  xp?: number
+  prerequisiteCampaignDifficultyIds?: string[]
+  affectedCampaignDifficultyIds?: string[]
+}
+
+export interface UpdateCampaignBarrierRequest {
+  conditionType?: BarrierConditionType
+  conditionValue?: number | null
+  description?: string | null
+  checkpointLabel?: string | null
+  checkpointAvatarUrl?: string | null
+  checkpointColor?: string | null
+  borderColor?: string | null
+  borderShape?: string | null
+  size?: string | null
+  checkpointSize?: string | null
+  positionX?: number
+  positionY?: number
+  xp?: number
+  prerequisiteCampaignDifficultyIds?: string[]
+  affectedCampaignDifficultyIds?: string[]
+}
+
+export interface CampaignTextRequest {
+  content?: string
+  positionX: number
+  positionY: number
+  font?: string
+  scale?: number
+  color?: string
+  effects?: string
 }

@@ -1,13 +1,26 @@
 <script setup lang="ts">
 import ParticleCanvas from '@/components/common/ParticleCanvas.vue'
+import CampaignBarrierGate from '@/components/domain/CampaignBarrierGate.vue'
 import CampaignNode from '@/components/domain/CampaignNode.vue'
 import { useThemeStore } from '@/stores/theme'
 import type {
+  BarrierProgressResponse,
+  CampaignBarrierResponse,
   CampaignDifficultyProgressResponse,
   CampaignDifficultyResponse,
   CampaignNodeShape,
+  CampaignTextResponse,
 } from '@/types/api/campaigns'
+import { sanitizeRichHtml } from '@/utils/richText'
+import CampaignPresenceCursor from '@/components/domain/CampaignPresenceCursor.vue'
+import type {
+  PresenceAction,
+  PresenceKind,
+  PresencePeer,
+} from '@/composables/useCampaignPresence'
 import {
+  barrierConditionLabel,
+  barrierPairValue,
   computeLabelPlacements,
   edgePointOnShape,
   layoutNodes,
@@ -22,8 +35,12 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 const props = withDefaults(
   defineProps<{
     difficulties: CampaignDifficultyResponse[]
+    barriers?: CampaignBarrierResponse[]
+    texts?: CampaignTextResponse[]
     progress?: CampaignDifficultyProgressResponse[]
+    barrierProgress?: BarrierProgressResponse[]
     accentColor?: string
+    barrierAccent?: string
     nodeAccents?: Map<string, string>
     backgroundUrl?: string | null
     focusId?: string | null
@@ -31,13 +48,22 @@ const props = withDefaults(
     showStarfield?: boolean
     selectedId?: string | null
     selectedIds?: string[]
+    highlightBarrierId?: string | null
+    barrierPlacement?: boolean
+    followFocus?: boolean
+    presencePeers?: PresencePeer[]
     editable?: boolean
     mode?: 'drag' | 'connect' | 'select'
     unit?: number
     markNext?: boolean
   }>(),
   {
+    barriers: () => [],
+    texts: () => [],
+    progress: undefined,
+    barrierProgress: undefined,
     accentColor: 'var(--accent)',
+    barrierAccent: 'var(--warning)',
     nodeAccents: () => new Map(),
     backgroundUrl: null,
     focusId: null,
@@ -45,6 +71,10 @@ const props = withDefaults(
     showStarfield: false,
     selectedId: null,
     selectedIds: () => [],
+    highlightBarrierId: null,
+    barrierPlacement: false,
+    followFocus: true,
+    presencePeers: () => [],
     editable: false,
     mode: 'drag',
     unit: 48,
@@ -69,6 +99,17 @@ const emit = defineEmits<{
   emptyClick: [payload: { x: number; y: number }]
   connect: [payload: { fromId: string; toId: string }]
   disconnect: [payload: { fromId: string; toId: string }]
+  placeBarrier: [payload: { fromId: string; toId: string }]
+  cursormove: [
+    payload: {
+      x: number
+      y: number
+      action: PresenceAction
+      targetId: string | null
+      kind: PresenceKind
+    },
+  ]
+  cursoroff: []
 }>()
 
 const selectedSet = computed(() => new Set(props.selectedIds))
@@ -108,7 +149,7 @@ const nodeById = computed(() => {
 
 const progressById = computed(() => {
   const map = new Map<string, CampaignDifficultyProgressResponse>()
-  for (const p of props.progress ?? []) map.set(p.campaignDifficultyId, p)
+  for (const p of props.progress ?? []) map.set(p.node.id, p)
   return map
 })
 
@@ -116,7 +157,7 @@ const nextIds = computed(() => {
   const set = new Set<string>()
   if (!props.markNext) return set
   for (const p of props.progress ?? []) {
-    if (p.unlocked && !p.completed) set.add(p.campaignDifficultyId)
+    if (p.unlocked && !p.completed) set.add(p.node.id)
   }
   return set
 })
@@ -126,6 +167,142 @@ const difficultyById = computed(() => {
   for (const d of props.difficulties) map.set(d.id, d)
   return map
 })
+
+const barrierLayout = computed(() => layoutNodes(props.barriers, props.unit))
+
+const renderedBarriers = computed(() =>
+  barrierLayout.value.nodes.map((n) => {
+    const o = dragOverlay.value.get(n.id)
+    return o ? { ...n, cx: o.cx, cy: o.cy } : n
+  }),
+)
+
+const barrierById = computed(() => {
+  const map = new Map<string, NodeLayout>()
+  for (const b of renderedBarriers.value) map.set(b.id, b)
+  return map
+})
+
+const barrierMetaById = computed(() => {
+  const map = new Map<string, CampaignBarrierResponse>()
+  for (const b of props.barriers) map.set(b.id, b)
+  return map
+})
+
+const barrierProgressById = computed(() => {
+  const map = new Map<string, BarrierProgressResponse>()
+  for (const p of props.barrierProgress ?? []) map.set(p.barrier.id, p)
+  return map
+})
+
+const textLayout = computed(() => layoutNodes(props.texts, props.unit))
+
+const renderedTexts = computed(() =>
+  textLayout.value.nodes.map((n) => {
+    const o = dragOverlay.value.get(n.id)
+    return o ? { ...n, cx: o.cx, cy: o.cy } : n
+  }),
+)
+
+const TEXT_FONTS: Record<string, string> = {
+  mono: 'var(--font-mono)',
+  serif: 'Georgia, "Times New Roman", serif',
+}
+
+interface TextStatic {
+  html: string
+  fontSize: number
+  color: string
+  fontFamily: string
+  effectClass: string
+  width: number
+  height: number
+}
+
+interface TextRender extends TextStatic {
+  id: string
+  cx: number
+  cy: number
+}
+
+// Depends only on the text data (not positions), so sanitize runs on edit, never per drag frame.
+const textStaticById = computed(() => {
+  const map = new Map<string, TextStatic>()
+  for (const t of props.texts) {
+    const scale = t.scale ?? 1
+    const font = t.font ?? ''
+    map.set(t.id, {
+      html: sanitizeRichHtml(t.content),
+      fontSize: Math.max(props.unit * 0.3 * scale, 8),
+      color: t.color || 'var(--text-primary)',
+      fontFamily: font ? (TEXT_FONTS[font] ?? `"${font}", var(--font-sans)`) : 'var(--font-sans)',
+      effectClass: (t.effects ?? '')
+        .split(/\s+/)
+        .filter((e) => e === 'glow' || e === 'outline' || e === 'shadow')
+        .join(' '),
+      width: Math.max(props.unit * 5, 160),
+      height: Math.max(props.unit * 3, 90),
+    })
+  }
+  return map
+})
+
+const EMPTY_TEXT_STATIC: TextStatic = {
+  html: '',
+  fontSize: 12,
+  color: 'var(--text-primary)',
+  fontFamily: 'var(--font-sans)',
+  effectClass: '',
+  width: 160,
+  height: 90,
+}
+
+const renderedTextEls = computed<TextRender[]>(() =>
+  renderedTexts.value.map((n) => ({
+    id: n.id,
+    cx: n.cx,
+    cy: n.cy,
+    ...(textStaticById.value.get(n.id) ?? EMPTY_TEXT_STATIC),
+  })),
+)
+
+const vertexById = computed(() => {
+  const map = new Map<string, NodeLayout>()
+  for (const n of renderedNodes.value) map.set(n.id, n)
+  for (const b of renderedBarriers.value) map.set(b.id, b)
+  for (const t of renderedTexts.value) map.set(t.id, t)
+  return map
+})
+
+const vertexPos = computed(() => {
+  const map = new Map<string, { cx: number; cy: number }>()
+  for (const v of vertexById.value.values()) map.set(v.id, { cx: v.cx, cy: v.cy })
+  return map
+})
+
+const dependentsByVertex = computed(() => {
+  const map = new Map<string, string[]>()
+  const push = (from: string, to: string) => {
+    const list = map.get(from) ?? []
+    list.push(to)
+    map.set(from, list)
+  }
+  for (const d of props.difficulties) {
+    for (const p of d.prerequisiteCampaignDifficultyIds ?? []) push(p, d.id)
+  }
+  for (const b of props.barriers) {
+    for (const p of b.prerequisiteCampaignDifficultyIds ?? []) push(p, b.id)
+  }
+  return map
+})
+
+const hoverBarrierId = ref<string | null>(null)
+
+function onBarrierHover(id: string | null) {
+  hoverBarrierId.value = id
+  hoverNodeId.value = id
+  emit('hover', id)
+}
 
 const labelLayout = computed(() =>
   computeLabelPlacements(
@@ -225,42 +402,59 @@ function nodeFootprint(d: CampaignDifficultyResponse): NodeFootprint {
   }
 }
 
+const barrierEdgeRadius = computed(() => Math.max(props.unit * 0.16, 9))
+
+function vertexFootprint(id: string): NodeFootprint | null {
+  if (barrierMetaById.value.has(id)) {
+    return { shape: 'circle', outerSize: barrierEdgeRadius.value }
+  }
+  const d = difficultyById.value.get(id)
+  return d ? nodeFootprint(d) : null
+}
+
+function vertexCompleted(id: string): boolean {
+  const bp = barrierProgressById.value.get(id)
+  if (bp) return bp.satisfied
+  return !!progressById.value.get(id)?.completed
+}
+
+function vertexUnlocked(id: string): boolean {
+  const bp = barrierProgressById.value.get(id)
+  if (bp) return bp.unlocked
+  return !!progressById.value.get(id)?.unlocked
+}
+
+const edgeTargets = computed<{ id: string; prereqs: string[] }[]>(() => {
+  const list: { id: string; prereqs: string[] }[] = []
+  for (const d of props.difficulties) {
+    list.push({ id: d.id, prereqs: d.prerequisiteCampaignDifficultyIds ?? [] })
+  }
+  for (const b of props.barriers) {
+    list.push({ id: b.id, prereqs: b.prerequisiteCampaignDifficultyIds ?? [] })
+  }
+  return list
+})
+
 const edges = computed<Edge[]>(() => {
   const out: Edge[] = []
-  for (const d of props.difficulties) {
-    const to = nodeById.value.get(d.id)
-    if (!to) continue
-    const toFootprint = nodeFootprint(d)
-    for (const fromId of d.prerequisiteCampaignDifficultyIds ?? []) {
-      const from = nodeById.value.get(fromId)
-      if (!from) continue
-      const fromDiff = difficultyById.value.get(fromId)
-      if (!fromDiff) continue
-      const fromFootprint = nodeFootprint(fromDiff)
-      const a = edgePointOnShape(
-        fromFootprint.shape,
-        fromFootprint.outerSize,
-        from.cx,
-        from.cy,
-        to.cx,
-        to.cy,
-      )
-      const b = edgePointOnShape(
-        toFootprint.shape,
-        toFootprint.outerSize,
-        to.cx,
-        to.cy,
-        from.cx,
-        from.cy,
-      )
-      const fromProg = progressById.value.get(fromId)
-      const toProg = progressById.value.get(d.id)
-      const cleared = !!fromProg?.completed && !!toProg?.completed
-      const available = !!fromProg?.completed && !!toProg?.unlocked && !toProg.completed
-      const locked = !fromProg?.completed
+  for (const t of edgeTargets.value) {
+    const to = vertexPos.value.get(t.id)
+    const toFp = vertexFootprint(t.id)
+    if (!to || !toFp) continue
+    for (const fromId of t.prereqs) {
+      const from = vertexPos.value.get(fromId)
+      const fromFp = vertexFootprint(fromId)
+      if (!from || !fromFp) continue
+      const a = edgePointOnShape(fromFp.shape, fromFp.outerSize, from.cx, from.cy, to.cx, to.cy)
+      const b = edgePointOnShape(toFp.shape, toFp.outerSize, to.cx, to.cy, from.cx, from.cy)
+      const fromDone = vertexCompleted(fromId)
+      const toDone = vertexCompleted(t.id)
+      const cleared = fromDone && toDone
+      const available = fromDone && vertexUnlocked(t.id) && !toDone
+      const locked = !fromDone
       out.push({
         fromId,
-        toId: d.id,
+        toId: t.id,
         fromX: a.x,
         fromY: a.y,
         toX: b.x,
@@ -270,21 +464,145 @@ const edges = computed<Edge[]>(() => {
         cleared,
         available,
         locked,
-        toSize: toFootprint.outerSize,
+        toSize: toFp.outerSize,
       })
     }
   }
   return out
 })
 
-const contentBounds = computed(() => {
-  const b = layout.value.bounds
-  const margin = props.unit * 2
+interface BarrierGeom {
+  id: string
+  x1: number
+  y1: number
+  x2: number
+  y2: number
+  readoutText: string
+  accent: string
+  state: 'plain' | 'locked' | 'blocking' | 'open'
+}
+
+function centroidOf(pts: { cx: number; cy: number }[]): { cx: number; cy: number } {
   return {
-    x: b.minX - margin,
-    y: b.minY - margin,
-    width: b.width + margin * 2,
-    height: b.height + margin * 2 + props.unit,
+    cx: pts.reduce((s, p) => s + p.cx, 0) / pts.length,
+    cy: pts.reduce((s, p) => s + p.cy, 0) / pts.length,
+  }
+}
+
+const barrierGeometry = computed<BarrierGeom[]>(() => {
+  const out: BarrierGeom[] = []
+  for (const b of props.barriers) {
+    const center = barrierById.value.get(b.id)
+    if (!center) continue
+    const incoming = (b.prerequisiteCampaignDifficultyIds ?? [])
+      .map((id) => vertexPos.value.get(id))
+      .filter((p): p is { cx: number; cy: number } => !!p)
+    const outgoing = (dependentsByVertex.value.get(b.id) ?? [])
+      .map((id) => vertexPos.value.get(id))
+      .filter((p): p is { cx: number; cy: number } => !!p)
+    let dx = 0
+    let dy = 1
+    if (incoming.length && outgoing.length) {
+      const i = centroidOf(incoming)
+      const o = centroidOf(outgoing)
+      dx = o.cx - i.cx
+      dy = o.cy - i.cy
+    } else if (incoming.length) {
+      const i = centroidOf(incoming)
+      dx = center.cx - i.cx
+      dy = center.cy - i.cy
+    } else if (outgoing.length) {
+      const o = centroidOf(outgoing)
+      dx = o.cx - center.cx
+      dy = o.cy - center.cy
+    }
+    const len = Math.hypot(dx, dy) || 1
+    const fx = dx / len
+    const fy = dy / len
+    const wx = -fy
+    const wy = fx
+    const half = (Math.max(parseNumericSize(b.size, props.unit), props.unit) * 1.7) / 2
+    let ax = center.cx - wx * half
+    let ay = center.cy - wy * half
+    let bx = center.cx + wx * half
+    let by = center.cy + wy * half
+    if (ay < by || (ay === by && ax > bx)) {
+      ;[ax, bx] = [bx, ax]
+      ;[ay, by] = [by, ay]
+    }
+    const prog = barrierProgressById.value.get(b.id)
+    let state: BarrierGeom['state'] = 'plain'
+    if (prog) {
+      if (!prog.unlocked) state = 'locked'
+      else if (prog.satisfied) state = 'open'
+      else state = 'blocking'
+    }
+    const label = barrierConditionLabel(b.conditionType)
+    const isFc = b.conditionType === 'FC'
+    const goal = barrierPairValue(b.conditionType, b.conditionValue)
+    let readoutText: string
+    if (isFc) {
+      readoutText = label
+    } else if (state === 'blocking') {
+      readoutText = `${label}: ${barrierPairValue(b.conditionType, prog?.currentValue ?? null)}/${goal}`
+    } else {
+      readoutText = `${label}: ${goal}`
+    }
+    out.push({
+      id: b.id,
+      x1: ax,
+      y1: ay,
+      x2: bx,
+      y2: by,
+      readoutText,
+      accent: b.borderColor || props.barrierAccent,
+      state,
+    })
+  }
+  return out
+})
+
+const highlightedBarrierId = computed(() => hoverBarrierId.value ?? props.highlightBarrierId)
+
+const affectedHighlight = computed(() => {
+  const id = highlightedBarrierId.value
+  if (!id) return null
+  const meta = barrierMetaById.value.get(id)
+  const center = barrierById.value.get(id)
+  if (!meta || !center) return null
+  const nodes = (meta.affectedCampaignDifficultyIds ?? [])
+    .map((nid) => {
+      const n = nodeById.value.get(nid)
+      if (!n) return null
+      const size = parseNumericSize(difficultyById.value.get(nid)?.size, props.unit)
+      return { id: n.id, cx: n.cx, cy: n.cy, r: size + Math.max(size * 0.07, 3) + 6 }
+    })
+    .filter((n): n is { id: string; cx: number; cy: number; r: number } => !!n)
+  if (nodes.length === 0) return null
+  return { cx: center.cx, cy: center.cy, nodes }
+})
+
+const contentBounds = computed(() => {
+  const pts = [...layout.value.nodes, ...barrierLayout.value.nodes, ...textLayout.value.nodes]
+  const margin = props.unit * 2
+  if (pts.length === 0) {
+    return { x: -margin, y: -margin, width: margin * 2, height: margin * 2 + props.unit }
+  }
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const p of pts) {
+    if (p.cx < minX) minX = p.cx
+    if (p.cy < minY) minY = p.cy
+    if (p.cx > maxX) maxX = p.cx
+    if (p.cy > maxY) maxY = p.cy
+  }
+  return {
+    x: minX - margin,
+    y: minY - margin,
+    width: maxX - minX + margin * 2,
+    height: maxY - minY + margin * 2 + props.unit,
   }
 })
 
@@ -404,8 +722,9 @@ function onPointerDown(e: PointerEvent) {
   const target = e.target as Element | null
   if (target?.closest?.('.campaign-roadmap__bottom-stack')) return
   if (target?.closest?.('.campaign-roadmap__edge-x')) return
+  if (props.barrierPlacement && target?.closest?.('.campaign-roadmap__edge-hit')) return
   const nodeId = nodeIdFromEvent(e.target)
-  const node = nodeId ? nodeById.value.get(nodeId) : null
+  const node = nodeId ? vertexById.value.get(nodeId) : null
   ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
   if (nodeId && props.editable && props.mode === 'connect') {
     connectFromId.value = nodeId
@@ -428,7 +747,7 @@ function onPointerDown(e: PointerEvent) {
       if (selectedSet.value.has(nodeId) && props.selectedIds.length > 1) {
         groupDragStart = new Map()
         for (const id of props.selectedIds) {
-          const gn = nodeById.value.get(id)
+          const gn = vertexById.value.get(id)
           if (gn) groupDragStart.set(id, { cx: gn.cx, cy: gn.cy })
         }
       } else {
@@ -474,7 +793,126 @@ function onPointerDown(e: PointerEvent) {
   }
 }
 
+function presenceKindOf(id: string): PresenceKind {
+  if (barrierMetaById.value.has(id)) return 'barrier'
+  if (textStaticById.value.has(id)) return 'text'
+  return 'node'
+}
+
+let lastPresence = { x: 0, y: 0, has: false }
+
+function emitPresence(x: number, y: number) {
+  if (!props.editable) return
+  lastPresence = { x, y, has: true }
+  let action: PresenceAction = 'move'
+  let targetId: string | null = null
+  if (props.barrierPlacement) {
+    action = 'place'
+  } else if (connectFromId.value) {
+    action = 'connect'
+    targetId = connectHoverId.value ?? connectFromId.value
+  } else if (draggingNodeId.value) {
+    action = 'drag'
+    targetId = draggingNodeId.value
+  } else if (marqueeStart) {
+    action = 'select'
+  } else if (hoverNodeId.value) {
+    action = 'select'
+    targetId = hoverNodeId.value
+  } else if (props.selectedId) {
+    action = 'edit'
+    targetId = props.selectedId
+  }
+  emit('cursormove', { x, y, action, targetId, kind: targetId ? presenceKindOf(targetId) : null })
+}
+
+function trackPresence(e: PointerEvent) {
+  if (!props.editable) return
+  const p = clientToContent(e.clientX, e.clientY)
+  emitPresence(p.x, p.y)
+}
+
+function onPointerLeave() {
+  if (!props.editable) return
+  lastPresence.has = false
+  emit('cursoroff')
+}
+
+watch([draggingNodeId, connectFromId, () => props.barrierPlacement, () => props.selectedId], () => {
+  if (lastPresence.has) emitPresence(lastPresence.x, lastPresence.y)
+})
+
+const cursorDisplay = ref(new Map<string, { x: number; y: number }>())
+let cursorRaf: number | null = null
+
+function tickCursors() {
+  const disp = cursorDisplay.value
+  const alive = new Set<string>()
+  let changed = false
+  for (const peer of props.presencePeers) {
+    if (peer.x == null || peer.y == null) continue
+    alive.add(peer.userId)
+    const cur = disp.get(peer.userId)
+    if (!cur) {
+      disp.set(peer.userId, { x: peer.x, y: peer.y })
+      changed = true
+    } else {
+      const nx = cur.x + (peer.x - cur.x) * 0.28
+      const ny = cur.y + (peer.y - cur.y) * 0.28
+      if (Math.abs(nx - cur.x) > 0.02 || Math.abs(ny - cur.y) > 0.02) {
+        cur.x = nx
+        cur.y = ny
+        changed = true
+      }
+    }
+  }
+  for (const id of [...disp.keys()]) {
+    if (!alive.has(id)) {
+      disp.delete(id)
+      changed = true
+    }
+  }
+  if (changed) cursorDisplay.value = new Map(disp)
+  cursorRaf = requestAnimationFrame(tickCursors)
+}
+
+function startCursorLoop() {
+  if (cursorRaf == null) cursorRaf = requestAnimationFrame(tickCursors)
+}
+
+function stopCursorLoop() {
+  if (cursorRaf != null) {
+    cancelAnimationFrame(cursorRaf)
+    cursorRaf = null
+  }
+}
+
+watch(
+  () => props.presencePeers.length,
+  (n) => {
+    if (n > 0) startCursorLoop()
+    else {
+      stopCursorLoop()
+      if (cursorDisplay.value.size) cursorDisplay.value = new Map()
+    }
+  },
+  { immediate: true },
+)
+
+onUnmounted(stopCursorLoop)
+
+const renderedCursors = computed(() => {
+  const disp = cursorDisplay.value
+  const out: Array<{ peer: PresencePeer; x: number; y: number }> = []
+  for (const peer of props.presencePeers) {
+    const d = disp.get(peer.userId)
+    if (d) out.push({ peer, x: d.x, y: d.y })
+  }
+  return out
+})
+
 function onPointerMove(e: PointerEvent) {
+  trackPresence(e)
   if (!dragStart) return
   const dx = e.clientX - dragStart.x
   const dy = e.clientY - dragStart.y
@@ -683,6 +1121,10 @@ function onNodeClickCapture(e: MouseEvent) {
   }
 }
 
+function onEdgeClick(edge: { fromId: string; toId: string }) {
+  if (props.barrierPlacement) emit('placeBarrier', { fromId: edge.fromId, toId: edge.toId })
+}
+
 function adjustZoom(factor: number) {
   if (!stage.value) return
   const cx = stageWidth.value / 2
@@ -696,7 +1138,7 @@ function adjustZoom(factor: number) {
 }
 
 function focusNode(id: string, targetScale?: number) {
-  const n = nodeById.value.get(id)
+  const n = vertexById.value.get(id)
   if (!n || !stage.value) return
   const s = targetScale ?? Math.max(scale.value, props.defaultScale)
   const clamped = Math.max(minScale, Math.min(maxScale, s))
@@ -706,10 +1148,10 @@ function focusNode(id: string, targetScale?: number) {
   clampPan()
 }
 
-const canRecenter = computed(() => !!props.focusId && nodeById.value.has(props.focusId))
+const canRecenter = computed(() => !!props.focusId && vertexById.value.has(props.focusId))
 
 function recenter() {
-  if (props.focusId && nodeById.value.has(props.focusId)) {
+  if (props.focusId && vertexById.value.has(props.focusId)) {
     focusNode(props.focusId, props.defaultScale)
   } else {
     fitToContent()
@@ -745,7 +1187,7 @@ onUnmounted(() => {
 })
 
 watch(
-  () => props.difficulties.length,
+  () => `${props.difficulties.length}:${props.barriers.length}:${props.texts.length}`,
   () => {
     initialPosition()
   },
@@ -754,7 +1196,7 @@ watch(
 watch(
   () => props.focusId,
   (id) => {
-    if (id && didInitialPosition) focusNode(id)
+    if (id && didInitialPosition && props.followFocus) focusNode(id)
   },
 )
 
@@ -775,10 +1217,18 @@ const snapTarget = computed<{
   const overlay = dragOverlay.value.get(id)
   if (!overlay) return null
   const diff = props.difficulties.find((d) => d.id === id)
-  if (!diff) return null
+  const isBarrier = !diff && barrierMetaById.value.has(id)
+  const isText = !diff && !isBarrier && textStaticById.value.has(id)
+  if (!diff && !isBarrier && !isText) return null
   const { positionX, positionY } = contentToGrid(overlay.cx, overlay.cy)
   const cx = positionX * props.unit * 1.5
   const cy = positionY * props.unit * SQRT3 + (positionX % 2 !== 0 ? (props.unit * SQRT3) / 2 : 0)
+  if (isText) {
+    return { cx, cy, shape: 'circle', size: Math.max(props.unit * 0.45, 12) }
+  }
+  if (!diff) {
+    return { cx, cy, shape: 'circle', size: barrierEdgeRadius.value }
+  }
   return {
     cx,
     cy,
@@ -827,6 +1277,7 @@ const arrowDecorations = computed(() =>
     @pointermove="onPointerMove"
     @pointerup="onPointerUp"
     @pointercancel="onPointerUp"
+    @pointerleave="onPointerLeave"
   >
     <div
       v-if="backgroundUrl"
@@ -883,7 +1334,7 @@ const arrowDecorations = computed(() =>
           </text>
         </g>
 
-        <g class="campaign-roadmap__edges">
+        <g class="campaign-roadmap__edges" :class="{ 'campaign-roadmap__edges--place': barrierPlacement }">
           <g
             v-for="e in arrowDecorations"
             :key="`edge-${e.fromId}-${e.toId}`"
@@ -891,6 +1342,7 @@ const arrowDecorations = computed(() =>
             :class="{
               'campaign-roadmap__edge-group--highlight':
                 hoverNodeId === e.fromId || hoverNodeId === e.toId,
+              'campaign-roadmap__edge-group--placeable': barrierPlacement,
             }"
           >
             <line
@@ -901,6 +1353,7 @@ const arrowDecorations = computed(() =>
               :y2="e.toY"
               stroke="transparent"
               :stroke-width="Math.max(unit * 0.3, 14)"
+              @click.stop="onEdgeClick(e)"
             />
             <line
               class="campaign-roadmap__edge-line"
@@ -934,7 +1387,7 @@ const arrowDecorations = computed(() =>
               :opacity="e.cleared ? 0.95 : e.available ? 0.85 : 0.4"
             />
             <g
-              v-if="editable"
+              v-if="editable && !barrierPlacement"
               class="campaign-roadmap__edge-x"
               :transform="`translate(${e.midX}, ${e.midY})`"
               @click.stop="emit('disconnect', { fromId: e.fromId, toId: e.toId })"
@@ -962,13 +1415,13 @@ const arrowDecorations = computed(() =>
         </g>
 
         <g
-          v-if="connectFromId && connectPoint && nodeById.get(connectFromId)"
+          v-if="connectFromId && connectPoint && vertexById.get(connectFromId)"
           class="campaign-roadmap__connecting"
           aria-hidden="true"
         >
           <line
-            :x1="nodeById.get(connectFromId)!.cx"
-            :y1="nodeById.get(connectFromId)!.cy"
+            :x1="vertexById.get(connectFromId)!.cx"
+            :y1="vertexById.get(connectFromId)!.cy"
             :x2="connectPoint.x"
             :y2="connectPoint.y"
             stroke="var(--accent)"
@@ -1014,6 +1467,83 @@ const arrowDecorations = computed(() =>
           />
         </g>
 
+        <g v-if="affectedHighlight" class="campaign-roadmap__affected" aria-hidden="true">
+          <line
+            v-for="n in affectedHighlight.nodes"
+            :key="`tether-${n.id}`"
+            class="campaign-roadmap__tether"
+            :x1="affectedHighlight.cx"
+            :y1="affectedHighlight.cy"
+            :x2="n.cx"
+            :y2="n.cy"
+          />
+          <circle
+            v-for="n in affectedHighlight.nodes"
+            :key="`aff-${n.id}`"
+            class="campaign-roadmap__affected-ring"
+            :cx="n.cx"
+            :cy="n.cy"
+            :r="n.r"
+          />
+        </g>
+
+        <g
+          v-for="bg in barrierGeometry"
+          :key="`barrier-${bg.id}`"
+          data-node
+          :data-id="bg.id"
+          :class="{ 'campaign-roadmap__node--editable': editable }"
+          @mouseenter="onBarrierHover(bg.id)"
+          @mouseleave="onBarrierHover(null)"
+          @click.capture="onNodeClickCapture"
+        >
+          <CampaignBarrierGate
+            :x1="bg.x1"
+            :y1="bg.y1"
+            :x2="bg.x2"
+            :y2="bg.y2"
+            :readout-text="bg.readoutText"
+            :accent-color="bg.accent"
+            :state="bg.state"
+            :selected="selectedSet.has(bg.id)"
+            :unit="unit"
+          />
+        </g>
+
+        <g
+          v-for="t in renderedTextEls"
+          :key="`text-${t.id}`"
+          :data-node="editable ? '' : null"
+          :data-id="t.id"
+          :class="{ 'campaign-roadmap__node--editable': editable }"
+          @mouseenter="editable ? onNodeHover(t.id) : undefined"
+          @mouseleave="editable ? onNodeHover(null) : undefined"
+          @click.capture="onNodeClickCapture"
+        >
+          <foreignObject
+            class="campaign-roadmap__text-fo"
+            :x="t.cx - t.width / 2"
+            :y="t.cy - t.height / 2"
+            :width="t.width"
+            :height="t.height"
+          >
+            <div class="campaign-roadmap__text-wrap" xmlns="http://www.w3.org/1999/xhtml">
+              <div
+                class="campaign-roadmap__text"
+                :class="[
+                  t.effectClass,
+                  {
+                    'campaign-roadmap__text--editable': editable,
+                    'campaign-roadmap__text--selected': selectedSet.has(t.id),
+                  },
+                ]"
+                :style="{ fontSize: t.fontSize + 'px', color: t.color, fontFamily: t.fontFamily }"
+                v-html="t.html"
+              />
+            </div>
+          </foreignObject>
+        </g>
+
         <g class="campaign-roadmap__checkpoints">
           <text
             v-for="cp in checkpointLabels"
@@ -1027,6 +1557,21 @@ const arrowDecorations = computed(() =>
           >
             {{ cp.label }}
           </text>
+        </g>
+
+        <g v-if="editable" class="campaign-roadmap__cursors">
+          <CampaignPresenceCursor
+            v-for="rc in renderedCursors"
+            :key="rc.peer.userId"
+            :x="rc.x"
+            :y="rc.y"
+            :inv-scale="1 / scale"
+            :color="rc.peer.color"
+            :name="rc.peer.name"
+            :avatar-url="rc.peer.avatarUrl"
+            :action="rc.peer.action"
+            :kind="rc.peer.kind"
+          />
         </g>
       </g>
     </svg>
@@ -1201,6 +1746,27 @@ const arrowDecorations = computed(() =>
   opacity: 1;
 }
 
+.campaign-roadmap__edges--place .campaign-roadmap__edge-hit {
+  cursor: pointer;
+}
+
+.campaign-roadmap__edge-group--placeable .campaign-roadmap__edge-line {
+  stroke: var(--warning);
+  stroke-width: 2.5;
+  opacity: 0.9;
+}
+
+.campaign-roadmap__edge-group--placeable .campaign-roadmap__edge-arrow {
+  stroke: var(--warning);
+  fill: var(--warning);
+  opacity: 0.9;
+}
+
+.campaign-roadmap__edge-group--placeable:hover .campaign-roadmap__edge-line {
+  stroke-width: 4;
+  opacity: 1;
+}
+
 .campaign-roadmap__edge-x {
   opacity: 0;
   cursor: pointer;
@@ -1213,6 +1779,78 @@ const arrowDecorations = computed(() =>
 
 .campaign-roadmap__connecting line {
   pointer-events: none;
+}
+
+.campaign-roadmap__affected {
+  pointer-events: none;
+}
+
+.campaign-roadmap__tether {
+  stroke: color-mix(in srgb, var(--warning) 70%, transparent);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 5;
+  opacity: 0.85;
+}
+
+.campaign-roadmap__affected-ring {
+  fill: none;
+  stroke: var(--warning);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+  opacity: 0.85;
+}
+
+.campaign-roadmap__text-fo {
+  overflow: visible;
+  pointer-events: none;
+}
+
+.campaign-roadmap__text-wrap {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.campaign-roadmap__text {
+  max-width: 100%;
+  text-align: center;
+  line-height: 1.3;
+  font-weight: 600;
+  pointer-events: auto;
+  overflow-wrap: anywhere;
+}
+
+.campaign-roadmap__text--editable {
+  cursor: grab;
+  padding: 3px 8px;
+  border-radius: 4px;
+  transition:
+    background 120ms ease,
+    outline-color 120ms ease;
+  outline: 1px dashed transparent;
+  outline-offset: 2px;
+}
+
+.campaign-roadmap__text--editable:hover {
+  background: color-mix(in srgb, var(--bg-elevated) 70%, transparent);
+  outline-color: color-mix(in srgb, var(--page-accent, var(--accent)) 55%, transparent);
+}
+
+.campaign-roadmap__text--editable :deep(a) {
+  pointer-events: none;
+}
+
+.campaign-roadmap__text--selected {
+  outline-color: var(--page-accent, var(--accent)) !important;
+  background: color-mix(in srgb, var(--bg-elevated) 80%, transparent);
+}
+
+.campaign-roadmap__text :deep(a) {
+  color: var(--page-accent, var(--accent));
+  text-decoration: underline;
 }
 
 .campaign-roadmap__snap {

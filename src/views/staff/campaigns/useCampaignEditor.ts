@@ -1,30 +1,46 @@
 import {
+  addCampaignBarrier,
   addCampaignDifficulty,
   createCampaign,
   curateCampaign,
+  addCampaignText,
   deactivateCampaign,
+  deactivateCampaignBarrier,
   deactivateCampaignDifficulty,
+  deactivateCampaignText,
   publishCampaign,
   reopenCampaignForEdit,
   uncurateCampaign,
   updateCampaign,
+  updateCampaignBarrier,
   updateCampaignDifficulty,
+  updateCampaignText,
 } from '@/api/admin/campaigns'
 import {
   addCampaignCompletionItem,
   addCampaignDifficultyItem,
+  addPlayerCampaignBarrier,
   addPlayerCampaignDifficulty,
+  addPlayerCampaignText,
   createPlayerCampaign,
   deletePlayerCampaign,
+  deletePlayerCampaignBarrier,
   deletePlayerCampaignDifficulty,
+  deletePlayerCampaignText,
   getCampaign,
+  getCampaignByIdOrSlug,
+  getCampaignCollaborators,
   getCampaignTags,
+  inviteCampaignCollaborator,
   publishPlayerCampaign,
+  removeCampaignCollaborator,
   removeCampaignCompletionItem,
   removeCampaignDifficultyItem,
   unpublishPlayerCampaign,
   updatePlayerCampaign,
+  updatePlayerCampaignBarrier,
   updatePlayerCampaignDifficulty,
+  updatePlayerCampaignText,
 } from '@/api/campaigns'
 import {
   deleteCampaignBackground,
@@ -41,19 +57,26 @@ import { useCategoryStore } from '@/stores/categories'
 import { calculateAp, reverseApToAccuracyByComplexity } from '@/utils/curveEval'
 import { isAdminSubdomain } from '@/utils/subdomain'
 import type {
+  AddCampaignBarrierRequest,
   AddCampaignDifficultyRequest,
+  CampaignTextRequest,
+  UpdateCampaignBarrierRequest,
   UpdateCampaignDifficultyRequest,
   UpdateCampaignRequest,
 } from '@/types/api/admin'
 import type {
+  CampaignBarrierResponse,
+  CampaignCollaboratorResponse,
   CampaignDetailResponse,
   CampaignDifficultyResponse,
   CampaignTagResponse,
+  CampaignTextResponse,
 } from '@/types/api/campaigns'
 import type { CurveResponse } from '@/types/api/categories'
 import type { PublicMapDifficultyResponse } from '@/types/api/maps'
-import type { CampaignRequirementType } from '@/types/enums'
-import { computed, onMounted, ref, watch } from 'vue'
+import type { BarrierConditionType, CampaignRequirementType } from '@/types/enums'
+import { barrierConditionMeta } from '@/utils/campaignLayout'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 export type TrayId =
@@ -62,6 +85,7 @@ export type TrayId =
   | 'settings'
   | 'images'
   | 'completion'
+  | 'collaborators'
   | 'tags'
   | 'requirement'
   | 'milestone'
@@ -69,6 +93,15 @@ export type TrayId =
   | 'unlock'
   | 'rewards'
   | 'bulk'
+  | 'barrierCondition'
+  | 'barrierAffected'
+  | 'barrierStyle'
+  | 'barrierRewards'
+  | 'text'
+
+const MAX_COLLABORATORS = 15
+const MAX_BARRIERS = 50
+const MAX_TEXTS = 50
 
 export type TrayDef = { id: TrayId; label: string; icon: string; count?: number; tone?: string }
 
@@ -90,10 +123,13 @@ export function useCampaignEditor() {
   const showMapPicker = ref(false)
   const selectedIds = ref<Set<string>>(new Set())
   const canvasMode = ref<'drag' | 'connect' | 'select'>('drag')
-  const itemPickerFor = ref<'campaign' | 'node' | null>(null)
+  const itemPickerFor = ref<'campaign' | 'node' | 'barrier' | null>(null)
   const requirementDirtyIds = ref(new Set<string>())
   const editedLiveCampaign = ref(false)
   const showRepublishWarning = ref(false)
+  const collaborators = ref<CampaignCollaboratorResponse[]>([])
+  const collaboratorsLoading = ref(false)
+  const showCollaboratorPicker = ref(false)
 
   const selectedId = computed<string | null>(() =>
     selectedIds.value.size === 1 ? (selectedIds.value.values().next().value ?? null) : null,
@@ -156,6 +192,8 @@ export function useCampaignEditor() {
       createdAt: new Date().toISOString(),
       curatorNotes: null,
       difficulties: [],
+      barriers: [],
+      texts: [],
       completionItems: [],
     }
   }
@@ -188,7 +226,10 @@ export function useCampaignEditor() {
         allTags.value = await getCampaignTags()
       }
       suppressNextCampaignIdWatch = true
-      await router.replace({ name: 'campaign-editor', params: { campaignId: created.id } })
+      await router.replace({
+        name: 'campaign-editor',
+        params: { campaignId: created.slug || created.id },
+      })
       return detail
     } catch (err) {
       actionError.value = getApiErrorMessage(err, 'Failed to create campaign')
@@ -202,9 +243,10 @@ export function useCampaignEditor() {
     requirementDirtyIds.value = new Set()
     editedLiveCampaign.value = false
     try {
-      const c = await getCampaign(campaignId.value)
+      const c = await getCampaignByIdOrSlug(campaignId.value)
       campaign.value = c
       void ensureRewardItems()
+      void loadCollaborators()
       if (allTags.value.length === 0) {
         allTags.value = await getCampaignTags()
       }
@@ -218,6 +260,22 @@ export function useCampaignEditor() {
       }
     } finally {
       loading.value = false
+    }
+  }
+
+  async function loadCollaborators() {
+    const c = campaign.value
+    if (!c || c.id === '' || (!auth.isLoggedIn && !isCurator.value)) {
+      collaborators.value = []
+      return
+    }
+    collaboratorsLoading.value = true
+    try {
+      collaborators.value = await getCampaignCollaborators(c.id)
+    } catch {
+      collaborators.value = []
+    } finally {
+      collaboratorsLoading.value = false
     }
   }
 
@@ -260,6 +318,16 @@ export function useCampaignEditor() {
     void load()
   })
 
+  watch(
+    () => campaign.value?.slug,
+    (slug) => {
+      if (!slug || isNewMode.value || isUnsavedDraft.value) return
+      if (campaignId.value === slug) return
+      suppressNextCampaignIdWatch = true
+      void router.replace({ name: 'campaign-editor', params: { campaignId: slug } })
+    },
+  )
+
   const isAdmin = computed(() => auth.isAdmin)
 
   const isCurator = computed(() => auth.hasRole('CAMPAIGN_CURATOR'))
@@ -273,7 +341,29 @@ export function useCampaignEditor() {
     )
   })
 
-  const canAccess = computed(() => isCurator.value || isCreator.value)
+  const activeCollaborators = computed(() =>
+    collaborators.value.filter((c) => c.status !== 'DECLINED'),
+  )
+
+  const isCollaborator = computed(() => {
+    if (!auth.userId) return false
+    return collaborators.value.some(
+      (c) => c.status === 'ACCEPTED' && String(c.userId) === String(auth.userId),
+    )
+  })
+
+  const canInviteMore = computed(() => activeCollaborators.value.length < MAX_COLLABORATORS)
+
+  const existingCollaboratorIds = computed(() => {
+    const ids = new Set<string>()
+    if (campaign.value?.creatorId) ids.add(String(campaign.value.creatorId))
+    for (const c of activeCollaborators.value) ids.add(String(c.userId))
+    return ids
+  })
+
+  const canAccess = computed(
+    () => isCurator.value || isCreator.value || isCollaborator.value,
+  )
 
   const creatorBlocked = computed(
     () => isCreator.value && !!campaign.value?.seekingCuration && !isCurator.value,
@@ -288,6 +378,7 @@ export function useCampaignEditor() {
   const editable = computed(() => {
     if (!campaign.value || actionPending.value) return false
     if (isCreator.value && campaign.value.status === 'DRAFT' && !creatorBlocked.value) return true
+    if (isCollaborator.value && campaign.value.status === 'DRAFT') return true
     if (
       isCurator.value &&
       (campaign.value.status === 'DRAFT' || campaign.value.status === 'EDITING')
@@ -321,6 +412,62 @@ export function useCampaignEditor() {
     if (!selectedId.value) return null
     return campaign.value?.difficulties.find((d) => d.id === selectedId.value) ?? null
   })
+
+  const barrierById = computed(() => {
+    const map = new Map<string, CampaignBarrierResponse>()
+    for (const b of campaign.value?.barriers ?? []) map.set(b.id, b)
+    return map
+  })
+
+  function isBarrierId(id: string): boolean {
+    return barrierById.value.has(id)
+  }
+
+  const selectedBarrier = computed<CampaignBarrierResponse | null>(() => {
+    if (!selectedId.value) return null
+    return barrierById.value.get(selectedId.value) ?? null
+  })
+
+  const textById = computed(() => {
+    const map = new Map<string, CampaignTextResponse>()
+    for (const t of campaign.value?.texts ?? []) map.set(t.id, t)
+    return map
+  })
+
+  function isTextId(id: string): boolean {
+    return textById.value.has(id)
+  }
+
+  const pendingTextIds = new Set<string>()
+  const cancelledTextIds = new Set<string>()
+  let tempTextSeq = 0
+
+  function isPendingText(id: string): boolean {
+    return pendingTextIds.has(id)
+  }
+
+  const selectedText = computed<CampaignTextResponse | null>(() => {
+    if (!selectedId.value) return null
+    return textById.value.get(selectedId.value) ?? null
+  })
+
+  const affectedPickMode = ref(false)
+  const barrierPlacementMode = ref(false)
+
+  const hasConnections = computed(() => {
+    const c = campaign.value
+    if (!c) return false
+    return (
+      c.difficulties.some((d) => (d.prerequisiteCampaignDifficultyIds?.length ?? 0) > 0) ||
+      c.barriers.some((b) => (b.prerequisiteCampaignDifficultyIds?.length ?? 0) > 0)
+    )
+  })
+
+  const hasBarriers = computed(() => (campaign.value?.barriers.length ?? 0) > 0)
+
+  const canAddBarrier = computed(
+    () => editable.value && hasConnections.value && !campaign.value?.progressionAgnostic,
+  )
 
   const selectedMeta = computed(() =>
     selectedDifficulty.value
@@ -464,6 +611,99 @@ export function useCampaignEditor() {
 
   watch(selectedDifficulty, syncFormFromNode, { immediate: true })
 
+  const formBarrier = ref<{
+    conditionType: BarrierConditionType
+    conditionValue: number
+    description: string
+    checkpointLabel: string
+    checkpointAvatarUrl: string
+    checkpointColor: string
+    checkpointSize: string
+    borderColor: string
+    size: string
+    xp: number
+  }>({
+    conditionType: 'AVERAGE_ACC',
+    conditionValue: 0.9,
+    description: '',
+    checkpointLabel: '',
+    checkpointAvatarUrl: '',
+    checkpointColor: '',
+    checkpointSize: '',
+    borderColor: '',
+    size: '',
+    xp: 0,
+  })
+
+  function syncFormFromBarrier() {
+    const b = selectedBarrier.value
+    if (!b) return
+    formBarrier.value = {
+      conditionType: b.conditionType,
+      conditionValue: b.conditionValue ?? 0,
+      description: b.description ?? '',
+      checkpointLabel: b.checkpointLabel ?? '',
+      checkpointAvatarUrl: b.checkpointAvatarUrl ?? '',
+      checkpointColor: b.checkpointColor ?? '',
+      checkpointSize: b.checkpointSize ?? '',
+      borderColor: b.borderColor ?? '',
+      size: b.size ?? '',
+      xp: b.xp ?? 0,
+    }
+  }
+
+  watch(selectedBarrier, syncFormFromBarrier, { immediate: true })
+
+  const formText = ref<{
+    content: string
+    font: string
+    scale: number
+    color: string
+    effects: string
+  }>({
+    content: '',
+    font: '',
+    scale: 1,
+    color: '',
+    effects: '',
+  })
+
+  let textContentTimer: ReturnType<typeof setTimeout> | null = null
+
+  function cancelTextContentCommit() {
+    if (textContentTimer) {
+      clearTimeout(textContentTimer)
+      textContentTimer = null
+    }
+  }
+
+  function onTextContentInput(html: string) {
+    formText.value.content = html
+    if (!editable.value) return
+    cancelTextContentCommit()
+    textContentTimer = setTimeout(() => {
+      textContentTimer = null
+      commitTextField('content')
+    }, 500)
+  }
+
+  onBeforeUnmount(cancelTextContentCommit)
+
+  function syncFormFromText() {
+    cancelTextContentCommit()
+    const t = selectedText.value
+    if (!t) return
+    formText.value = {
+      content: t.content ?? '',
+      font: t.font ?? '',
+      scale: t.scale ?? 1,
+      color: t.color ?? '',
+      effects: t.effects ?? '',
+    }
+  }
+
+  watch(selectedText, syncFormFromText, { immediate: true })
+
   async function applyCampaignPatch(patch: UpdateCampaignRequest) {
     let c = campaign.value
     if (!c || c.id === '') {
@@ -498,6 +738,74 @@ export function useCampaignEditor() {
     } catch (err) {
       actionError.value = getApiErrorMessage(err, 'Failed to update node')
     }
+  }
+
+  async function applyBarrierPatch(id: string, patch: UpdateCampaignBarrierRequest) {
+    try {
+      actionError.value = null
+      const updated = useAdminEndpoint.value
+        ? await updateCampaignBarrier(id, patch)
+        : await updatePlayerCampaignBarrier(id, patch)
+      if (campaign.value) {
+        campaign.value = {
+          ...campaign.value,
+          barriers: campaign.value.barriers.map((b) => (b.id === id ? updated : b)),
+        }
+      }
+    } catch (err) {
+      actionError.value = getApiErrorMessage(err, 'Failed to update barrier')
+    }
+  }
+
+  function vertexPosition(id: string): { x: number; y: number } | null {
+    const b = barrierById.value.get(id)
+    if (b) return { x: b.positionX, y: b.positionY }
+    const t = textById.value.get(id)
+    if (t) return { x: t.positionX, y: t.positionY }
+    const d = campaign.value?.difficulties.find((x) => x.id === id)
+    return d ? { x: d.positionX, y: d.positionY } : null
+  }
+
+  function setVertexPositionLocal(id: string, positionX: number, positionY: number) {
+    if (!campaign.value) return
+    if (isBarrierId(id)) {
+      campaign.value = {
+        ...campaign.value,
+        barriers: campaign.value.barriers.map((b) =>
+          b.id === id ? { ...b, positionX, positionY } : b,
+        ),
+      }
+    } else if (isTextId(id)) {
+      campaign.value = {
+        ...campaign.value,
+        texts: campaign.value.texts.map((t) => (t.id === id ? { ...t, positionX, positionY } : t)),
+      }
+    } else {
+      campaign.value = {
+        ...campaign.value,
+        difficulties: campaign.value.difficulties.map((d) =>
+          d.id === id ? { ...d, positionX, positionY } : d,
+        ),
+      }
+    }
+  }
+
+  function patchVertexPosition(id: string, positionX: number, positionY: number) {
+    const patch = { positionX, positionY }
+    if (isBarrierId(id)) {
+      return useAdminEndpoint.value
+        ? updateCampaignBarrier(id, patch)
+        : updatePlayerCampaignBarrier(id, patch)
+    }
+    if (isTextId(id)) {
+      if (isPendingText(id)) return Promise.resolve()
+      return useAdminEndpoint.value
+        ? updateCampaignText(id, patch)
+        : updatePlayerCampaignText(id, patch)
+    }
+    return useAdminEndpoint.value
+      ? updateCampaignDifficulty(id, patch)
+      : updatePlayerCampaignDifficulty(id, patch)
   }
 
   function commitMetaField(field: keyof UpdateCampaignRequest) {
@@ -620,6 +928,59 @@ export function useCampaignEditor() {
     }
   }
 
+  function openCollaboratorPicker() {
+    if (!isCreator.value || !canInviteMore.value) return
+    showCollaboratorPicker.value = true
+  }
+
+  async function handleCollaboratorPicked(userId: string) {
+    const c = campaign.value
+    if (!c || c.id === '') return
+    actionPending.value = true
+    actionError.value = null
+    try {
+      await inviteCampaignCollaborator(c.id, { userId })
+      await loadCollaborators()
+      showCollaboratorPicker.value = false
+    } catch (err) {
+      actionError.value = getApiErrorMessage(err, 'Failed to invite collaborator')
+    } finally {
+      actionPending.value = false
+    }
+  }
+
+  async function removeCollaborator(userId: string) {
+    const c = campaign.value
+    if (!isCreator.value || !c) return
+    const row = collaborators.value.find((x) => String(x.userId) === String(userId))
+    if (!window.confirm(`Remove ${row?.userName ?? 'this collaborator'} from this campaign?`)) return
+    actionPending.value = true
+    actionError.value = null
+    try {
+      await removeCampaignCollaborator(c.id, userId)
+      await loadCollaborators()
+    } catch (err) {
+      actionError.value = getApiErrorMessage(err, 'Failed to remove collaborator')
+    } finally {
+      actionPending.value = false
+    }
+  }
+
+  async function leaveCampaign() {
+    const c = campaign.value
+    if (!c || !auth.userId) return
+    if (!window.confirm('Leave this campaign? You will lose edit access.')) return
+    actionPending.value = true
+    actionError.value = null
+    try {
+      await removeCampaignCollaborator(c.id, String(auth.userId))
+      window.location.assign('/campaigns')
+    } catch (err) {
+      actionError.value = getApiErrorMessage(err, 'Failed to leave campaign')
+      actionPending.value = false
+    }
+  }
+
   async function uploadBackground(file: File) {
     if (!campaign.value) return
     await uploadCampaignBackground(campaign.value.id, file, useAdminEndpoint.value)
@@ -649,13 +1010,15 @@ export function useCampaignEditor() {
     const c = campaign.value
     if (!c) return false
     const successors = new Map<string, string[]>()
-    for (const d of c.difficulties) {
-      for (const pid of d.prerequisiteCampaignDifficultyIds ?? []) {
+    const addEdges = (id: string, prereqs: string[] | undefined) => {
+      for (const pid of prereqs ?? []) {
         const list = successors.get(pid) ?? []
-        list.push(d.id)
+        list.push(id)
         successors.set(pid, list)
       }
     }
+    for (const d of c.difficulties) addEdges(d.id, d.prerequisiteCampaignDifficultyIds)
+    for (const b of c.barriers) addEdges(b.id, b.prerequisiteCampaignDifficultyIds)
     const visited = new Set<string>()
     const stack: string[] = [toId]
     while (stack.length > 0) {
@@ -669,8 +1032,17 @@ export function useCampaignEditor() {
   }
 
   function nodeLabel(id: string): string {
+    const b = barrierById.value.get(id)
+    if (b) return b.checkpointLabel || 'gate'
     const d = campaign.value?.difficulties.find((x) => x.id === id)
     return d?.checkpointLabel || d?.songName || 'node'
+  }
+
+  function vertexPrereqs(id: string): string[] | null {
+    const b = barrierById.value.get(id)
+    if (b) return b.prerequisiteCampaignDifficultyIds ?? []
+    const d = campaign.value?.difficulties.find((x) => x.id === id)
+    return d ? (d.prerequisiteCampaignDifficultyIds ?? []) : null
   }
 
   function setPrereqMode(mode: 'AND' | 'OR') {
@@ -760,73 +1132,71 @@ export function useCampaignEditor() {
 
   async function handleMove(payload: { id: string; positionX: number; positionY: number }) {
     if (!campaign.value) return
-    const target = campaign.value.difficulties.find((d) => d.id === payload.id)
-    if (!target) return
-    if (target.positionX === payload.positionX && target.positionY === payload.positionY) return
+    const prev = vertexPosition(payload.id)
+    if (!prev) return
+    if (prev.x === payload.positionX && prev.y === payload.positionY) return
 
-    const prevX = target.positionX
-    const prevY = target.positionY
-
-    campaign.value = {
-      ...campaign.value,
-      difficulties: campaign.value.difficulties.map((d) =>
-        d.id === payload.id
-          ? { ...d, positionX: payload.positionX, positionY: payload.positionY }
-          : d,
-      ),
-    }
+    setVertexPositionLocal(payload.id, payload.positionX, payload.positionY)
 
     try {
       actionError.value = null
-      const patch = { positionX: payload.positionX, positionY: payload.positionY }
-      if (useAdminEndpoint.value) {
-        await updateCampaignDifficulty(payload.id, patch)
-      } else {
-        await updatePlayerCampaignDifficulty(payload.id, patch)
-      }
+      await patchVertexPosition(payload.id, payload.positionX, payload.positionY)
     } catch (err) {
       actionError.value = getApiErrorMessage(err, 'Failed to move node')
-      if (campaign.value) {
-        campaign.value = {
-          ...campaign.value,
-          difficulties: campaign.value.difficulties.map((d) =>
-            d.id === payload.id ? { ...d, positionX: prevX, positionY: prevY } : d,
-          ),
-        }
+      setVertexPositionLocal(payload.id, prev.x, prev.y)
+    }
+  }
+
+  function setPrereqsLocal(toId: string, ids: string[]) {
+    if (!campaign.value) return
+    if (isBarrierId(toId)) {
+      campaign.value = {
+        ...campaign.value,
+        barriers: campaign.value.barriers.map((b) =>
+          b.id === toId ? { ...b, prerequisiteCampaignDifficultyIds: ids } : b,
+        ),
+      }
+    } else {
+      campaign.value = {
+        ...campaign.value,
+        difficulties: campaign.value.difficulties.map((d) =>
+          d.id === toId ? { ...d, prerequisiteCampaignDifficultyIds: ids } : d,
+        ),
       }
     }
   }
 
   async function persistPrereqs(toId: string, next: string[], prev: string[]) {
     if (!campaign.value) return
-    campaign.value = {
-      ...campaign.value,
-      difficulties: campaign.value.difficulties.map((d) =>
-        d.id === toId ? { ...d, prerequisiteCampaignDifficultyIds: next } : d,
-      ),
-    }
+    const barrier = isBarrierId(toId)
+    setPrereqsLocal(toId, next)
     try {
       actionError.value = null
       const payload = { prerequisiteCampaignDifficultyIds: next }
-      const updated = useAdminEndpoint.value
-        ? await updateCampaignDifficulty(toId, payload)
-        : await updatePlayerCampaignDifficulty(toId, payload)
-      if (campaign.value) {
-        campaign.value = {
-          ...campaign.value,
-          difficulties: campaign.value.difficulties.map((d) => (d.id === toId ? updated : d)),
+      if (barrier) {
+        const updated = useAdminEndpoint.value
+          ? await updateCampaignBarrier(toId, payload)
+          : await updatePlayerCampaignBarrier(toId, payload)
+        if (campaign.value) {
+          campaign.value = {
+            ...campaign.value,
+            barriers: campaign.value.barriers.map((b) => (b.id === toId ? updated : b)),
+          }
+        }
+      } else {
+        const updated = useAdminEndpoint.value
+          ? await updateCampaignDifficulty(toId, payload)
+          : await updatePlayerCampaignDifficulty(toId, payload)
+        if (campaign.value) {
+          campaign.value = {
+            ...campaign.value,
+            difficulties: campaign.value.difficulties.map((d) => (d.id === toId ? updated : d)),
+          }
         }
       }
     } catch (err) {
       actionError.value = getApiErrorMessage(err, 'Failed to update prerequisites')
-      if (campaign.value) {
-        campaign.value = {
-          ...campaign.value,
-          difficulties: campaign.value.difficulties.map((d) =>
-            d.id === toId ? { ...d, prerequisiteCampaignDifficultyIds: prev } : d,
-          ),
-        }
-      }
+      setPrereqsLocal(toId, prev)
     }
   }
 
@@ -851,6 +1221,8 @@ export function useCampaignEditor() {
       await addCompletionItem(payload)
     } else if (itemPickerFor.value === 'node') {
       await addNodeItem(payload)
+    } else if (itemPickerFor.value === 'barrier') {
+      await addBarrierItem(payload)
     }
     itemPickerFor.value = null
   }
@@ -956,9 +1328,8 @@ export function useCampaignEditor() {
   }
 
   async function handleConnect(payload: { fromId: string; toId: string }) {
-    const target = campaign.value?.difficulties.find((d) => d.id === payload.toId)
-    if (!target) return
-    const prev = target.prerequisiteCampaignDifficultyIds ?? []
+    const prev = vertexPrereqs(payload.toId)
+    if (prev == null) return
     if (prev.includes(payload.fromId)) return
     if (wouldCreateCycle(payload.fromId, payload.toId)) {
       actionError.value = `Can't connect "${nodeLabel(payload.fromId)}" → "${nodeLabel(payload.toId)}". The reverse path already exists, which would create a cycle.`
@@ -968,9 +1339,8 @@ export function useCampaignEditor() {
   }
 
   async function handleDisconnect(payload: { fromId: string; toId: string }) {
-    const target = campaign.value?.difficulties.find((d) => d.id === payload.toId)
-    if (!target) return
-    const prev = target.prerequisiteCampaignDifficultyIds ?? []
+    const prev = vertexPrereqs(payload.toId)
+    if (prev == null) return
     if (!prev.includes(payload.fromId)) return
     await persistPrereqs(
       payload.toId,
@@ -980,6 +1350,7 @@ export function useCampaignEditor() {
   }
 
   function handleEmptyClick() {
+    barrierPlacementMode.value = false
     clearSelection()
   }
 
@@ -995,15 +1366,23 @@ export function useCampaignEditor() {
   function allocateCells(count: number): Array<{ x: number; y: number }> {
     const occupied = new Set<string>()
     const diffs = campaign.value?.difficulties ?? []
+    const barrs = campaign.value?.barriers ?? []
+    const txts = campaign.value?.texts ?? []
     let baseY = 0
-    if (diffs.length > 0) {
-      let maxY = -Infinity
-      for (const d of diffs) {
-        occupied.add(`${d.positionX},${d.positionY}`)
-        if (d.positionY > maxY) maxY = d.positionY
-      }
-      baseY = maxY + 2
+    let maxY = -Infinity
+    for (const d of diffs) {
+      occupied.add(`${d.positionX},${d.positionY}`)
+      if (d.positionY > maxY) maxY = d.positionY
     }
+    for (const b of barrs) {
+      occupied.add(`${b.positionX},${b.positionY}`)
+      if (b.positionY > maxY) maxY = b.positionY
+    }
+    for (const t of txts) {
+      occupied.add(`${t.positionX},${t.positionY}`)
+      if (t.positionY > maxY) maxY = t.positionY
+    }
+    if (occupied.size > 0) baseY = maxY + 2
     const perRow = Math.min(6, Math.max(1, count))
     const cells: Array<{ x: number; y: number }> = []
     for (let row = 0; cells.length < count && row < count + 4; row++) {
@@ -1087,61 +1466,60 @@ export function useCampaignEditor() {
     payloads: Array<{ id: string; positionX: number; positionY: number }>,
   ) {
     if (!campaign.value || payloads.length === 0) return
-    const prevById = new Map(
-      campaign.value.difficulties.map((d) => [d.id, { x: d.positionX, y: d.positionY }]),
-    )
+    const prevById = new Map<string, { x: number; y: number }>()
+    for (const p of payloads) {
+      const prev = vertexPosition(p.id)
+      if (prev) prevById.set(p.id, prev)
+    }
     const moves = payloads.filter((p) => {
       const prev = prevById.get(p.id)
       return prev && (prev.x !== p.positionX || prev.y !== p.positionY)
     })
     if (moves.length === 0) return
-    const moveById = new Map(moves.map((m) => [m.id, m]))
-    campaign.value = {
-      ...campaign.value,
-      difficulties: campaign.value.difficulties.map((d) => {
-        const m = moveById.get(d.id)
-        return m ? { ...d, positionX: m.positionX, positionY: m.positionY } : d
-      }),
-    }
+    for (const m of moves) setVertexPositionLocal(m.id, m.positionX, m.positionY)
     try {
       actionError.value = null
-      await Promise.all(
-        moves.map((m) => {
-          const patch = { positionX: m.positionX, positionY: m.positionY }
-          return useAdminEndpoint.value
-            ? updateCampaignDifficulty(m.id, patch)
-            : updatePlayerCampaignDifficulty(m.id, patch)
-        }),
-      )
+      await Promise.all(moves.map((m) => patchVertexPosition(m.id, m.positionX, m.positionY)))
     } catch (err) {
       actionError.value = getApiErrorMessage(err, 'Failed to move nodes')
-      if (campaign.value) {
-        campaign.value = {
-          ...campaign.value,
-          difficulties: campaign.value.difficulties.map((d) => {
-            const prev = prevById.get(d.id)
-            return prev ? { ...d, positionX: prev.x, positionY: prev.y } : d
-          }),
-        }
+      for (const m of moves) {
+        const prev = prevById.get(m.id)
+        if (prev) setVertexPositionLocal(m.id, prev.x, prev.y)
       }
     }
   }
 
+  function vertexTrayFor(id: string | null): TrayId {
+    if (id && isBarrierId(id)) return 'barrierCondition'
+    if (id && isTextId(id)) return 'text'
+    return 'requirement'
+  }
+
   function handleSelect(id: string) {
+    if (
+      affectedPickMode.value &&
+      selectedBarrier.value &&
+      !isBarrierId(id) &&
+      !isTextId(id)
+    ) {
+      toggleAffected(id)
+      return
+    }
+    barrierPlacementMode.value = false
     selectOnly(id)
-    activeTray.value = 'requirement'
+    activeTray.value = vertexTrayFor(id)
   }
 
   function handleToggleSelect(id: string) {
     toggleInSelection(id)
     if (selectedIds.value.size >= 2) activeTray.value = 'bulk'
-    else if (selectedIds.value.size === 1) activeTray.value = 'requirement'
+    else if (selectedIds.value.size === 1) activeTray.value = vertexTrayFor(selectedId.value)
   }
 
   function handleSelectMany(ids: string[]) {
     setSelection(ids)
     if (selectedIds.value.size >= 2) activeTray.value = 'bulk'
-    else if (selectedIds.value.size === 1) activeTray.value = 'requirement'
+    else if (selectedIds.value.size === 1) activeTray.value = vertexTrayFor(selectedId.value)
   }
 
   function handleDeselect() {
@@ -1155,6 +1533,7 @@ export function useCampaignEditor() {
     { value: 'SCORE', label: 'Score' },
     { value: 'STREAK_115', label: '115 Streak' },
     { value: 'FC', label: 'Full Combo' },
+    { value: 'RANK', label: 'Leaderboard rank' },
   ]
 
   const completionModeOptions: Array<{ value: 'TERMINAL' | 'ALL'; label: string }> = [
@@ -1176,6 +1555,8 @@ export function useCampaignEditor() {
         formNode.value.requirementValue = clamped / 100
       } else if (formNode.value.requirementType === 'SCORE') {
         formNode.value.requirementValue = Math.max(0, Math.min(scoreCap.value, Number(v) || 0))
+      } else if (formNode.value.requirementType === 'RANK') {
+        formNode.value.requirementValue = Math.max(1, Math.round(Number(v) || 1))
       } else {
         formNode.value.requirementValue = Number(v) || 0
       }
@@ -1193,12 +1574,17 @@ export function useCampaignEditor() {
     if (formNode.value.requirementType === 'STREAK_115')
       return { min: 0, max: 30, step: 1, unit: '' }
     if (formNode.value.requirementType === 'FC') return { min: 1, max: 1, step: 1, unit: '' }
+    if (formNode.value.requirementType === 'RANK')
+      return { min: 1, max: 500, step: 1, unit: 'rank' }
     return { min: 0, max: scoreCap.value, step: 1000, unit: '' }
   })
 
   const requirementNumberBounds = computed(() => {
     if (formNode.value.requirementType === 'AP') {
       return { min: 0, max: Number.MAX_SAFE_INTEGER, step: 1 }
+    }
+    if (formNode.value.requirementType === 'RANK') {
+      return { min: 1, max: Number.MAX_SAFE_INTEGER, step: 1 }
     }
     return requirementBounds.value
   })
@@ -1367,7 +1753,20 @@ export function useCampaignEditor() {
   }
 
   function onRequirementTypeChange(value: string) {
-    formNode.value.requirementType = value as CampaignRequirementType
+    const d = selectedDifficulty.value
+    const next = value as CampaignRequirementType
+    formNode.value.requirementType = next
+    if (
+      next === 'RANK' &&
+      !(Number.isInteger(formNode.value.requirementValue) && formNode.value.requirementValue >= 1)
+    ) {
+      formNode.value.requirementValue = 50
+      if (editable.value && d) {
+        requirementDirtyIds.value.add(d.id)
+        void applyNodePatch(d.id, { requirementType: next, requirementValue: 50 })
+        return
+      }
+    }
     commitNodeField('requirementType')
   }
 
@@ -1389,13 +1788,15 @@ export function useCampaignEditor() {
   async function applyBulkSize(value: number) {
     if (!editable.value) return
     for (const id of selectedIdList.value) {
-      await applyNodePatch(id, { size: String(value) })
+      if (isBarrierId(id)) await applyBarrierPatch(id, { size: String(value) })
+      else await applyNodePatch(id, { size: String(value) })
     }
   }
 
   async function applyBulkShape(value: string) {
     if (!editable.value) return
     for (const id of selectedIdList.value) {
+      if (isBarrierId(id)) continue
       await applyNodePatch(id, { borderShape: value })
     }
   }
@@ -1409,7 +1810,19 @@ export function useCampaignEditor() {
     actionError.value = null
     try {
       for (const id of ids) {
-        if (useAdminEndpoint.value) {
+        if (isBarrierId(id)) {
+          if (useAdminEndpoint.value) await deactivateCampaignBarrier(campaign.value.id, id)
+          else await deletePlayerCampaignBarrier(campaign.value.id, id)
+        } else if (isTextId(id)) {
+          if (isPendingText(id)) {
+            pendingTextIds.delete(id)
+            cancelledTextIds.add(id)
+          } else if (useAdminEndpoint.value) {
+            await deactivateCampaignText(campaign.value.id, id)
+          } else {
+            await deletePlayerCampaignText(campaign.value.id, id)
+          }
+        } else if (useAdminEndpoint.value) {
           await deactivateCampaignDifficulty(campaign.value.id, id)
         } else {
           await deletePlayerCampaignDifficulty(campaign.value.id, id)
@@ -1428,12 +1841,521 @@ export function useCampaignEditor() {
     showMapPicker.value = false
   }
 
+  function toggleBarrierPlacement() {
+    if (!canAddBarrier.value) return
+    affectedPickMode.value = false
+    barrierPlacementMode.value = !barrierPlacementMode.value
+  }
+
+  function occupiedCells(): Set<string> {
+    const set = new Set<string>()
+    for (const d of campaign.value?.difficulties ?? []) set.add(`${d.positionX},${d.positionY}`)
+    for (const b of campaign.value?.barriers ?? []) set.add(`${b.positionX},${b.positionY}`)
+    return set
+  }
+
+  function findFreeCellNear(x: number, y: number): { x: number; y: number } {
+    const occ = occupiedCells()
+    if (!occ.has(`${x},${y}`)) return { x, y }
+    for (let r = 1; r <= 8; r++) {
+      for (let dx = -r; dx <= r; dx++) {
+        for (let dy = -r; dy <= r; dy++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue
+          if (!occ.has(`${x + dx},${y + dy}`)) return { x: x + dx, y: y + dy }
+        }
+      }
+    }
+    return { x, y }
+  }
+
+  async function placeBarrierOnEdge(payload: { fromId: string; toId: string }) {
+    if (!editable.value || campaign.value?.progressionAgnostic) return
+    let c = campaign.value
+    if (!c || c.id === '') {
+      c = await ensureCampaign()
+      if (!c) return
+    }
+    if ((c.barriers?.length ?? 0) >= MAX_BARRIERS) {
+      actionError.value = `Campaigns can have at most ${MAX_BARRIERS} barriers.`
+      return
+    }
+    const fromPos = vertexPosition(payload.fromId)
+    const toPos = vertexPosition(payload.toId)
+    if (!fromPos || !toPos) return
+    const targetPrereqs = vertexPrereqs(payload.toId)
+    if (targetPrereqs == null) return
+    const cell = findFreeCellNear(
+      Math.round((fromPos.x + toPos.x) / 2),
+      Math.round((fromPos.y + toPos.y) / 2),
+    )
+    actionPending.value = true
+    actionError.value = null
+    try {
+      const req: AddCampaignBarrierRequest = {
+        conditionType: 'AVERAGE_ACC',
+        conditionValue: 0.9,
+        positionX: cell.x,
+        positionY: cell.y,
+        prerequisiteCampaignDifficultyIds: [payload.fromId],
+        affectedCampaignDifficultyIds: [payload.fromId],
+      }
+      const created = useAdminEndpoint.value
+        ? await addCampaignBarrier(c.id, req)
+        : await addPlayerCampaignBarrier(c.id, req)
+      const nextPrereqs = targetPrereqs
+        .filter((id) => id !== payload.fromId)
+        .concat(created.id)
+      const rewire = { prerequisiteCampaignDifficultyIds: nextPrereqs }
+      if (isBarrierId(payload.toId)) {
+        await (useAdminEndpoint.value
+          ? updateCampaignBarrier(payload.toId, rewire)
+          : updatePlayerCampaignBarrier(payload.toId, rewire))
+      } else {
+        await (useAdminEndpoint.value
+          ? updateCampaignDifficulty(payload.toId, rewire)
+          : updatePlayerCampaignDifficulty(payload.toId, rewire))
+      }
+      barrierPlacementMode.value = false
+      await load()
+      selectOnly(created.id)
+      activeTray.value = 'barrierCondition'
+    } catch (err) {
+      actionError.value = getApiErrorMessage(err, 'Failed to add barrier')
+    } finally {
+      actionPending.value = false
+    }
+  }
+
+  const BARRIER_CLEARABLE_TEXT = new Set<string>([
+    'description',
+    'checkpointLabel',
+    'checkpointAvatarUrl',
+    'checkpointColor',
+    'checkpointSize',
+    'borderColor',
+    'size',
+  ])
+
+  function commitBarrierField(field: keyof UpdateCampaignBarrierRequest) {
+    const b = selectedBarrier.value
+    if (!editable.value || !b) return
+    const value = formBarrier.value[field as keyof typeof formBarrier.value]
+    const original = (b as unknown as Record<string, unknown>)[field]
+    if (value === original) return
+    if (typeof value === 'string' && original == null && value === '') return
+    if (field === 'conditionType' || field === 'conditionValue') {
+      requirementDirtyIds.value.add(b.id)
+    }
+    const send = value === '' && !BARRIER_CLEARABLE_TEXT.has(field) ? null : value
+    void applyBarrierPatch(b.id, { [field]: send } as UpdateCampaignBarrierRequest)
+  }
+
+  function resetBarrierColor() {
+    formBarrier.value.borderColor = ''
+    commitBarrierField('borderColor')
+  }
+
+  const barrierConditionOptions: Array<{ value: BarrierConditionType; label: string }> = [
+    { value: 'AVERAGE_ACC', label: 'Average accuracy' },
+    { value: 'ACC_MAX', label: 'Best accuracy' },
+    { value: 'AVERAGE_AP', label: 'Average AP' },
+    { value: 'AP_MAX', label: 'Best AP' },
+    { value: 'STREAK_115_AVERAGE', label: 'Average 115 streak' },
+    { value: 'STREAK_115_MAX', label: 'Best 115 streak' },
+    { value: 'AVERAGE_RANK', label: 'Average rank' },
+    { value: 'MAX_RANK', label: 'Best rank' },
+    { value: 'FC', label: 'Full combo (all)' },
+  ]
+
+  const barrierMeta = computed(() => barrierConditionMeta(formBarrier.value.conditionType))
+
+  const barrierValueDisplay = computed<number>({
+    get: () => {
+      if (barrierMeta.value.metric === 'acc') {
+        const v = formBarrier.value.conditionValue * 100
+        return Number.isFinite(v) ? Number(v.toFixed(2)) : 0
+      }
+      return formBarrier.value.conditionValue
+    },
+    set: (v) => {
+      const m = barrierMeta.value
+      if (m.metric === 'acc') {
+        formBarrier.value.conditionValue = Math.max(0, Math.min(100, Number(v) || 0)) / 100
+      } else if (m.metric === 'rank') {
+        formBarrier.value.conditionValue = Math.max(1, Math.round(Number(v) || 1))
+      } else if (m.metric === 'streak') {
+        formBarrier.value.conditionValue = Math.max(0, Math.round(Number(v) || 0))
+      } else {
+        formBarrier.value.conditionValue = Math.max(0, Number(v) || 0)
+      }
+    },
+  })
+
+  const barrierValueBounds = computed(() => {
+    const m = barrierMeta.value.metric
+    if (m === 'acc') return { min: 70, max: 100, step: 0.1, unit: '%' }
+    if (m === 'ap') return { min: 0, max: 1200, step: 1, unit: 'AP' }
+    if (m === 'streak') return { min: 0, max: 30, step: 1, unit: '' }
+    if (m === 'rank') return { min: 1, max: 500, step: 1, unit: 'rank' }
+    return { min: 0, max: 1, step: 1, unit: '' }
+  })
+
+  function onBarrierConditionTypeChange(value: string) {
+    const next = value as BarrierConditionType
+    const prevMetric = barrierMeta.value.metric
+    formBarrier.value.conditionType = next
+    const nextMeta = barrierConditionMeta(next)
+    const b = selectedBarrier.value
+    if (nextMeta.noValue) {
+      if (editable.value && b) {
+        requirementDirtyIds.value.add(b.id)
+        void applyBarrierPatch(b.id, { conditionType: next, conditionValue: null })
+        return
+      }
+    } else if (prevMetric !== nextMeta.metric) {
+      const def =
+        nextMeta.metric === 'acc'
+          ? 0.9
+          : nextMeta.metric === 'ap'
+            ? 500
+            : nextMeta.metric === 'streak'
+              ? 8
+              : 50
+      formBarrier.value.conditionValue = def
+      if (editable.value && b) {
+        requirementDirtyIds.value.add(b.id)
+        void applyBarrierPatch(b.id, { conditionType: next, conditionValue: def })
+        return
+      }
+    }
+    commitBarrierField('conditionType')
+  }
+
+  const canAddBarrierReward = computed(
+    () => !!selectedBarrier.value && selectedBarrier.value.items.length < NODE_REWARD_LIMIT,
+  )
+
+  function openBarrierItemPicker() {
+    if (!editable.value || !canAddBarrierReward.value) return
+    itemPickerFor.value = 'barrier'
+  }
+
+  async function addBarrierItem(payload: { itemId: string; quantity: number }) {
+    const b = selectedBarrier.value
+    if (!editable.value || !b || b.items.length >= NODE_REWARD_LIMIT) return
+    const bId = b.id
+    actionPending.value = true
+    actionError.value = null
+    try {
+      const updated = await addCampaignDifficultyItem(bId, payload)
+      if (campaign.value) {
+        campaign.value = {
+          ...campaign.value,
+          barriers: campaign.value.barriers.map((row) =>
+            row.id === bId ? { ...row, items: updated } : row,
+          ),
+        }
+      }
+    } catch (err) {
+      actionError.value = getApiErrorMessage(err, 'Failed to add reward')
+    } finally {
+      actionPending.value = false
+    }
+  }
+
+  async function removeBarrierItem(itemId: string) {
+    const b = selectedBarrier.value
+    if (!editable.value || !b || !campaign.value) return
+    const bId = b.id
+    const prevItems = b.items
+    campaign.value = {
+      ...campaign.value,
+      barriers: campaign.value.barriers.map((row) =>
+        row.id === bId ? { ...row, items: prevItems.filter((i) => i.itemId !== itemId) } : row,
+      ),
+    }
+    try {
+      actionError.value = null
+      const updated = await removeCampaignDifficultyItem(bId, itemId)
+      if (campaign.value) {
+        campaign.value = {
+          ...campaign.value,
+          barriers: campaign.value.barriers.map((row) =>
+            row.id === bId ? { ...row, items: updated } : row,
+          ),
+        }
+      }
+    } catch (err) {
+      actionError.value = getApiErrorMessage(err, 'Failed to remove reward')
+      if (campaign.value) {
+        campaign.value = {
+          ...campaign.value,
+          barriers: campaign.value.barriers.map((row) =>
+            row.id === bId ? { ...row, items: prevItems } : row,
+          ),
+        }
+      }
+    }
+  }
+
+  function toggleAffectedPickMode() {
+    if (!selectedBarrier.value) return
+    affectedPickMode.value = !affectedPickMode.value
+  }
+
+  function toggleAffected(nodeId: string) {
+    const b = selectedBarrier.value
+    if (!editable.value || !b) return
+    const current = new Set(b.affectedCampaignDifficultyIds ?? [])
+    if (current.has(nodeId)) current.delete(nodeId)
+    else current.add(nodeId)
+    const next = Array.from(current)
+    if (campaign.value) {
+      campaign.value = {
+        ...campaign.value,
+        barriers: campaign.value.barriers.map((row) =>
+          row.id === b.id ? { ...row, affectedCampaignDifficultyIds: next } : row,
+        ),
+      }
+    }
+    void applyBarrierPatch(b.id, { affectedCampaignDifficultyIds: next })
+  }
+
+  async function removeSelectedBarrier() {
+    const b = selectedBarrier.value
+    if (!editable.value || !b || !campaign.value) return
+    if (!window.confirm('Remove this barrier from the roadmap?')) return
+    actionPending.value = true
+    actionError.value = null
+    try {
+      if (useAdminEndpoint.value) {
+        await deactivateCampaignBarrier(campaign.value.id, b.id)
+      } else {
+        await deletePlayerCampaignBarrier(campaign.value.id, b.id)
+      }
+      clearSelection()
+      await load()
+    } catch (err) {
+      actionError.value = getApiErrorMessage(err, 'Failed to remove barrier')
+    } finally {
+      actionPending.value = false
+    }
+  }
+
+  async function applyTextPatch(id: string, partial: Partial<CampaignTextRequest>) {
+    const t = textById.value.get(id)
+    if (!t) return
+    if (isPendingText(id)) {
+      if (campaign.value) {
+        campaign.value = {
+          ...campaign.value,
+          texts: campaign.value.texts.map((x) =>
+            x.id === id ? ({ ...x, ...partial } as CampaignTextResponse) : x,
+          ),
+        }
+      }
+      return
+    }
+    const req: CampaignTextRequest = {
+      positionX: t.positionX,
+      positionY: t.positionY,
+      ...partial,
+    }
+    try {
+      actionError.value = null
+      const updated = useAdminEndpoint.value
+        ? await updateCampaignText(id, req)
+        : await updatePlayerCampaignText(id, req)
+      if (campaign.value) {
+        campaign.value = {
+          ...campaign.value,
+          texts: campaign.value.texts.map((x) => (x.id === id ? updated : x)),
+        }
+      }
+    } catch (err) {
+      actionError.value = getApiErrorMessage(err, 'Failed to update text')
+    }
+  }
+
+  function commitTextField(field: 'content' | 'font' | 'scale' | 'color' | 'effects') {
+    const t = selectedText.value
+    if (!editable.value || !t) return
+    const value = formText.value[field]
+    const original = (t as unknown as Record<string, unknown>)[field]
+    if (value === original) return
+    if (typeof value === 'string' && original == null && value === '') return
+    void applyTextPatch(t.id, { [field]: value } as Partial<CampaignTextRequest>)
+  }
+
+  const TEXT_EFFECTS = ['glow', 'outline', 'shadow'] as const
+
+  function textEffectActive(effect: string): boolean {
+    return formText.value.effects.split(/\s+/).includes(effect)
+  }
+
+  function toggleTextEffect(effect: string) {
+    if (!editable.value) return
+    const set = new Set(formText.value.effects.split(/\s+/).filter(Boolean))
+    if (set.has(effect)) set.delete(effect)
+    else set.add(effect)
+    formText.value.effects = Array.from(set).join(' ')
+    commitTextField('effects')
+  }
+
+  async function addText() {
+    if (!editable.value) return
+    let c = campaign.value
+    if (!c || c.id === '') {
+      c = await ensureCampaign()
+      if (!c) return
+    }
+    if ((c.texts?.length ?? 0) >= MAX_TEXTS) {
+      actionError.value = `Campaigns can have at most ${MAX_TEXTS} text elements.`
+      return
+    }
+    actionError.value = null
+    const [cell] = allocateCells(1)
+    const positionX = cell?.x ?? 0
+    const positionY = cell?.y ?? 0
+    const tempId = `temp-text-${++tempTextSeq}`
+    const optimistic: CampaignTextResponse = {
+      id: tempId,
+      content: 'New text',
+      positionX,
+      positionY,
+      font: null,
+      scale: 1,
+      color: null,
+      effects: null,
+    }
+    pendingTextIds.add(tempId)
+    campaign.value = { ...c, texts: [...(c.texts ?? []), optimistic] }
+    selectOnly(tempId)
+    activeTray.value = 'text'
+
+    const req: CampaignTextRequest = { content: 'New text', positionX, positionY }
+    const request = useAdminEndpoint.value
+      ? addCampaignText(c.id, req)
+      : addPlayerCampaignText(c.id, req)
+    void request.then(
+      (created) => finalizeTextCreate(tempId, created),
+      (err) => rollbackTextCreate(tempId, err),
+    )
+  }
+
+  async function finalizeTextCreate(tempId: string, created: CampaignTextResponse) {
+    pendingTextIds.delete(tempId)
+    if (cancelledTextIds.has(tempId)) {
+      cancelledTextIds.delete(tempId)
+      const campaignId = campaign.value?.id
+      if (campaignId) {
+        try {
+          if (useAdminEndpoint.value) await deactivateCampaignText(campaignId, created.id)
+          else await deletePlayerCampaignText(campaignId, created.id)
+        } catch {
+          void 0
+        }
+      }
+      return
+    }
+    const local = campaign.value?.texts.find((t) => t.id === tempId)
+    if (!campaign.value || !local) return
+    const freshContent = selectedId.value === tempId ? formText.value.content : local.content
+    const merged: CampaignTextResponse = {
+      ...created,
+      content: freshContent,
+      positionX: local.positionX,
+      positionY: local.positionY,
+      font: local.font,
+      scale: local.scale,
+      color: local.color,
+      effects: local.effects,
+    }
+    campaign.value = {
+      ...campaign.value,
+      texts: campaign.value.texts.map((t) => (t.id === tempId ? merged : t)),
+    }
+    if (selectedId.value === tempId) {
+      const tray = activeTray.value
+      selectOnly(created.id)
+      activeTray.value = tray
+    }
+    const changed =
+      freshContent !== created.content ||
+      local.positionX !== created.positionX ||
+      local.positionY !== created.positionY ||
+      (local.font ?? '') !== (created.font ?? '') ||
+      (local.scale ?? 1) !== (created.scale ?? 1) ||
+      (local.color ?? '') !== (created.color ?? '') ||
+      (local.effects ?? '') !== (created.effects ?? '')
+    if (changed) {
+      await applyTextPatch(created.id, {
+        content: merged.content,
+        positionX: merged.positionX,
+        positionY: merged.positionY,
+        font: merged.font ?? '',
+        scale: merged.scale ?? 1,
+        color: merged.color ?? '',
+        effects: merged.effects ?? '',
+      })
+    }
+  }
+
+  function rollbackTextCreate(tempId: string, err: unknown) {
+    pendingTextIds.delete(tempId)
+    if (campaign.value) {
+      campaign.value = {
+        ...campaign.value,
+        texts: campaign.value.texts.filter((t) => t.id !== tempId),
+      }
+    }
+    if (selectedId.value === tempId) clearSelection()
+    actionError.value = getApiErrorMessage(err, 'Failed to add text')
+  }
+
+  async function removeSelectedText() {
+    const t = selectedText.value
+    if (!editable.value || !t || !campaign.value) return
+    if (!window.confirm('Remove this text element?')) return
+    if (isPendingText(t.id)) {
+      pendingTextIds.delete(t.id)
+      cancelledTextIds.add(t.id)
+      campaign.value = {
+        ...campaign.value,
+        texts: campaign.value.texts.filter((x) => x.id !== t.id),
+      }
+      clearSelection()
+      return
+    }
+    actionPending.value = true
+    actionError.value = null
+    try {
+      if (useAdminEndpoint.value) {
+        await deactivateCampaignText(campaign.value.id, t.id)
+      } else {
+        await deletePlayerCampaignText(campaign.value.id, t.id)
+      }
+      clearSelection()
+      await load()
+    } catch (err) {
+      actionError.value = getApiErrorMessage(err, 'Failed to remove text')
+    } finally {
+      actionPending.value = false
+    }
+  }
+
   const breadcrumbs = computed<Crumb[]>(() => {
     const title = isUnsavedDraft.value ? 'New campaign' : campaign.value?.name || 'Editor'
     return [{ label: 'Campaigns', to: '/campaigns' }, { label: title }]
   })
 
   const NODE_TRAY_IDS: TrayId[] = ['requirement', 'milestone', 'shape', 'unlock', 'rewards']
+  const BARRIER_TRAY_IDS: TrayId[] = [
+    'barrierCondition',
+    'barrierAffected',
+    'barrierStyle',
+    'barrierRewards',
+  ]
 
   const activeTray = ref<TrayId | null>(null)
 
@@ -1450,6 +2372,14 @@ export function useCampaignEditor() {
         count: campaign.value?.completionItems.length ?? 0,
       },
     ]
+    if (!isUnsavedDraft.value && (isCreator.value || isCollaborator.value || isCurator.value)) {
+      trays.push({
+        id: 'collaborators',
+        label: 'Collab',
+        icon: 'users',
+        count: activeCollaborators.value.length,
+      })
+    }
     if (isCurator.value) {
       trays.push({
         id: 'tags',
@@ -1464,6 +2394,23 @@ export function useCampaignEditor() {
   const nodeTrays = computed<TrayDef[]>(() => {
     if (isMultiSelect.value) {
       return [{ id: 'bulk', label: 'Selection', icon: 'layers', count: selectedCount.value }]
+    }
+    if (selectedBarrier.value) {
+      const b = selectedBarrier.value
+      return [
+        { id: 'barrierCondition', label: 'Condition', icon: 'target' },
+        {
+          id: 'barrierAffected',
+          label: 'Affected',
+          icon: 'link',
+          count: b.affectedCampaignDifficultyIds?.length ?? 0,
+        },
+        { id: 'barrierStyle', label: 'Style', icon: 'hexagon' },
+        { id: 'barrierRewards', label: 'Rewards', icon: 'package', count: b.items.length },
+      ]
+    }
+    if (selectedText.value) {
+      return [{ id: 'text', label: 'Text', icon: 'type' }]
     }
     const d = selectedDifficulty.value
     if (!d) return []
@@ -1485,6 +2432,7 @@ export function useCampaignEditor() {
     settings: 'Settings',
     images: 'Images',
     completion: 'Completion rewards',
+    collaborators: 'Collaborators',
     tags: 'Tags',
     requirement: 'Requirement',
     milestone: 'Milestone',
@@ -1492,10 +2440,23 @@ export function useCampaignEditor() {
     unlock: 'Unlock when',
     rewards: 'Node rewards',
     bulk: 'Selection',
+    barrierCondition: 'Barrier condition',
+    barrierAffected: 'Affected nodes',
+    barrierStyle: 'Barrier style',
+    barrierRewards: 'Barrier rewards',
+    text: 'Text element',
   }
 
   const activeTrayIsNode = computed(
     () => !!activeTray.value && NODE_TRAY_IDS.includes(activeTray.value),
+  )
+
+  const activeTrayIsBarrier = computed(
+    () => !!activeTray.value && BARRIER_TRAY_IDS.includes(activeTray.value),
+  )
+
+  const pickModeBarrierId = computed(() =>
+    affectedPickMode.value && selectedBarrier.value ? selectedBarrier.value.id : null,
   )
 
   function toggleTray(id: TrayId) {
@@ -1507,9 +2468,19 @@ export function useCampaignEditor() {
   }
 
   watch(selectedIds, () => {
-    if (selectedIds.value.size === 0 && (activeTrayIsNode.value || activeTray.value === 'bulk')) {
+    if (
+      selectedIds.value.size === 0 &&
+      (activeTrayIsNode.value ||
+        activeTrayIsBarrier.value ||
+        activeTray.value === 'text' ||
+        activeTray.value === 'bulk')
+    ) {
       activeTray.value = null
     }
+  })
+
+  watch(selectedId, () => {
+    affectedPickMode.value = false
   })
 
   watch(nodeTrays, (list) => {
@@ -1568,6 +2539,17 @@ export function useCampaignEditor() {
     performPublish,
     doPlayerUnpublish,
     deleteDraft,
+    isCollaborator,
+    activeCollaborators,
+    collaboratorsLoading,
+    canInviteMore,
+    collaboratorLimit: MAX_COLLABORATORS,
+    showCollaboratorPicker,
+    existingCollaboratorIds,
+    openCollaboratorPicker,
+    handleCollaboratorPicked,
+    removeCollaborator,
+    leaveCampaign,
     uploadBackground,
     removeBackground,
     uploadIcon,
@@ -1624,7 +2606,40 @@ export function useCampaignEditor() {
     nodeTrays,
     trayTitles,
     activeTrayIsNode,
+    activeTrayIsBarrier,
     toggleTray,
     closeTray,
+    selectedBarrier,
+    formBarrier,
+    barrierConditionOptions,
+    barrierMeta,
+    barrierValueDisplay,
+    barrierValueBounds,
+    onBarrierConditionTypeChange,
+    commitBarrierField,
+    resetBarrierColor,
+    hasConnections,
+    hasBarriers,
+    canAddBarrier,
+    barrierPlacementMode,
+    toggleBarrierPlacement,
+    placeBarrierOnEdge,
+    removeSelectedBarrier,
+    canAddBarrierReward,
+    openBarrierItemPicker,
+    removeBarrierItem,
+    affectedPickMode,
+    toggleAffectedPickMode,
+    toggleAffected,
+    pickModeBarrierId,
+    selectedText,
+    formText,
+    commitTextField,
+    onTextContentInput,
+    textEffects: TEXT_EFFECTS,
+    textEffectActive,
+    toggleTextEffect,
+    addText,
+    removeSelectedText,
   }
 }

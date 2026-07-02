@@ -2,10 +2,23 @@
 import BaseButton from '@/components/common/BaseButton.vue'
 import BaseSelect from '@/components/common/BaseSelect.vue'
 import ImageUploader from '@/components/common/ImageUploader.vue'
+import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
+import RichTextEditor from '@/components/common/RichTextEditor.vue'
 import CampaignRewardItem from '@/components/domain/CampaignRewardItem.vue'
+import CountryFlag from '@/components/domain/CountryFlag.vue'
 import CampaignEditorTile from './CampaignEditorTile.vue'
 import CampaignShapeGlyph from './CampaignShapeGlyph.vue'
 import { useCampaignEditorContext } from './campaignEditorContext'
+import { onAvatarError } from '@/composables/useAvatarFallback'
+import { computed } from 'vue'
+
+const fontOptions = [
+  { value: '', label: 'Default' },
+  { value: 'DM Sans', label: 'DM Sans' },
+  { value: 'Poppins', label: 'Poppins' },
+  { value: 'mono', label: 'Monospace' },
+  { value: 'serif', label: 'Serif' },
+]
 
 const {
   campaign,
@@ -41,6 +54,14 @@ const {
   toggleTag,
   doPlayerPublish,
   deleteDraft,
+  isCollaborator,
+  activeCollaborators,
+  collaboratorsLoading,
+  canInviteMore,
+  collaboratorLimit,
+  openCollaboratorPicker,
+  removeCollaborator,
+  leaveCampaign,
   doPlayerUnpublish,
   doPublish,
   doReopen,
@@ -75,7 +96,47 @@ const {
   openNodeItemPicker,
   canAddNodeReward,
   nodeRewardLimit,
+  hasBarriers,
+  selectedBarrier,
+  formBarrier,
+  barrierConditionOptions,
+  barrierMeta,
+  barrierValueDisplay,
+  barrierValueBounds,
+  onBarrierConditionTypeChange,
+  commitBarrierField,
+  affectedPickMode,
+  toggleAffectedPickMode,
+  toggleAffected,
+  resetBarrierColor,
+  canAddBarrierReward,
+  openBarrierItemPicker,
+  removeBarrierItem,
+  selectedText,
+  formText,
+  commitTextField,
+  onTextContentInput,
+  textEffects,
+  textEffectActive,
+  toggleTextEffect,
 } = useCampaignEditorContext()
+
+const affectedNodeList = computed(() => {
+  const b = selectedBarrier.value
+  const c = campaign.value
+  if (!b || !c) return []
+  const byId = new Map(c.difficulties.map((d) => [d.id, d]))
+  return b.affectedCampaignDifficultyIds.map((id) => ({
+    id,
+    name: byId.get(id)?.songName ?? 'Unknown node',
+  }))
+})
+
+const defaultBarrierColor = computed(() => {
+  if (typeof document === 'undefined') return '#eab308'
+  const v = getComputedStyle(document.documentElement).getPropertyValue('--warning').trim()
+  return /^#[0-9a-fA-F]{6}$/.test(v) ? v : '#eab308'
+})
 </script>
 
 <template>
@@ -254,14 +315,18 @@ const {
         @update:model-value="onCompletionModeChange"
       />
     </div>
-    <label class="campaign-editor__check">
+    <label class="campaign-editor__check" :class="{ 'campaign-editor__check--disabled': hasBarriers }">
       <input
         type="checkbox"
         v-model="formMeta.progressionAgnostic"
+        :disabled="hasBarriers"
         @change="commitMetaField('progressionAgnostic')"
       />
       <span>Progression agnostic (any order)</span>
     </label>
+    <p v-if="hasBarriers" class="campaign-editor__hint">
+      Remove the campaign's barriers first. Gates only work in an ordered campaign.
+    </p>
     <label class="campaign-editor__check">
       <input
         type="checkbox"
@@ -408,6 +473,108 @@ const {
     </button>
   </fieldset>
 
+  <fieldset v-else-if="activeTray === 'collaborators' && campaign" class="campaign-editor__section">
+    <div class="campaign-editor__collab-owner">
+      <span class="campaign-editor__collab-owner-tag">Owner</span>
+      <span class="campaign-editor__collab-owner-name">{{
+        campaign.creatorAlias || campaign.creatorName || 'You'
+      }}</span>
+    </div>
+
+    <div v-if="collaboratorsLoading" class="campaign-editor__collab-skeletons">
+      <SkeletonLoader v-for="i in 2" :key="i" variant="table-row" />
+    </div>
+
+    <ul v-else-if="activeCollaborators.length > 0" class="campaign-editor__collab-list">
+      <li v-for="c in activeCollaborators" :key="c.id" class="campaign-editor__collab">
+        <span class="campaign-editor__collab-avatar">
+          <img
+            v-if="c.userCdnAvatarUrl || c.userAvatarUrl"
+            :src="c.userCdnAvatarUrl ?? c.userAvatarUrl ?? ''"
+            :alt="c.userName"
+            loading="lazy"
+            @error="onAvatarError(c.userCdnAvatarUrl && c.userAvatarUrl && c.userCdnAvatarUrl !== c.userAvatarUrl ? c.userAvatarUrl : null)($event)"
+          />
+        </span>
+        <span class="campaign-editor__collab-meta">
+          <span class="campaign-editor__collab-name">{{ c.userName }}</span>
+          <span class="campaign-editor__collab-sub">
+            <CountryFlag v-if="c.userCountry" :country="c.userCountry" />
+            <span
+              class="campaign-editor__collab-status"
+              :class="`campaign-editor__collab-status--${c.status.toLowerCase()}`"
+            >
+              {{ c.status === 'PENDING' ? 'Invited' : 'Collaborator' }}
+            </span>
+          </span>
+        </span>
+        <button
+          v-if="isCreator"
+          type="button"
+          class="campaign-editor__reward-remove"
+          :aria-label="`Remove ${c.userName}`"
+          @click="removeCollaborator(c.userId)"
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </li>
+    </ul>
+
+    <p v-else-if="isCreator" class="campaign-editor__hint">
+      No collaborators yet. Invite a player to build this campaign together.
+    </p>
+    <p v-else class="campaign-editor__hint">You're helping edit this campaign.</p>
+
+    <button
+      v-if="isCreator && canInviteMore"
+      type="button"
+      class="campaign-editor__add-reward"
+      @click="openCollaboratorPicker"
+    >
+      <svg
+        width="12"
+        height="12"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <line x1="12" y1="5" x2="12" y2="19" />
+        <line x1="5" y1="12" x2="19" y2="12" />
+      </svg>
+      Invite collaborator
+    </button>
+    <p v-else-if="isCreator" class="campaign-editor__hint">
+      Collaborator limit of {{ collaboratorLimit }} reached.
+    </p>
+
+    <BaseButton
+      v-if="isCollaborator"
+      size="sm"
+      variant="destructive"
+      :loading="actionPending"
+      @click="leaveCampaign"
+    >
+      Leave campaign
+    </BaseButton>
+  </fieldset>
+
   <fieldset
     v-else-if="activeTray === 'tags'"
     class="campaign-editor__section"
@@ -475,6 +642,10 @@ const {
         </template>
       </p>
     </label>
+    <p v-if="formNode.requirementType === 'RANK'" class="campaign-editor__hint">
+      Lower is better. Cleared when the player's leaderboard rank on the map is this position or
+      better (rank ≤ target).
+    </p>
     <label class="campaign-editor__field">
       <span>Description <small>(optional)</small></span>
       <textarea v-model="formNode.description" rows="2" @blur="commitNodeField('description')" />
@@ -805,6 +976,333 @@ const {
       Limit of {{ nodeRewardLimit }} item rewards per node reached.
     </p>
   </fieldset>
+
+  <fieldset
+    v-else-if="activeTray === 'barrierCondition' && selectedBarrier"
+    class="campaign-editor__section"
+    :disabled="!editable"
+  >
+    <div class="campaign-editor__field">
+      <span>Condition</span>
+      <BaseSelect
+        :model-value="formBarrier.conditionType"
+        :options="barrierConditionOptions.map((o) => ({ value: o.value, label: o.label }))"
+        @update:model-value="onBarrierConditionTypeChange"
+      />
+    </div>
+    <label v-if="!barrierMeta.noValue" class="campaign-editor__field">
+      <span>Target {{ barrierValueBounds.unit ? `(${barrierValueBounds.unit})` : '' }}</span>
+      <div class="campaign-editor__slider-row">
+        <input
+          type="range"
+          :min="barrierValueBounds.min"
+          :max="barrierValueBounds.max"
+          :step="barrierValueBounds.step"
+          v-model.number="barrierValueDisplay"
+          @change="commitBarrierField('conditionValue')"
+        />
+        <input
+          type="number"
+          :min="barrierValueBounds.min"
+          :step="barrierValueBounds.step"
+          v-model.number="barrierValueDisplay"
+          @blur="commitBarrierField('conditionValue')"
+        />
+      </div>
+    </label>
+    <p v-if="barrierMeta.noValue" class="campaign-editor__hint">
+      Opens once every affected node has been full-comboed.
+    </p>
+    <p v-else-if="barrierMeta.lowerBetter" class="campaign-editor__hint">
+      Lower is better. Opens when the {{ barrierMeta.agg }} leaderboard rank across the affected
+      nodes reaches this position or better.
+    </p>
+    <p v-else class="campaign-editor__hint">
+      Aggregated over the affected nodes ({{ barrierMeta.agg }}). Higher clears the gate.
+    </p>
+    <label class="campaign-editor__field">
+      <span>Description <small>(optional)</small></span>
+      <textarea
+        v-model="formBarrier.description"
+        rows="2"
+        @blur="commitBarrierField('description')"
+      />
+    </label>
+  </fieldset>
+
+  <fieldset
+    v-else-if="activeTray === 'barrierAffected' && selectedBarrier"
+    class="campaign-editor__section"
+    :disabled="!editable"
+  >
+    <p class="campaign-editor__hint">
+      Pick the nodes this gate measures. Separate from its connections: a gate can sit across the
+      whole path but score only a section.
+    </p>
+    <button
+      type="button"
+      class="campaign-editor__pick-toggle"
+      :class="{ 'campaign-editor__pick-toggle--active': affectedPickMode }"
+      @click="toggleAffectedPickMode"
+    >
+      <span class="campaign-editor__pick-dot" aria-hidden="true" />
+      {{ affectedPickMode ? 'Picking… click nodes on the canvas' : 'Pick on canvas' }}
+    </button>
+    <ul v-if="affectedNodeList.length > 0" class="campaign-editor__affected-list">
+      <li v-for="n in affectedNodeList" :key="n.id" class="campaign-editor__affected-item">
+        <span class="campaign-editor__affected-name">{{ n.name }}</span>
+        <button
+          v-if="editable"
+          type="button"
+          class="campaign-editor__reward-remove"
+          :aria-label="`Remove ${n.name}`"
+          @click="toggleAffected(n.id)"
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </li>
+    </ul>
+    <p v-else class="campaign-editor__hint">
+      No nodes yet. The gate can't be evaluated until it measures at least one node.
+    </p>
+  </fieldset>
+
+  <fieldset
+    v-else-if="activeTray === 'barrierStyle' && selectedBarrier"
+    class="campaign-editor__section"
+    :disabled="!editable"
+  >
+    <div class="campaign-editor__field">
+      <span>Gate length: {{ parseSizeInt(formBarrier.size, 48) }}px</span>
+      <input
+        type="range"
+        min="32"
+        max="120"
+        step="1"
+        :value="parseSizeInt(formBarrier.size, 48)"
+        @input="formBarrier.size = ($event.target as HTMLInputElement).value"
+        @change="commitBarrierField('size')"
+      />
+    </div>
+    <label class="campaign-editor__field">
+      <span>Gate color</span>
+      <div class="campaign-editor__color-row">
+        <input
+          type="color"
+          :value="formBarrier.borderColor || defaultBarrierColor"
+          @input="formBarrier.borderColor = ($event.target as HTMLInputElement).value"
+          @change="commitBarrierField('borderColor')"
+        />
+        <button type="button" class="campaign-editor__inline-btn" @click="resetBarrierColor">
+          Auto
+        </button>
+      </div>
+    </label>
+    <label class="campaign-editor__field">
+      <span>Label <small>(optional)</small></span>
+      <input
+        v-model="formBarrier.checkpointLabel"
+        type="text"
+        placeholder="e.g. Section clear"
+        @blur="commitBarrierField('checkpointLabel')"
+      />
+    </label>
+  </fieldset>
+
+  <fieldset
+    v-else-if="activeTray === 'barrierRewards' && selectedBarrier"
+    class="campaign-editor__section"
+    :disabled="!editable"
+  >
+    <p v-if="campaign && campaign.status !== 'CURATED'" class="campaign-editor__reward-note">
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path
+          d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+        />
+        <line x1="12" y1="9" x2="12" y2="13" />
+        <line x1="12" y1="17" x2="12" y2="17.01" />
+      </svg>
+      <span>Rewards are only handed out once the campaign is curated.</span>
+    </p>
+    <label class="campaign-editor__field">
+      <span>XP on clear</span>
+      <div class="campaign-editor__slider-row">
+        <input
+          type="range"
+          min="0"
+          max="5000"
+          step="50"
+          v-model.number="formBarrier.xp"
+          @change="commitBarrierField('xp')"
+        />
+        <input
+          type="number"
+          min="0"
+          step="10"
+          v-model.number="formBarrier.xp"
+          @blur="commitBarrierField('xp')"
+        />
+      </div>
+    </label>
+    <ul v-if="selectedBarrier.items.length > 0" class="campaign-editor__reward-list">
+      <li v-for="item in selectedBarrier.items" :key="item.itemId" class="campaign-editor__reward">
+        <CampaignRewardItem
+          :name="item.itemName"
+          :quantity="item.quantity"
+          :item="rewardItemsById.get(item.itemId) ?? null"
+        >
+          <template v-if="editable" #action>
+            <button
+              type="button"
+              class="campaign-editor__reward-remove"
+              aria-label="Remove reward"
+              @click="removeBarrierItem(item.itemId)"
+            >
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </template>
+        </CampaignRewardItem>
+      </li>
+    </ul>
+    <p v-else class="campaign-editor__hint">Clearing this gate only grants the XP. Add items too.</p>
+    <button
+      v-if="editable && canAddBarrierReward"
+      type="button"
+      class="campaign-editor__add-reward"
+      @click="openBarrierItemPicker"
+    >
+      <svg
+        width="12"
+        height="12"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <line x1="12" y1="5" x2="12" y2="19" />
+        <line x1="5" y1="12" x2="19" y2="12" />
+      </svg>
+      Add reward
+    </button>
+  </fieldset>
+
+  <fieldset
+    v-else-if="activeTray === 'text' && selectedText"
+    class="campaign-editor__section"
+    :disabled="!editable"
+  >
+    <div class="campaign-editor__field" @focusout="commitTextField('content')">
+      <span>Content</span>
+      <RichTextEditor
+        :model-value="formText.content"
+        :min-height="120"
+        :max-height="240"
+        aria-label="Text content"
+        @update:model-value="onTextContentInput"
+      />
+    </div>
+    <div class="campaign-editor__field">
+      <span>Font</span>
+      <BaseSelect
+        :model-value="formText.font"
+        :options="fontOptions"
+        @update:model-value="
+          (v: string) => {
+            formText.font = v
+            commitTextField('font')
+          }
+        "
+      />
+    </div>
+    <label class="campaign-editor__field">
+      <span>Scale: {{ formText.scale.toFixed(1) }}×</span>
+      <input
+        type="range"
+        min="0.5"
+        max="3"
+        step="0.1"
+        v-model.number="formText.scale"
+        @change="commitTextField('scale')"
+      />
+    </label>
+    <label class="campaign-editor__field">
+      <span>Color</span>
+      <div class="campaign-editor__color-row">
+        <input
+          type="color"
+          :value="formText.color || defaultColorHex"
+          @input="formText.color = ($event.target as HTMLInputElement).value"
+          @change="commitTextField('color')"
+        />
+        <button
+          type="button"
+          class="campaign-editor__inline-btn"
+          @click="
+            () => {
+              formText.color = ''
+              commitTextField('color')
+            }
+          "
+        >
+          Auto
+        </button>
+      </div>
+    </label>
+    <div class="campaign-editor__field">
+      <span>Effects</span>
+      <div class="campaign-editor__tag-chips">
+        <button
+          v-for="fx in textEffects"
+          :key="fx"
+          type="button"
+          class="campaign-editor__chip"
+          :class="{ 'campaign-editor__chip--active': textEffectActive(fx) }"
+          @click="toggleTextEffect(fx)"
+        >
+          {{ fx }}
+        </button>
+      </div>
+    </div>
+  </fieldset>
 </template>
 
 <style scoped>
@@ -966,6 +1464,11 @@ const {
   font-size: var(--text-caption);
   color: var(--text-primary);
   cursor: pointer;
+}
+
+.campaign-editor__check--disabled {
+  color: var(--text-tertiary);
+  cursor: not-allowed;
 }
 
 .campaign-editor__hint {
@@ -1236,5 +1739,209 @@ const {
 .campaign-editor__prereq-mode-btn--active {
   color: var(--page-accent);
   background: var(--bg-elevated);
+}
+
+.campaign-editor__collab-owner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 8px 10px;
+  background: var(--bg-base);
+  border: 1px solid var(--bg-overlay);
+  border-radius: 3px;
+}
+
+.campaign-editor__collab-owner-tag {
+  flex-shrink: 0;
+  font-family: var(--font-sans);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.campaign-editor__collab-owner-name {
+  min-width: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.campaign-editor__collab-skeletons {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.campaign-editor__collab-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.campaign-editor__collab {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: var(--space-sm);
+  align-items: center;
+  padding: 6px 8px;
+  background: var(--bg-base);
+  border: 1px solid var(--bg-overlay);
+  border-radius: 3px;
+}
+
+.campaign-editor__collab-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--bg-elevated);
+}
+
+.campaign-editor__collab-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.campaign-editor__collab-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.campaign-editor__collab-name {
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.campaign-editor__collab-sub {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.6875rem;
+}
+
+.campaign-editor__collab-status {
+  font-family: var(--font-sans);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.campaign-editor__collab-status--pending {
+  color: var(--warning);
+}
+
+.campaign-editor__collab-status--accepted {
+  color: var(--page-accent);
+}
+
+.campaign-editor__pick-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-start;
+  padding: 7px 12px;
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--bg-overlay);
+  border-radius: 3px;
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease,
+    background 120ms ease;
+}
+
+.campaign-editor__pick-toggle:hover {
+  color: var(--text-primary);
+  border-color: var(--text-tertiary);
+}
+
+.campaign-editor__pick-toggle--active {
+  color: var(--warning);
+  border-color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+}
+
+.campaign-editor__pick-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.5;
+}
+
+.campaign-editor__pick-toggle--active .campaign-editor__pick-dot {
+  opacity: 1;
+  animation: pick-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pick-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .campaign-editor__pick-toggle--active .campaign-editor__pick-dot {
+    animation: none;
+  }
+}
+
+.campaign-editor__affected-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.campaign-editor__affected-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: 5px 8px;
+  background: var(--bg-base);
+  border: 1px solid var(--bg-overlay);
+  border-radius: 3px;
+}
+
+.campaign-editor__affected-name {
+  min-width: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

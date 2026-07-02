@@ -144,6 +144,7 @@ const { campaignTrays, nodeTrays, activeTray, selectedCount, toggleTray } =
 }
 
 .campaign-editor__tray-btn-label {
+  max-width: 100%;
   font-family: var(--font-sans);
   font-size: 0.5625rem;
   font-weight: 600;
@@ -151,6 +152,7 @@ const { campaignTrays, nodeTrays, activeTray, selectedCount, toggleTray } =
   text-transform: uppercase;
   line-height: 1.1;
   text-align: center;
+  overflow-wrap: anywhere;
 }
 
 .campaign-editor__tray-count {
