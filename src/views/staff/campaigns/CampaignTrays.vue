@@ -40,7 +40,10 @@ const {
   actionPending,
   editable,
   formMeta,
+  fieldErrors,
   commitMetaField,
+  commitBackgroundColor,
+  resetBackgroundColor,
   completionModeOptions,
   onCompletionModeChange,
   uploadBackground,
@@ -139,6 +142,13 @@ const defaultBarrierColor = computed(() => {
   if (typeof document === 'undefined') return '#eab308'
   const v = getComputedStyle(document.documentElement).getPropertyValue('--warning').trim()
   return /^#[0-9a-fA-F]{6}$/.test(v) ? v : '#eab308'
+})
+
+const HEX6 = /^#[0-9a-fA-F]{6}$/
+
+const backgroundSwatch = computed(() => {
+  const v = formMeta.value.backgroundColor.trim()
+  return HEX6.test(v) ? v : defaultColorHex.value
 })
 </script>
 
@@ -337,6 +347,36 @@ const defaultBarrierColor = computed(() => {
         @change="commitMetaField('playlistExportEnabled')"
       />
       <span>Playlist export enabled</span>
+    </label>
+    <label class="campaign-editor__field">
+      <span>Background color</span>
+      <div class="campaign-editor__color-row">
+        <input
+          type="color"
+          aria-label="Background color swatch"
+          :value="backgroundSwatch"
+          @input="formMeta.backgroundColor = ($event.target as HTMLInputElement).value"
+          @change="commitBackgroundColor"
+        />
+        <input
+          class="campaign-editor__color-text"
+          type="text"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="#a855f7 · rebeccapurple · rgb(…)"
+          :aria-invalid="!!fieldErrors.backgroundColor"
+          v-model="formMeta.backgroundColor"
+          @blur="commitBackgroundColor"
+          @keydown.enter.prevent="commitBackgroundColor"
+        />
+        <button type="button" class="campaign-editor__inline-btn" @click="resetBackgroundColor">
+          Auto
+        </button>
+      </div>
+      <small>Hex, named, or rgb/hsl. Tints the roadmap backdrop; leave empty for the default.</small>
+      <p v-if="fieldErrors.backgroundColor" class="campaign-editor__field-error" role="alert">
+        {{ fieldErrors.backgroundColor }}
+      </p>
     </label>
   </fieldset>
 
@@ -1444,11 +1484,31 @@ const defaultBarrierColor = computed(() => {
 .campaign-editor__color-row input[type='color'] {
   width: 44px;
   height: 32px;
+  flex-shrink: 0;
   padding: 2px;
   border: 1px solid var(--bg-overlay);
   border-radius: 3px;
   background: var(--bg-base);
   cursor: pointer;
+}
+
+.campaign-editor__color-text {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  font-family: var(--font-mono);
+}
+
+.campaign-editor__color-text[aria-invalid='true'] {
+  border-color: var(--error);
+}
+
+.campaign-editor__field-error {
+  margin: 2px 0 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  color: var(--error);
+  line-height: 1.4;
 }
 
 .campaign-editor__inline-btn {

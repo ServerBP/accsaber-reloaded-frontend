@@ -13,7 +13,9 @@ import {
   type PresenceKind,
   type PresencePeer,
 } from '@/composables/useCampaignPresence'
+import { useCampaignChat } from '@/composables/useCampaignChat'
 import { computed, provide } from 'vue'
+import CampaignChatPanel from './CampaignChatPanel.vue'
 import CampaignCollaboratorPicker from './CampaignCollaboratorPicker.vue'
 import CampaignItemPicker from './CampaignItemPicker.vue'
 import CampaignMapPicker from './CampaignMapPicker.vue'
@@ -45,6 +47,9 @@ const {
   requirementDirtyIds,
   showRepublishWarning,
   isCurator,
+  isCreator,
+  isCollaborator,
+  isUnsavedDraft,
   canAccess,
   editable,
   accent,
@@ -87,10 +92,19 @@ const {
   setChangeBroadcaster,
 } = editor
 
+const campaignIdRef = computed(() => campaign.value?.id ?? null)
+
+const chat = useCampaignChat(campaignIdRef)
+
+const canChat = computed(() => (isCreator.value || isCollaborator.value) && !isUnsavedDraft.value)
+
 const { peers: presencePeers, sendCursor, sendCursorOff, sendChange } = useCampaignPresence(
-  computed(() => campaign.value?.id ?? null),
+  campaignIdRef,
   editable,
-  { onRemoteChange: () => void reloadFromRemote() },
+  {
+    onRemoteChange: () => void reloadFromRemote(),
+    onChat: (message) => chat.ingest(message),
+  },
 )
 setChangeBroadcaster(sendChange)
 
@@ -176,6 +190,7 @@ function peerActivity(p: PresencePeer): string {
           :accent-color="accent"
           :node-accents="nodeAccents"
           :background-url="campaign.backgroundUrl"
+          :background-color="campaign.backgroundColor"
           :show-starfield="!campaign.backgroundUrl"
           :focus-id="selectedId"
           :follow-focus="false"
@@ -395,6 +410,8 @@ function peerActivity(p: PresencePeer): string {
             Select
           </button>
         </div>
+
+        <CampaignChatPanel v-if="canChat" :chat="chat" />
       </main>
 
       <CampaignTrayRail />

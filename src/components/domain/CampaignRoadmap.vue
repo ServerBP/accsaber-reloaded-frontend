@@ -43,6 +43,7 @@ const props = withDefaults(
     barrierAccent?: string
     nodeAccents?: Map<string, string>
     backgroundUrl?: string | null
+    backgroundColor?: string | null
     focusId?: string | null
     defaultScale?: number
     showStarfield?: boolean
@@ -67,6 +68,7 @@ const props = withDefaults(
     barrierAccent: 'var(--warning)',
     nodeAccents: () => new Map(),
     backgroundUrl: null,
+    backgroundColor: null,
     focusId: null,
     defaultScale: 1.25,
     showStarfield: false,
@@ -89,6 +91,8 @@ const themeStore = useThemeStore()
 function nodeAccentFor(id: string): string {
   return props.nodeAccents.get(id) ?? props.accentColor
 }
+
+const backgroundFill = computed(() => props.backgroundColor?.trim() || 'var(--accent-overall)')
 
 const emit = defineEmits<{
   select: [id: string]
@@ -1136,7 +1140,11 @@ function onPointerUp(e: PointerEvent) {
     dragStart = null
     if (moved) suppressClick = true
     if (moved && rect) {
-      const inside = renderedNodes.value
+      const inside = [
+        ...renderedNodes.value,
+        ...renderedBarriers.value,
+        ...renderedTexts.value,
+      ]
         .filter((n) => n.cx >= rect.x0 && n.cx <= rect.x1 && n.cy >= rect.y0 && n.cy <= rect.y1)
         .map((n) => n.id)
       const ids = additive ? Array.from(new Set([...props.selectedIds, ...inside])) : inside
@@ -1399,7 +1407,7 @@ const arrowDecorations = computed(() =>
     <template v-else-if="showStarfield">
       <div
         class="campaign-roadmap__glow"
-        :style="{ '--starfield-accent': accentColor }"
+        :style="{ '--starfield-accent': backgroundFill }"
         aria-hidden="true"
       />
       <ParticleCanvas

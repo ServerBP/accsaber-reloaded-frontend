@@ -488,6 +488,7 @@ function unpinTooltip() {
         <CampaignRoadmap :difficulties="campaign.difficulties" :barriers="campaign.barriers"
           :texts="campaign.texts" :progress="effectiveDifficultyProgress" :barrier-progress="effectiveBarrierProgress"
           :accent-color="accent" :node-accents="nodeAccents" :background-url="campaign.backgroundUrl"
+          :background-color="campaign.backgroundColor"
           :show-starfield="!campaign.backgroundUrl" :focus-id="focusNodeId" :default-scale="1.35"
           :selected-id="selectedId" :mark-next="isInProgress && !campaign.progressionAgnostic"
           @select="handleSelect" @hover="handleHover"

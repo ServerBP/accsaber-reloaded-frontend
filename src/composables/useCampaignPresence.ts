@@ -1,4 +1,5 @@
 import { useAuthStore } from '@/stores/auth'
+import type { CampaignChatMessageResponse } from '@/types/api/campaigns'
 import { hashString } from '@/utils/constants'
 import { isUuid } from '@/utils/mapRoute'
 import { onUnmounted, ref, watch, type Ref } from 'vue'
@@ -31,6 +32,7 @@ interface PresenceWire {
   y?: number | null
   field?: string | null
   members?: { userId: number | string; name?: string | null; avatarUrl?: string | null }[] | null
+  message?: CampaignChatMessageResponse | null
 }
 
 const SEND_INTERVAL = 33
@@ -63,7 +65,7 @@ function presenceBase(): string {
   }
 }
 
-function colorForUser(userId: string): string {
+export function colorForUser(userId: string): string {
   return `oklch(0.72 0.15 ${hashString(userId) % 360})`
 }
 
@@ -94,7 +96,10 @@ interface UseCampaignPresenceReturn {
 export function useCampaignPresence(
   campaignId: Ref<string | null | undefined>,
   active: Ref<boolean>,
-  options: { onRemoteChange?: () => void } = {},
+  options: {
+    onRemoteChange?: () => void
+    onChat?: (message: CampaignChatMessageResponse) => void
+  } = {},
 ): UseCampaignPresenceReturn {
   const auth = useAuthStore()
   const peers = ref<PresencePeer[]>([])
@@ -171,6 +176,11 @@ export function useCampaignPresence(
         upsertPeer(id, m.name, m.avatarUrl)
       }
       syncPeers()
+      return
+    }
+
+    if (type === 'chat') {
+      if (msg.message) options.onChat?.(msg.message)
       return
     }
 

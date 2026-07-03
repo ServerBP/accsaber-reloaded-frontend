@@ -31,7 +31,7 @@ import { useCampaignAssets } from './useCampaignAssets'
 import { useCampaignCollaborators } from './useCampaignCollaborators'
 import { useCampaignLifecycle } from './useCampaignLifecycle'
 import { useCampaignRewards } from './useCampaignRewards'
-import { ApiError, getApiErrorMessage } from '@/api/client'
+import { ApiError, getApiErrorMessage, parseApiError } from '@/api/client'
 import type { Crumb } from '@/components/common/Breadcrumbs.vue'
 import { useItemCatalog } from '@/composables/useItemCatalog'
 import { getCurve } from '@/api/curves'
@@ -101,6 +101,38 @@ export function useCampaignEditor() {
   const actionPending = ref(false)
   const actionError = ref<string | null>(null)
   const actionNotice = ref<string | null>(null)
+  const fieldErrors = ref<Record<string, string>>({})
+
+  function clearFieldErrors(keys: string[]) {
+    if (keys.length === 0) return
+    const next = { ...fieldErrors.value }
+    let changed = false
+    for (const k of keys) {
+      if (k in next) {
+        delete next[k]
+        changed = true
+      }
+    }
+    if (changed) fieldErrors.value = next
+  }
+
+  const INLINE_ERROR_FIELDS = new Set<string>(['backgroundColor'])
+
+  function reportPatchError(err: unknown, fallback: string) {
+    const parsed = parseApiError(err, fallback)
+    const inline = parsed.fieldErrors.filter((f) => INLINE_ERROR_FIELDS.has(f.field))
+    const other = parsed.fieldErrors.filter((f) => !INLINE_ERROR_FIELDS.has(f.field))
+    if (inline.length > 0) {
+      const next = { ...fieldErrors.value }
+      for (const f of inline) next[f.field] = f.message
+      fieldErrors.value = next
+    }
+    if (other.length > 0) {
+      actionError.value = other.map((f) => f.message).join(' ')
+    } else if (inline.length === 0) {
+      actionError.value = parsed.message
+    }
+  }
   const showMapPicker = ref(false)
   const selectedIds = ref<Set<string>>(new Set())
   const canvasMode = ref<'drag' | 'connect' | 'select'>('drag')
@@ -162,6 +194,7 @@ export function useCampaignEditor() {
       difficultyCount: 0,
       tags: [],
       backgroundUrl: null,
+      backgroundColor: null,
       iconUrl: null,
       submittedAt: null,
       curatedAt: null,
@@ -213,8 +246,8 @@ export function useCampaignEditor() {
     }
   }
 
-  async function load() {
-    loading.value = true
+  async function load(silent = false) {
+    if (!silent) loading.value = true
     error.value = null
     requirementDirtyIds.value = new Set()
     editedLiveCampaign.value = false
@@ -235,7 +268,7 @@ export function useCampaignEditor() {
         error.value = getApiErrorMessage(err, 'Failed to load campaign')
       }
     } finally {
-      loading.value = false
+      if (!silent) loading.value = false
     }
   }
 
@@ -262,10 +295,10 @@ export function useCampaignEditor() {
     changeBroadcaster = fn
   }
 
-  async function guardedLoad() {
+  async function guardedLoad(silent = false) {
     applyingRemote++
     try {
-      await load()
+      await load(silent)
     } finally {
       await nextTick()
       applyingRemote--
@@ -546,6 +579,7 @@ export function useCampaignEditor() {
     playlistExportEnabled: true,
     completionXp: 0,
     backgroundUrl: '',
+    backgroundColor: '',
     seekingCuration: false,
   })
 
@@ -562,6 +596,7 @@ export function useCampaignEditor() {
       playlistExportEnabled: campaign.value.playlistExportEnabled,
       completionXp: campaign.value.completionXp ?? 0,
       backgroundUrl: campaign.value.backgroundUrl ?? '',
+      backgroundColor: campaign.value.backgroundColor ?? '',
       seekingCuration: campaign.value.seekingCuration,
     }
   }
@@ -719,6 +754,8 @@ export function useCampaignEditor() {
       c = await ensureCampaign()
       if (!c) return
     }
+    const keys = Object.keys(patch)
+    clearFieldErrors(keys)
     try {
       actionError.value = null
       const updated = useAdminEndpoint.value
@@ -728,7 +765,7 @@ export function useCampaignEditor() {
         campaign.value = { ...campaign.value, ...updated }
       }
     } catch (err) {
-      actionError.value = getApiErrorMessage(err, 'Failed to update campaign')
+      reportPatchError(err, 'Failed to update campaign')
     }
   }
 
@@ -817,13 +854,26 @@ export function useCampaignEditor() {
       : updatePlayerCampaignDifficulty(id, patch)
   }
 
+  const CLEARABLE_META_TEXT_FIELDS = new Set<string>(['backgroundColor'])
+
   function commitMetaField(field: keyof UpdateCampaignRequest) {
     if (!editable.value || !campaign.value) return
     const value = formMeta.value[field as keyof typeof formMeta.value]
     const original = (campaign.value as unknown as Record<string, unknown>)[field]
     if (value === original) return
     if (typeof value === 'string' && original == null && value === '') return
-    void applyCampaignPatch({ [field]: value === '' ? null : value } as UpdateCampaignRequest)
+    const send = value === '' && !CLEARABLE_META_TEXT_FIELDS.has(field) ? null : value
+    void applyCampaignPatch({ [field]: send } as UpdateCampaignRequest)
+  }
+
+  function commitBackgroundColor() {
+    formMeta.value.backgroundColor = formMeta.value.backgroundColor.trim()
+    commitMetaField('backgroundColor')
+  }
+
+  function resetBackgroundColor() {
+    formMeta.value.backgroundColor = ''
+    commitMetaField('backgroundColor')
   }
 
   const CLEARABLE_TEXT_FIELDS = new Set<string>([
@@ -2158,7 +2208,7 @@ export function useCampaignEditor() {
   return {
     auth,
     setChangeBroadcaster,
-    reloadFromRemote: guardedLoad,
+    reloadFromRemote: () => guardedLoad(true),
     rewardItemsById,
     campaign,
     loading,
@@ -2199,7 +2249,10 @@ export function useCampaignEditor() {
     creatorStatusMeaning,
     formMeta,
     formNode,
+    fieldErrors,
     commitMetaField,
+    commitBackgroundColor,
+    resetBackgroundColor,
     commitNodeField,
     commitAvatarUrl,
     toggleTag,

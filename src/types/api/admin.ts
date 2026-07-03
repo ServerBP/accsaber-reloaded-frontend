@@ -224,6 +224,7 @@ export interface CreateCampaignRequest {
   completionMode?: CampaignCompletionMode
   playlistExportEnabled?: boolean
   backgroundUrl?: string
+  backgroundColor?: string
   tagIds?: string[]
 }
 
@@ -239,6 +240,7 @@ export interface UpdateCampaignRequest {
   creatorAlias?: string
   seekingCuration?: boolean
   backgroundUrl?: string | null
+  backgroundColor?: string | null
   tagIds?: string[]
 }
 

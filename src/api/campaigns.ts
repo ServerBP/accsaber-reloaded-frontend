@@ -10,6 +10,7 @@ import type {
 } from '@/types/api/admin'
 import type {
   CampaignBarrierResponse,
+  CampaignChatMessageResponse,
   CampaignCollaborationListParams,
   CampaignCollaboratorResponse,
   CampaignDetailResponse,
@@ -22,6 +23,7 @@ import type {
   CampaignTagResponse,
   CampaignTextResponse,
   InviteCampaignCollaboratorRequest,
+  SendCampaignChatRequest,
   UserCampaignResponse,
 } from '@/types/api/campaigns'
 import type { PaginationParams } from '@/types/pagination'
@@ -225,6 +227,22 @@ export function getMyCollaborations(
   return get<Page<CampaignCollaboratorResponse>>(
     `/campaigns/me/collaborations${buildQuery(params)}`,
   )
+}
+
+export function getCampaignChat(
+  campaignId: string,
+  params?: PaginationParams,
+): Promise<Page<CampaignChatMessageResponse>> {
+  return get<Page<CampaignChatMessageResponse>>(
+    `/campaigns/${campaignId}/chat${buildQuery(params)}`,
+  )
+}
+
+export function sendCampaignChatMessage(
+  campaignId: string,
+  req: SendCampaignChatRequest,
+): Promise<CampaignChatMessageResponse> {
+  return post<CampaignChatMessageResponse>(`/campaigns/${campaignId}/chat`, req)
 }
 
 export function addPlayerCampaignBarrier(
