@@ -13,6 +13,7 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import CampaignRoadmap from '@/components/domain/CampaignRoadmap.vue'
 import CampaignRewardItem from '@/components/domain/CampaignRewardItem.vue'
+import CampaignVoteControl from '@/components/domain/CampaignVoteControl.vue'
 import CampaignRewardNotice from '@/views/campaign/CampaignRewardNotice.vue'
 import ComplexityBadge from '@/components/domain/ComplexityBadge.vue'
 import DifficultyBadge from '@/components/domain/DifficultyBadge.vue'
@@ -515,6 +516,8 @@ function unpinTooltip() {
           </header>
 
           <p v-if="campaign.summary" class="campaign-detail__summary">{{ campaign.summary }}</p>
+
+          <CampaignVoteControl class="campaign-detail__vote" :campaign="campaign" size="md" />
 
           <div class="campaign-detail__actions">
             <template v-if="!auth.isLoggedIn">
@@ -1159,6 +1162,10 @@ function unpinTooltip() {
   font-size: var(--text-body);
   color: var(--text-secondary);
   line-height: 1.55;
+}
+
+.campaign-detail__vote {
+  align-self: flex-start;
 }
 
 .campaign-detail__actions {

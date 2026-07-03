@@ -22,13 +22,15 @@ import type {
   CampaignTagListParams,
   CampaignTagResponse,
   CampaignTextResponse,
+  CampaignVoteResponse,
   InviteCampaignCollaboratorRequest,
   SendCampaignChatRequest,
   UserCampaignResponse,
 } from '@/types/api/campaigns'
+import type { CampaignVoteDirection } from '@/types/enums'
 import type { PaginationParams } from '@/types/pagination'
 import type { Page } from '@/types/pagination'
-import { ApiError, del, get, patch, post } from './client'
+import { ApiError, del, get, patch, post, put } from './client'
 import { buildQuery } from './utils'
 import { isUuid } from '@/utils/mapRoute'
 
@@ -90,6 +92,17 @@ export async function getMyCampaignProgressBulk(
     ),
   )
   return results.flat()
+}
+
+export function voteCampaign(
+  campaignId: string,
+  direction: CampaignVoteDirection,
+): Promise<CampaignVoteResponse> {
+  return put<CampaignVoteResponse>(`/campaigns/${campaignId}/vote`, { direction })
+}
+
+export function clearCampaignVote(campaignId: string): Promise<CampaignVoteResponse> {
+  return del<CampaignVoteResponse>(`/campaigns/${campaignId}/vote`)
 }
 
 export function startCampaign(campaignId: string): Promise<void> {

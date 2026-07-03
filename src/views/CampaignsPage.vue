@@ -74,11 +74,30 @@ const invitesLoading = ref(false)
 const respondingId = ref<string | null>(null)
 const mineCollabs = ref<CampaignDetailResponse[]>([])
 
-const { currentPage, paginationParams, setPage } = usePageableRoute({
+const { currentPage, paginationParams, setPage, sortState } = usePageableRoute({
   defaultSort: 'createdAt',
   defaultSize: 20,
   secondarySort: null,
 })
+
+const SORT_OPTIONS = [
+  { key: 'createdAt', order: 'desc', label: 'Newest' },
+  { key: 'voteScore', order: 'desc', label: 'Top rated' },
+  { key: 'name', order: 'asc', label: 'A-Z' },
+] as const
+
+function setSortOption(option: (typeof SORT_OPTIONS)[number]) {
+  const query = { ...route.query }
+  if (option.key === 'createdAt') {
+    delete query.sort
+    delete query.order
+  } else {
+    query.sort = option.key
+    query.order = option.order
+  }
+  delete query.page
+  router.replace({ query })
+}
 
 const statusFilter = computed<CampaignStatus[]>(() =>
   curatedOnly.value ? ['CURATED'] : ['PUBLISHED', 'CURATED'],
@@ -174,7 +193,7 @@ async function loadCampaigns() {
       const page = await getMyCampaigns({
         page: paginationParams.value.page,
         size: paginationParams.value.size,
-        sort: paginationParams.value.sort,
+        sort: 'createdAt,desc',
       })
       totalPages.value = page.totalPages || 1
       items.value = page.content.map((c) => c.campaign)
@@ -191,7 +210,7 @@ async function loadCampaigns() {
       const page: Page<CampaignResponse> = await fetchCampaigns({
         page: paginationParams.value.page,
         size: paginationParams.value.size,
-        sort: paginationParams.value.sort,
+        sort: 'createdAt,desc',
         creatorId: auth.userId,
       })
       items.value = page.content
@@ -207,7 +226,7 @@ async function loadCampaigns() {
       const page = await getCurationQueue({
         page: paginationParams.value.page,
         size: paginationParams.value.size,
-        sort: paginationParams.value.sort,
+        sort: 'createdAt,desc',
       })
       items.value = page.content
       totalPages.value = page.totalPages || 1
@@ -322,6 +341,7 @@ watch(
     selectedTagIds.value.join(','),
     searchTerm.value,
     paginationParams.value.page,
+    String(paginationParams.value.sort),
   ],
   () => {
     void loadCampaigns()
@@ -341,7 +361,7 @@ watch(
 
 <template>
   <div class="campaigns-page" style="--page-accent: var(--accent-overall);">
-    <PageHeaderBleed title="Campaigns" subtitle="curated journeys through ranked maps" />
+    <PageHeaderBleed title="Campaigns" subtitle="custom journeys through ranked maps" />
 
     <div class="campaigns-page__bar">
       <nav class="campaigns-page__panes" aria-label="Campaign panes">
@@ -374,13 +394,35 @@ watch(
         placeholder="Search title or creator..." @update:model-value="setSearch" />
 
       <div class="campaigns-page__bar-actions">
-        <template v-if="pane === 'all'">
-          <button type="button" class="campaigns-page__chip campaigns-page__chip--toggle"
-            :class="{ 'campaigns-page__chip--active': curatedOnly }" @click="toggleCuratedOnly">
-            Curated only
-          </button>
+        <button v-if="auth.isLoggedIn || isCurator" type="button" class="campaigns-page__new"
+          @click="goToNewCampaign">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          New campaign
+        </button>
+      </div>
+    </div>
 
-          <details class="campaigns-page__tags-disclosure"
+    <div v-if="pane === 'all'" class="campaigns-page__toolbar">
+      <div class="campaigns-page__sort" role="radiogroup" aria-label="Sort campaigns">
+        <button v-for="option in SORT_OPTIONS" :key="option.key" type="button" role="radio"
+          class="campaigns-page__sort-btn"
+          :class="{ 'campaigns-page__sort-btn--active': sortState.key === option.key }"
+          :aria-checked="sortState.key === option.key" @click="setSortOption(option)">
+          {{ option.label }}
+        </button>
+      </div>
+
+      <div class="campaigns-page__toolbar-right">
+        <button type="button" class="campaigns-page__chip campaigns-page__chip--toggle"
+          :class="{ 'campaigns-page__chip--active': curatedOnly }" @click="toggleCuratedOnly">
+          Curated only
+        </button>
+
+        <details class="campaigns-page__tags-disclosure"
             :open="tagsOpen" @toggle="tagsOpen = ($event.target as HTMLDetailsElement).open">
             <summary>
               <span>Tags</span>
@@ -428,17 +470,6 @@ watch(
               </button>
             </div>
           </details>
-        </template>
-
-        <button v-if="auth.isLoggedIn || isCurator" type="button" class="campaigns-page__new"
-          @click="goToNewCampaign">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-          New campaign
-        </button>
       </div>
     </div>
 
@@ -622,6 +653,53 @@ watch(
 .campaigns-page__chip--toggle {
   padding: 6px 12px;
   font-size: 0.6875rem;
+}
+
+.campaigns-page__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: calc(-1 * var(--space-sm));
+}
+
+.campaigns-page__toolbar-right {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.campaigns-page__sort {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--bg-overlay);
+  border-radius: 3px;
+}
+
+.campaigns-page__sort-btn {
+  padding: 4px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 2px;
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 120ms ease, background 120ms ease;
+}
+
+.campaigns-page__sort-btn:hover {
+  color: var(--text-primary);
+}
+
+.campaigns-page__sort-btn--active {
+  color: var(--text-primary);
+  background: var(--bg-elevated);
 }
 
 .campaigns-page__tags-disclosure {

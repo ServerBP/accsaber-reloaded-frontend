@@ -64,6 +64,8 @@ export type BarrierConditionType =
   | 'AVERAGE_RANK'
   | 'MAX_RANK'
 
+export type CampaignVoteDirection = 'UP' | 'DOWN'
+
 export type CampaignCollaboratorStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED'
 
 export type UserCampaignStatus = 'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED'

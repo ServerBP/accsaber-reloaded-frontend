@@ -3,6 +3,7 @@ import type {
   CampaignCollaboratorStatus,
   CampaignCompletionMode,
   CampaignPrerequisiteMode,
+  CampaignVoteDirection,
   CheckpointLabelPosition,
   CampaignRequirementType,
   CampaignStatus,
@@ -44,6 +45,18 @@ export interface CampaignResponse {
   submittedAt: string | null
   curatedAt: string | null
   createdAt: string
+  totalUpvotes: number
+  totalDownvotes: number
+  voteScore: number
+  myVote?: CampaignVoteDirection
+}
+
+export interface CampaignVoteResponse {
+  campaignId: string
+  totalUpvotes: number
+  totalDownvotes: number
+  voteScore: number
+  myVote?: CampaignVoteDirection
 }
 
 export type CampaignNodeShape = 'hex' | 'square' | 'circle' | 'diamond'

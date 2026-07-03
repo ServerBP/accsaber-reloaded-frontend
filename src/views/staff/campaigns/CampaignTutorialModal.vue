@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import BaseButton from '@/components/common/BaseButton.vue'
 import CampaignRoadmap from '@/components/domain/CampaignRoadmap.vue'
-import type { CampaignDifficultyResponse } from '@/types/api/campaigns'
+import type {
+  CampaignBarrierResponse,
+  CampaignDifficultyResponse,
+} from '@/types/api/campaigns'
 import type { PublicMapDifficultyResponse } from '@/types/api/maps'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import CampaignMapPicker from './CampaignMapPicker.vue'
@@ -15,7 +18,7 @@ const emit = defineEmits<{
   close: [outcome: 'done' | 'skipped']
 }>()
 
-type StepId = 'add' | 'connect' | 'goal' | 'reward' | 'finish'
+type StepId = 'add' | 'connect' | 'goal' | 'reward' | 'barrier' | 'finish'
 
 interface TutorialStep {
   id: StepId
@@ -45,6 +48,11 @@ const steps: TutorialStep[] = [
     body: 'Clearing a map can pay XP. Give your first map a reward.',
   },
   {
+    id: 'barrier',
+    title: 'Gate the path',
+    body: 'A barrier gates everything after it. Add one more map and connect your second map to it. Then click Add barrier at the bottom of the canvas and click the new arrow.',
+  },
+  {
     id: 'finish',
     title: 'Make it yours',
     body: 'That is the whole loop. The trays on the left of the editor hold everything else:',
@@ -66,12 +74,15 @@ const celebrating = ref(false)
 let advanceTimer: number | null = null
 
 const nodes = ref<CampaignDifficultyResponse[]>([])
+const barriers = ref<CampaignBarrierResponse[]>([])
 const sandboxMode = ref<'drag' | 'connect' | 'select'>('drag')
 const selectedId = ref<string | null>(null)
 const pickerOpen = ref(false)
 const addPending = ref(false)
 const addError = ref<string | null>(null)
 const goalTouched = ref(false)
+const barrierTouched = ref(false)
+const barrierPlacement = ref(false)
 
 let nodeSeq = 0
 
@@ -82,18 +93,78 @@ const hasConnection = computed(() =>
 )
 const existingMapIds = computed(() => nodes.value.map((n) => n.mapDifficultyId))
 
+const firstBarrier = computed(() => barriers.value[0] ?? null)
+
+const edgeCount = computed(
+  () =>
+    nodes.value.reduce((sum, n) => sum + n.prerequisiteCampaignDifficultyIds.length, 0) +
+    barriers.value.reduce((sum, b) => sum + b.prerequisiteCampaignDifficultyIds.length, 0),
+)
+
+const thirdMapConnected = computed(() => nodes.value.length >= 3 && edgeCount.value >= 2)
+
+const nodesBeforeGate = computed<CampaignDifficultyResponse[]>(() => {
+  const barrier = firstBarrier.value
+  if (!barrier) return []
+  const forward = new Map<string, string[]>()
+  const addEdge = (from: string, to: string) => {
+    const list = forward.get(from) ?? []
+    list.push(to)
+    forward.set(from, list)
+  }
+  for (const n of nodes.value) {
+    for (const p of n.prerequisiteCampaignDifficultyIds) addEdge(p, n.id)
+  }
+  for (const b of barriers.value) {
+    for (const p of b.prerequisiteCampaignDifficultyIds) addEdge(p, b.id)
+  }
+  const beyond = new Set<string>()
+  const queue = [barrier.id]
+  while (queue.length > 0) {
+    const current = queue.pop() as string
+    for (const next of forward.get(current) ?? []) {
+      if (!beyond.has(next)) {
+        beyond.add(next)
+        queue.push(next)
+      }
+    }
+  }
+  return nodes.value.filter((n) => !beyond.has(n.id))
+})
+
+const watchesMapsBefore = computed(() => {
+  const barrier = firstBarrier.value
+  if (!barrier) return false
+  const before = nodesBeforeGate.value
+  if (before.length === 0) return false
+  return before.every((n) => barrier.affectedCampaignDifficultyIds.includes(n.id))
+})
+
 const stepDone = computed<boolean[]>(() => [
   nodes.value.length >= 1,
   nodes.value.length >= 2 && hasConnection.value,
   goalTouched.value,
   (firstNode.value?.xp ?? 0) > 0,
+  thirdMapConnected.value &&
+    barriers.value.length >= 1 &&
+    barrierTouched.value &&
+    watchesMapsBefore.value,
   false,
 ])
 
 const wantsAdd = computed(
   () =>
     (currentStep.value.id === 'add' && nodes.value.length === 0) ||
-    (currentStep.value.id === 'connect' && nodes.value.length < 2),
+    (currentStep.value.id === 'connect' && nodes.value.length < 2) ||
+    (currentStep.value.id === 'barrier' && nodes.value.length < 3),
+)
+
+const wantsBarrier = computed(
+  () =>
+    currentStep.value.id === 'barrier' &&
+    thirdMapConnected.value &&
+    barriers.value.length === 0 &&
+    !barrierPlacement.value,
 )
 
 const wantsConnectMode = computed(
@@ -192,16 +263,21 @@ async function handlePicked(mapDifficultyIds: string[]) {
 }
 
 function handleMove(payload: { id: string; positionX: number; positionY: number }) {
-  const node = nodes.value.find((n) => n.id === payload.id)
-  if (!node) return
-  node.positionX = payload.positionX
-  node.positionY = payload.positionY
+  const vertex = vertexById(payload.id)
+  if (!vertex) return
+  vertex.positionX = payload.positionX
+  vertex.positionY = payload.positionY
+}
+
+function handleEmptyClick() {
+  selectedId.value = null
+  barrierPlacement.value = false
 }
 
 function handleConnect(payload: { fromId: string; toId: string }) {
   if (payload.fromId === payload.toId) return
-  const from = nodes.value.find((n) => n.id === payload.fromId)
-  const to = nodes.value.find((n) => n.id === payload.toId)
+  const from = vertexById(payload.fromId)
+  const to = vertexById(payload.toId)
   if (!from || !to) return
   if (to.prerequisiteCampaignDifficultyIds.includes(payload.fromId)) return
   if (from.prerequisiteCampaignDifficultyIds.includes(payload.toId)) return
@@ -213,11 +289,86 @@ function handleConnect(payload: { fromId: string; toId: string }) {
 }
 
 function handleDisconnect(payload: { fromId: string; toId: string }) {
-  const to = nodes.value.find((n) => n.id === payload.toId)
+  const to = vertexById(payload.toId)
   if (!to) return
   to.prerequisiteCampaignDifficultyIds = to.prerequisiteCampaignDifficultyIds.filter(
     (id) => id !== payload.fromId,
   )
+}
+
+function vertexById(
+  id: string,
+): CampaignDifficultyResponse | CampaignBarrierResponse | null {
+  return (
+    nodes.value.find((n) => n.id === id) ?? barriers.value.find((b) => b.id === id) ?? null
+  )
+}
+
+function toggleBarrierPlacement() {
+  if (!hasConnection.value) return
+  barrierPlacement.value = !barrierPlacement.value
+}
+
+function handlePlaceBarrier(payload: { fromId: string; toId: string }) {
+  const from = vertexById(payload.fromId)
+  const to = vertexById(payload.toId)
+  if (!from || !to) return
+  nodeSeq += 1
+  const barrier: CampaignBarrierResponse = {
+    id: `tutorial-barrier-${nodeSeq}`,
+    conditionType: 'AVERAGE_ACC',
+    conditionValue: 0.9,
+    description: null,
+    checkpointLabel: null,
+    checkpointLabelPosition: null,
+    checkpointAvatarUrl: null,
+    checkpointColor: null,
+    borderColor: null,
+    borderShape: null,
+    size: null,
+    checkpointSize: null,
+    positionX: Math.round((from.positionX + to.positionX) / 2),
+    positionY: Math.round((from.positionY + to.positionY) / 2),
+    xp: 0,
+    prerequisiteCampaignDifficultyIds: [payload.fromId],
+    affectedCampaignDifficultyIds: payload.fromId.startsWith('tutorial-barrier')
+      ? []
+      : [payload.fromId],
+    items: [],
+  }
+  barriers.value = [...barriers.value, barrier]
+  to.prerequisiteCampaignDifficultyIds = to.prerequisiteCampaignDifficultyIds
+    .filter((id) => id !== payload.fromId)
+    .concat(barrier.id)
+  barrierPlacement.value = false
+  selectedId.value = barrier.id
+  checkAutoAdvance()
+}
+
+function toggleWatched(nodeId: string) {
+  const barrier = firstBarrier.value
+  if (!barrier) return
+  const current = barrier.affectedCampaignDifficultyIds
+  barrier.affectedCampaignDifficultyIds = current.includes(nodeId)
+    ? current.filter((id) => id !== nodeId)
+    : [...current, nodeId]
+  checkAutoAdvance()
+}
+
+const barrierPct = computed({
+  get: () => Math.round((firstBarrier.value?.conditionValue ?? 0.9) * 1000) / 10,
+  set: (v: number) => {
+    const barrier = firstBarrier.value
+    if (!barrier) return
+    const clamped = Math.min(100, Math.max(70, Number(v) || 70))
+    barrier.conditionValue = Math.round(clamped * 10) / 1000
+  },
+})
+
+function commitBarrierValue() {
+  if (!firstBarrier.value) return
+  barrierTouched.value = true
+  checkAutoAdvance()
 }
 
 function clearAdvanceTimer() {
@@ -322,26 +473,31 @@ onUnmounted(() => {
           <div class="tutorial__stage">
             <CampaignRoadmap
               :difficulties="nodes"
+              :barriers="barriers"
               :accent-color="accent"
               :show-starfield="true"
-              :default-scale="1.3"
+              :default-scale="1"
               :follow-focus="false"
               :selected-id="selectedId"
+              :barrier-placement="barrierPlacement"
               :editable="true"
               :mode="sandboxMode"
               @select="selectedId = $event"
               @deselect="selectedId = null"
-              @empty-click="selectedId = null"
+              @empty-click="handleEmptyClick"
               @move="handleMove"
               @connect="handleConnect"
               @disconnect="handleDisconnect"
+              @place-barrier="handlePlaceBarrier"
             >
               <template #actions>
-                <div
-                  class="tutorial__add-cluster"
-                  :class="{ 'tutorial__add-cluster--attn': wantsAdd }"
-                >
-                  <button type="button" class="tutorial__add-btn" @click="pickerOpen = true">
+                <div class="tutorial__add-cluster">
+                  <button
+                    type="button"
+                    class="tutorial__add-btn"
+                    :class="{ 'tutorial__add-btn--attn': wantsAdd }"
+                    @click="pickerOpen = true"
+                  >
                     <svg
                       width="14"
                       height="14"
@@ -357,6 +513,34 @@ onUnmounted(() => {
                       <line x1="5" y1="12" x2="19" y2="12" />
                     </svg>
                     Add node
+                  </button>
+                  <button
+                    type="button"
+                    class="tutorial__add-btn"
+                    :class="{
+                      'tutorial__add-btn--attn': wantsBarrier,
+                      'tutorial__add-btn--armed': barrierPlacement,
+                    }"
+                    :disabled="!hasConnection"
+                    :title="!hasConnection ? 'Connect two nodes first, then drop a gate on the arrow' : ''"
+                    @click="toggleBarrierPlacement"
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <line x1="12" y1="3" x2="12" y2="21" />
+                      <line x1="7" y1="6" x2="17" y2="6" />
+                      <line x1="7" y1="18" x2="17" y2="18" />
+                    </svg>
+                    {{ barrierPlacement ? 'Pick an arrow' : 'Add barrier' }}
                   </button>
                 </div>
               </template>
@@ -478,6 +662,91 @@ onUnmounted(() => {
                   <p v-else class="tutorial__note">Add a map to the canvas to try this.</p>
                 </div>
 
+                <template v-if="currentStep.id === 'barrier'">
+                  <ul class="tutorial__checklist">
+                    <li :class="{ 'tutorial__check--on': thirdMapConnected }">
+                      <span class="tutorial__check-box" aria-hidden="true">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      </span>
+                      One more map, connected in
+                    </li>
+                    <li :class="{ 'tutorial__check--on': barriers.length >= 1 }">
+                      <span class="tutorial__check-box" aria-hidden="true">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      </span>
+                      A gate on the new arrow
+                    </li>
+                    <li :class="{ 'tutorial__check--on': barrierTouched }">
+                      <span class="tutorial__check-box" aria-hidden="true">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      </span>
+                      A requirement set
+                    </li>
+                    <li :class="{ 'tutorial__check--on': watchesMapsBefore }">
+                      <span class="tutorial__check-box" aria-hidden="true">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      </span>
+                      It watches the maps before it
+                    </li>
+                  </ul>
+
+                  <p v-if="!hasConnection" class="tutorial__note">
+                    You need two connected maps first. Go back a few steps, or add and connect them
+                    right here.
+                  </p>
+
+                  <div v-if="firstBarrier" class="tutorial__control">
+                    <label class="tutorial__field">
+                      <span>Requirement: average acc (%)</span>
+                      <div class="tutorial__slider-row">
+                        <input
+                          v-model.number="barrierPct"
+                          type="range"
+                          min="70"
+                          max="100"
+                          step="0.5"
+                          @change="commitBarrierValue"
+                        />
+                        <input
+                          v-model.number="barrierPct"
+                          type="number"
+                          min="70"
+                          max="100"
+                          step="0.5"
+                          @change="commitBarrierValue"
+                        />
+                      </div>
+                    </label>
+                    <div class="tutorial__field tutorial__field--gap">
+                      <span>Maps the gate watches</span>
+                      <div class="tutorial__watch-row">
+                        <button
+                          v-for="n in nodesBeforeGate"
+                          :key="n.id"
+                          type="button"
+                          class="tutorial__watch-chip"
+                          :class="{
+                            'tutorial__watch-chip--active':
+                              firstBarrier.affectedCampaignDifficultyIds.includes(n.id),
+                          }"
+                          :aria-pressed="firstBarrier.affectedCampaignDifficultyIds.includes(n.id)"
+                          @click="toggleWatched(n.id)"
+                        >
+                          {{ n.songName }}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+
                 <ul v-if="currentStep.id === 'finish'" class="tutorial__trays">
                   <li v-for="t in finishTrays" :key="t.icon">
                     <span class="tutorial__tray-icon" aria-hidden="true">
@@ -504,9 +773,14 @@ onUnmounted(() => {
                   In the editor this is the node's Rewards tray on the left rail. You can also
                   attach inventory items there if you want. XP is enough for now.
                 </p>
+                <p v-if="currentStep.id === 'barrier'" class="tutorial__note">
+                  The gate opens once the maps it watches average the target accuracy, so it only
+                  ever watches maps before it. In the editor this lives in the gate's Condition and
+                  Affected trays on the left rail, with more condition types to pick from.
+                </p>
                 <p v-if="currentStep.id === 'finish'" class="tutorial__note">
                   Your campaign saves as a draft while you build. When you feel at home, look for
-                  barriers, text labels, milestones, and collaborators.
+                  text labels, milestones, and node shapes.
                 </p>
               </div>
             </Transition>
@@ -676,11 +950,6 @@ onUnmounted(() => {
   border: 1px solid var(--bg-overlay);
   border-radius: 4px;
   pointer-events: auto;
-  transition: border-color 120ms ease;
-}
-
-.tutorial__add-cluster--attn {
-  border-color: var(--tutorial-accent);
 }
 
 .tutorial__add-btn {
@@ -698,11 +967,32 @@ onUnmounted(() => {
   border: none;
   border-radius: 2px;
   cursor: pointer;
-  transition: background 120ms ease;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
 }
 
 .tutorial__add-btn:hover {
   background: var(--bg-elevated);
+}
+
+.tutorial__add-btn:disabled {
+  color: var(--text-tertiary);
+  cursor: not-allowed;
+}
+
+.tutorial__add-btn:disabled:hover {
+  background: transparent;
+}
+
+.tutorial__add-btn--attn {
+  background: color-mix(in srgb, var(--tutorial-accent) 14%, transparent);
+}
+
+.tutorial__add-btn--armed,
+.tutorial__add-btn--armed:hover {
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
 }
 
 .tutorial__mode {
@@ -929,6 +1219,46 @@ onUnmounted(() => {
 }
 
 .tutorial__xp-preset--active {
+  border-color: var(--tutorial-accent);
+  color: var(--tutorial-accent);
+}
+
+.tutorial__field--gap {
+  margin-top: var(--space-md);
+}
+
+.tutorial__watch-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.tutorial__watch-chip {
+  max-width: 100%;
+  padding: 5px 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--bg-overlay);
+  border-radius: var(--radius-btn);
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.tutorial__watch-chip:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.tutorial__watch-chip--active {
   border-color: var(--tutorial-accent);
   color: var(--tutorial-accent);
 }

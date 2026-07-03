@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CampaignVoteControl from '@/components/domain/CampaignVoteControl.vue'
 import { useCategoryStore } from '@/stores/categories'
 import type {
   CampaignProgressSummary,
@@ -141,17 +142,20 @@ const hasCover = computed(() => !!coverUrl.value)
 
       <footer class="campaign-card__foot">
         <span class="campaign-card__status" :data-tone="statusTone">{{ statusLabel }}</span>
-        <span v-if="progress" class="campaign-card__progress">
-          <span class="campaign-card__progress-track" aria-hidden="true">
-            <span class="campaign-card__progress-fill"
-              :style="{ transform: `scaleX(${progressPct / 100})` }" />
+        <span class="campaign-card__foot-right">
+          <CampaignVoteControl :campaign="campaign" size="sm" />
+          <span v-if="progress" class="campaign-card__progress">
+            <span class="campaign-card__progress-track" aria-hidden="true">
+              <span class="campaign-card__progress-fill"
+                :style="{ transform: `scaleX(${progressPct / 100})` }" />
+            </span>
+            <span class="campaign-card__progress-text">
+              {{ progress.completedDifficulties }}/{{ totalNodes }}
+            </span>
           </span>
-          <span class="campaign-card__progress-text">
-            {{ progress.completedDifficulties }}/{{ totalNodes }}
+          <span v-else class="campaign-card__count">
+            {{ totalNodes }} nodes
           </span>
-        </span>
-        <span v-else class="campaign-card__count">
-          {{ totalNodes }} nodes
         </span>
       </footer>
     </div>
@@ -330,6 +334,13 @@ const hasCover = computed(() => !!coverUrl.value)
   gap: var(--space-sm);
   padding-top: var(--space-sm);
   border-top: 1px solid var(--bg-overlay);
+}
+
+.campaign-card__foot-right {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
 }
 
 .campaign-card__status {
