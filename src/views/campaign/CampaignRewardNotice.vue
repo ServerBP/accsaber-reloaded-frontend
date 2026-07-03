@@ -1,9 +1,17 @@
 <script setup lang="ts">
 defineProps<{ curated: boolean }>()
+
+const NOTICE = 'Rewards are only handed out once the campaign is curated.'
 </script>
 
 <template>
-  <p v-if="!curated" class="campaign-reward-notice">
+  <span
+    v-if="!curated"
+    class="campaign-reward-notice"
+    role="img"
+    :aria-label="NOTICE"
+    :title="NOTICE"
+  >
     <svg
       width="14"
       height="14"
@@ -21,28 +29,15 @@ defineProps<{ curated: boolean }>()
       <line x1="12" y1="9" x2="12" y2="13" />
       <line x1="12" y1="17" x2="12" y2="17.01" />
     </svg>
-    <span>Rewards are only handed out once the campaign is curated.</span>
-  </p>
+  </span>
 </template>
 
 <style scoped>
 .campaign-reward-notice {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  margin: 0;
-  padding: 7px 9px;
-  font-family: var(--font-sans);
-  font-size: var(--text-caption);
-  line-height: 1.4;
+  display: inline-flex;
+  align-items: center;
   color: var(--warning);
-  background: color-mix(in srgb, var(--warning) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
-  border-radius: 3px;
-}
-
-.campaign-reward-notice svg {
-  flex-shrink: 0;
-  margin-top: 1px;
+  cursor: help;
+  vertical-align: middle;
 }
 </style>

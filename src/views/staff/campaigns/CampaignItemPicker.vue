@@ -40,15 +40,17 @@ const rarityRank: Record<string, number> = {
   mythic: 5,
 }
 
+const tradeableItems = computed(() =>
+  items.value.filter((i) => i.active && !i.deprecated && i.tradeable),
+)
+
 const filtered = computed(() => {
   const q = debounced.value.trim().toLowerCase()
-  const base = items.value.filter((i) => i.active && !i.deprecated && i.tradeable)
   const matched = q
-    ? base.filter((i) =>
-        i.name.toLowerCase().includes(q)
-        || i.typeKey.toLowerCase().includes(q),
+    ? tradeableItems.value.filter(
+        (i) => i.name.toLowerCase().includes(q) || i.typeKey.toLowerCase().includes(q),
       )
-    : base
+    : tradeableItems.value
   return matched.slice().sort((a, b) => {
     const r = (rarityRank[a.rarity] ?? 0) - (rarityRank[b.rarity] ?? 0)
     if (r !== 0) return r
@@ -137,9 +139,9 @@ function confirm() {
 
         <p v-else-if="paged.length === 0" class="item-picker__empty">
           {{
-            debounced.trim()
-              ? 'No items match that search.'
-              : 'Sorry, no tradeable items are currently active. Come back soon!'
+            tradeableItems.length === 0
+              ? 'Sorry, no tradeable items are currently active. Come back soon!'
+              : 'No items match that search.'
           }}
         </p>
 

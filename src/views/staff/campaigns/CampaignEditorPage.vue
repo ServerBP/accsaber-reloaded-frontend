@@ -9,6 +9,7 @@ import CampaignPresenceActionGlyph from '@/components/domain/CampaignPresenceAct
 import CampaignRoadmap from '@/components/domain/CampaignRoadmap.vue'
 import { formatDifficulty } from '@/utils/mappers'
 import {
+  colorForUser,
   useCampaignPresence,
   type PresenceAction,
   type PresenceKind,
@@ -16,7 +17,7 @@ import {
 } from '@/composables/useCampaignPresence'
 import { useCampaignChat } from '@/composables/useCampaignChat'
 import { pickCoverUrl } from '@/composables/useAvatarFallback'
-import { computed, provide } from 'vue'
+import { computed, provide, ref } from 'vue'
 import CampaignChatPanel from './CampaignChatPanel.vue'
 import CampaignCollaboratorPicker from './CampaignCollaboratorPicker.vue'
 import CampaignItemPicker from './CampaignItemPicker.vue'
@@ -108,6 +109,44 @@ const { peers: presencePeers, sendCursor, sendCursorOff, sendChange, sendTyping,
   })
 setChangeBroadcaster(sendChange)
 
+const selfAction = ref<PresenceAction>('move')
+const selfTyping = ref(false)
+
+const selfPeer = computed<PresencePeer | null>(() => {
+  const id = auth.userId
+  if (!id) return null
+  return {
+    userId: id,
+    name: auth.userProfile?.name ?? 'You',
+    avatarUrl: auth.userProfile?.avatarUrl ?? '',
+    color: colorForUser(id),
+    x: null,
+    y: null,
+    action: selfAction.value,
+    targetId: null,
+    kind: null,
+    tray: null,
+    typing: selfTyping.value,
+    lastSeen: 0,
+    lastCursorAt: 0,
+  }
+})
+
+const displayPeers = computed<PresencePeer[]>(() => {
+  const self = editable.value ? selfPeer.value : null
+  return self ? [self, ...presencePeers.value] : presencePeers.value
+})
+
+function onSelfTyping() {
+  selfTyping.value = true
+  sendTyping()
+}
+
+function onSelfTypingStop() {
+  selfTyping.value = false
+  sendTypingStop()
+}
+
 function onCursorMove(payload: {
   x: number
   y: number
@@ -116,6 +155,7 @@ function onCursorMove(payload: {
   kind: PresenceKind
   tray: string | null
 }) {
+  selfAction.value = payload.action
   sendCursor(payload.x, payload.y, payload.action, payload.targetId, payload.kind, payload.tray)
 }
 
@@ -290,12 +330,12 @@ function peerActivity(p: PresencePeer): string {
         </CampaignRoadmap>
 
         <div
-          v-if="presencePeers.length"
+          v-if="displayPeers.length"
           class="campaign-editor__presence"
           aria-label="Collaborators editing now"
         >
           <span
-            v-for="p in presencePeers.slice(0, 6)"
+            v-for="p in displayPeers.slice(0, 6)"
             :key="p.userId"
             class="campaign-editor__presence-avatar"
             :class="{ 'campaign-editor__presence-avatar--typing': p.typing }"
@@ -321,12 +361,12 @@ function peerActivity(p: PresencePeer): string {
               </svg>
             </span>
             <span class="campaign-editor__presence-tip">
-              <strong>{{ p.name }}</strong>
+              <strong>{{ p.userId === auth.userId ? 'You' : p.name }}</strong>
               <span>{{ peerActivity(p) }}</span>
             </span>
           </span>
-          <span v-if="presencePeers.length > 6" class="campaign-editor__presence-more">
-            +{{ presencePeers.length - 6 }}
+          <span v-if="displayPeers.length > 6" class="campaign-editor__presence-more">
+            +{{ displayPeers.length - 6 }}
           </span>
         </div>
 
@@ -404,8 +444,8 @@ function peerActivity(p: PresencePeer): string {
         <CampaignChatPanel
           v-if="canChat"
           :chat="chat"
-          @typing="sendTyping"
-          @typing-stop="sendTypingStop"
+          @typing="onSelfTyping"
+          @typing-stop="onSelfTypingStop"
         />
       </main>
 
@@ -659,10 +699,10 @@ function peerActivity(p: PresencePeer): string {
 
 .campaign-editor__presence-avatar {
   position: relative;
-  width: 30px;
-  height: 30px;
+  width: 38px;
+  height: 38px;
   margin-left: -8px;
-  border-radius: 6px;
+  border-radius: 7px;
   border: 2px solid var(--peer-color);
   background: var(--bg-elevated);
   display: inline-flex;
@@ -694,33 +734,33 @@ function peerActivity(p: PresencePeer): string {
 
 .campaign-editor__presence-status {
   position: absolute;
-  bottom: -5px;
-  right: -5px;
+  bottom: -6px;
+  right: -6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 15px;
-  height: 15px;
-  padding: 0 3px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
   background: var(--peer-color);
   border: 1.5px solid var(--bg-base);
   border-radius: 999px;
 }
 
 .campaign-editor__presence-glyph {
-  width: 9px;
-  height: 9px;
+  width: 11px;
+  height: 11px;
 }
 
 .campaign-editor__presence-dots {
   display: inline-flex;
   align-items: center;
-  gap: 1.5px;
+  gap: 2px;
 }
 
 .campaign-editor__presence-dots i {
-  width: 2.5px;
-  height: 2.5px;
+  width: 3px;
+  height: 3px;
   border-radius: 50%;
   background: var(--text-primary);
   animation: presence-typing 1.2s ease-in-out infinite;

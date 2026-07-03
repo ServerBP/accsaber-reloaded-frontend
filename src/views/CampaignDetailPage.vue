@@ -584,7 +584,13 @@ function unpinTooltip() {
             </div>
             <div class="campaign-detail__progress-foot">
               <span>{{ completionPct }}% complete</span>
-              <span>+{{ campaign.completionXp.toLocaleString() }} XP on finish</span>
+              <span class="campaign-detail__xp-note">
+                <CampaignRewardNotice
+                  v-if="campaign.completionXp > 0"
+                  :curated="campaign.status === 'CURATED'"
+                />
+                +{{ campaign.completionXp.toLocaleString() }} XP on finish
+              </span>
             </div>
           </section>
 
@@ -608,8 +614,12 @@ function unpinTooltip() {
           </section>
 
           <section v-if="campaign.completionItems.length > 0" class="campaign-detail__rewards-block">
-            <h2 class="campaign-detail__section-label">Completion rewards</h2>
-            <CampaignRewardNotice :curated="campaign.status === 'CURATED'" />
+            <h2 class="campaign-detail__section-label">
+              <span class="campaign-detail__label-notice">
+                Completion rewards
+                <CampaignRewardNotice :curated="campaign.status === 'CURATED'" />
+              </span>
+            </h2>
             <ul class="campaign-detail__rewards-list">
               <li v-for="item in campaign.completionItems" :key="item.itemId" class="campaign-detail__reward">
                 <CampaignRewardItem :name="item.itemName" :quantity="item.quantity"
@@ -725,12 +735,14 @@ function unpinTooltip() {
               class="campaign-detail__node-rewards"
             >
               <h3 class="campaign-detail__section-label">
-                Awards
+                <span class="campaign-detail__label-notice">
+                  Awards
+                  <CampaignRewardNotice :curated="campaign.status === 'CURATED'" />
+                </span>
                 <span v-if="displayedDifficulty.xp > 0" class="campaign-detail__node-xp">
                   +{{ displayedDifficulty.xp.toLocaleString() }} XP
                 </span>
               </h3>
-              <CampaignRewardNotice :curated="campaign.status === 'CURATED'" />
               <ul v-if="displayedDifficulty.items.length > 0" class="campaign-detail__rewards-list">
                 <li v-for="item in displayedDifficulty.items" :key="item.itemId" class="campaign-detail__reward">
                   <CampaignRewardItem :name="item.itemName" :quantity="item.quantity"
@@ -864,12 +876,14 @@ function unpinTooltip() {
               class="campaign-detail__node-rewards"
             >
               <h3 class="campaign-detail__section-label">
-                Awards
+                <span class="campaign-detail__label-notice">
+                  Awards
+                  <CampaignRewardNotice :curated="campaign.status === 'CURATED'" />
+                </span>
                 <span v-if="displayedBarrier.xp > 0" class="campaign-detail__node-xp">
                   +{{ displayedBarrier.xp.toLocaleString() }} XP
                 </span>
               </h3>
-              <CampaignRewardNotice :curated="campaign.status === 'CURATED'" />
               <ul v-if="displayedBarrier.items.length > 0" class="campaign-detail__rewards-list">
                 <li
                   v-for="item in displayedBarrier.items"
@@ -1308,6 +1322,13 @@ function unpinTooltip() {
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--text-tertiary);
+}
+
+.campaign-detail__label-notice,
+.campaign-detail__xp-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
 
 .campaign-detail__brief-text {
