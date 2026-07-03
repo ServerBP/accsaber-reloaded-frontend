@@ -166,9 +166,6 @@ const backgroundSwatch = computed(() => {
         >
           {{ statusLabel[campaign.status] }}
         </span>
-        <span v-if="campaign.seekingCuration" class="campaign-editor__status-flag">
-          Seeking review
-        </span>
       </div>
       <p
         v-if="!isAdminRoute && isCreator && creatorStatusMeaning"
@@ -1686,15 +1683,6 @@ const backgroundSwatch = computed(() => {
 .campaign-editor__status-pill--curated {
   color: var(--success);
   border-color: color-mix(in srgb, var(--success) 50%, transparent);
-}
-
-.campaign-editor__status-flag {
-  font-family: var(--font-sans);
-  font-size: 0.625rem;
-  font-weight: 600;
-  color: var(--page-accent);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 .campaign-editor__status-meaning {

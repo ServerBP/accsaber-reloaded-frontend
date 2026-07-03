@@ -19,18 +19,24 @@ export function messageTimeMillis(createdAt: unknown): number {
   return 0
 }
 
-function orderMessages(
-  a: CampaignChatMessageResponse,
-  b: CampaignChatMessageResponse,
-): number {
-  const ta = messageTimeMillis(a.createdAt)
-  const tb = messageTimeMillis(b.createdAt)
-  if (ta !== tb) return ta - tb
-  return a.id.localeCompare(b.id)
-}
-
 export function useCampaignChat(campaignId: Ref<string | null | undefined>) {
   const byId = ref(new Map<string, CampaignChatMessageResponse>())
+  let seqById = new Map<string, number>()
+  let headSeq = 0
+  let tailSeq = 0
+
+  function assignSeq(id: string, direction: 'append' | 'prepend') {
+    if (seqById.has(id)) return
+    seqById.set(id, direction === 'append' ? ++tailSeq : --headSeq)
+  }
+
+  function orderMessages(
+    a: CampaignChatMessageResponse,
+    b: CampaignChatMessageResponse,
+  ): number {
+    return (seqById.get(a.id) ?? 0) - (seqById.get(b.id) ?? 0)
+  }
+
   const messages = computed(() => [...byId.value.values()].sort(orderMessages))
 
   const loading = ref(false)
@@ -45,6 +51,7 @@ export function useCampaignChat(campaignId: Ref<string | null | undefined>) {
 
   function addMessage(message: CampaignChatMessageResponse, overwrite = false) {
     if (!overwrite && byId.value.has(message.id)) return
+    assignSeq(message.id, 'append')
     const next = new Map(byId.value)
     next.set(message.id, message)
     byId.value = next
@@ -53,12 +60,19 @@ export function useCampaignChat(campaignId: Ref<string | null | undefined>) {
   function addMany(list: CampaignChatMessageResponse[]) {
     if (list.length === 0) return
     const next = new Map(byId.value)
-    for (const m of list) if (!next.has(m.id)) next.set(m.id, m)
+    for (const m of list) {
+      if (next.has(m.id)) continue
+      assignSeq(m.id, 'prepend')
+      next.set(m.id, m)
+    }
     byId.value = next
   }
 
   function reset() {
     byId.value = new Map()
+    seqById = new Map()
+    headSeq = 0
+    tailSeq = 0
     loaded.value = false
     hasMore.value = false
     error.value = null

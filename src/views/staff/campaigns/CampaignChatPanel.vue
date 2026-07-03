@@ -197,6 +197,8 @@ watch(
           Loading messages…
         </div>
 
+        <div v-if="messages.length > 0" class="campaign-chat__spacer" aria-hidden="true" />
+
         <div v-if="chat.loadingMore.value" class="campaign-chat__loading-more" aria-live="polite">
           <span class="campaign-chat__spinner" aria-hidden="true" />
           Loading earlier messages…
@@ -435,6 +437,10 @@ watch(
 .campaign-chat__log::-webkit-scrollbar-thumb {
   background: var(--bg-overlay);
   border-radius: 3px;
+}
+
+.campaign-chat__spacer {
+  flex: 1 0 0;
 }
 
 .campaign-chat__state {

@@ -141,7 +141,8 @@ const hasCover = computed(() => !!coverUrl.value)
       </div>
 
       <footer class="campaign-card__foot">
-        <span class="campaign-card__status" :data-tone="statusTone">{{ statusLabel }}</span>
+        <span v-if="statusLabel === 'Curated'" class="campaign-card__curated">Curated</span>
+        <span v-else class="campaign-card__status" :data-tone="statusTone">{{ statusLabel }}</span>
         <span class="campaign-card__foot-right">
           <CampaignVoteControl :campaign="campaign" size="sm" />
           <span v-if="progress" class="campaign-card__progress">
@@ -354,6 +355,20 @@ const hasCover = computed(() => !!coverUrl.value)
 
 .campaign-card__status[data-tone="success"] { color: var(--success); }
 .campaign-card__status[data-tone="accent"] { color: var(--card-accent); }
+
+.campaign-card__curated {
+  display: inline-flex;
+  padding: 2px 6px;
+  font-family: var(--font-sans);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--success) 45%, transparent);
+  border-radius: 2px;
+}
 
 .campaign-card__progress {
   display: inline-flex;

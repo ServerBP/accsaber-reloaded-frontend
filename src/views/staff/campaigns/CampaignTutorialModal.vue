@@ -987,6 +987,7 @@ onUnmounted(() => {
 
 .tutorial__add-btn--attn {
   background: color-mix(in srgb, var(--tutorial-accent) 14%, transparent);
+  animation: tutorial-attn-pulse 1.6s ease-in-out infinite;
 }
 
 .tutorial__add-btn--armed,
@@ -1042,6 +1043,18 @@ onUnmounted(() => {
 
 .tutorial__mode-btn--attn {
   color: var(--tutorial-accent);
+  background: color-mix(in srgb, var(--tutorial-accent) 14%, transparent);
+  animation: tutorial-attn-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes tutorial-attn-pulse {
+  0%,
+  100% {
+    background-color: color-mix(in srgb, var(--tutorial-accent) 10%, transparent);
+  }
+  50% {
+    background-color: color-mix(in srgb, var(--tutorial-accent) 28%, transparent);
+  }
 }
 
 .tutorial__sandbox-tag {
@@ -1461,7 +1474,9 @@ onUnmounted(() => {
 @media (prefers-reduced-motion: reduce) {
   .tutorial-backdrop,
   .tutorial,
-  .tutorial__done-check polyline {
+  .tutorial__done-check polyline,
+  .tutorial__add-btn--attn,
+  .tutorial__mode-btn--attn {
     animation: none;
   }
 

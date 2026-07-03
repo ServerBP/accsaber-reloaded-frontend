@@ -1001,7 +1001,7 @@ export function useCampaignEditor() {
     const b = barrierById.value.get(id)
     if (b) return b.checkpointLabel || 'gate'
     const d = campaign.value?.difficulties.find((x) => x.id === id)
-    return d?.checkpointLabel || d?.songName || 'node'
+    return d?.songName || 'node'
   }
 
   function vertexPrereqs(id: string): string[] | null {
@@ -1216,7 +1216,7 @@ export function useCampaignEditor() {
         activeTray.value = 'bulk'
       }
       showMapPicker.value = false
-      await load()
+      await load(true)
     } catch (err) {
       actionError.value = getApiErrorMessage(err, 'Failed to add nodes')
     } finally {
@@ -1237,7 +1237,7 @@ export function useCampaignEditor() {
         await deletePlayerCampaignDifficulty(campaign.value.id, d.id)
       }
       clearSelection()
-      await load()
+      await load(true)
     } catch (err) {
       actionError.value = getApiErrorMessage(err, 'Failed to remove node')
     } finally {
@@ -1617,7 +1617,7 @@ export function useCampaignEditor() {
         }
       }
       clearSelection()
-      await load()
+      await load(true)
     } catch (err) {
       actionError.value = getApiErrorMessage(err, 'Failed to remove nodes')
     } finally {
@@ -1704,7 +1704,7 @@ export function useCampaignEditor() {
           : updatePlayerCampaignDifficulty(payload.toId, rewire))
       }
       barrierPlacementMode.value = false
-      await load()
+      await load(true)
       selectOnly(created.id)
       activeTray.value = 'barrierCondition'
     } catch (err) {
@@ -1860,7 +1860,7 @@ export function useCampaignEditor() {
         await deletePlayerCampaignBarrier(campaign.value.id, b.id)
       }
       clearSelection()
-      await load()
+      await load(true)
     } catch (err) {
       actionError.value = getApiErrorMessage(err, 'Failed to remove barrier')
     } finally {
@@ -2062,7 +2062,7 @@ export function useCampaignEditor() {
         await deletePlayerCampaignText(campaign.value.id, t.id)
       }
       clearSelection()
-      await load()
+      await load(true)
     } catch (err) {
       actionError.value = getApiErrorMessage(err, 'Failed to remove text')
     } finally {
@@ -2188,6 +2188,10 @@ export function useCampaignEditor() {
   function toggleTray(id: TrayId) {
     activeTray.value = activeTray.value === id ? null : id
   }
+
+  watch(activeTray, (tray) => {
+    if (tray === 'collaborators') void loadCollaborators()
+  })
 
   function closeTray() {
     activeTray.value = null

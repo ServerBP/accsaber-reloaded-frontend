@@ -1305,11 +1305,28 @@ onUnmounted(() => {
   resizeObserver?.disconnect()
 })
 
+let knownVertexIds = new Set<string>()
+
 watch(
-  () => `${props.difficulties.length}:${props.barriers.length}:${props.texts.length}`,
-  () => {
-    initialPosition()
+  () => [props.difficulties, props.barriers, props.texts] as const,
+  ([diffs, barrs, txts]) => {
+    const nextIds = new Set<string>()
+    for (const d of diffs) nextIds.add(d.id)
+    for (const b of barrs) nextIds.add(b.id)
+    for (const t of txts) nextIds.add(t.id)
+    const hadContent = knownVertexIds.size > 0
+    let overlaps = false
+    for (const id of nextIds) {
+      if (knownVertexIds.has(id)) {
+        overlaps = true
+        break
+      }
+    }
+    knownVertexIds = nextIds
+    if (nextIds.size === 0) return
+    if (!hadContent || !overlaps) initialPosition()
   },
+  { immediate: true },
 )
 
 watch(
@@ -1471,7 +1488,7 @@ const arrowDecorations = computed(() =>
               :x2="e.toX"
               :y2="e.toY"
               stroke="transparent"
-              :stroke-width="Math.max(unit * 0.3, 14)"
+              :stroke-width="barrierPlacement ? Math.max(unit * 0.9, 40) : Math.max(unit * 0.3, 14)"
               @click.stop="onEdgeClick(e)"
             />
             <line

@@ -501,10 +501,13 @@ function unpinTooltip() {
             </div>
             <h1 class="campaign-detail__title">{{ campaign.name }}</h1>
             <p class="campaign-detail__creator">
-              {{ campaign.status === 'CURATED' ? 'curated by' : 'created by' }}
+              created by
               <span class="campaign-detail__creator-name">
                 {{ campaign.creatorAlias || campaign.creatorName || 'AccSaber' }}
               </span>
+            </p>
+            <p v-if="campaign.status === 'CURATED'" class="campaign-detail__curated-row">
+              <span class="campaign-detail__curated">Curated</span>
             </p>
             <p class="campaign-detail__mode">
               <span>{{ campaign.completionMode === 'ALL' ? 'Clear every node' : 'Reach the end' }}</span>
@@ -728,7 +731,7 @@ function unpinTooltip() {
                       <polyline points="20 6 9 17 4 12" />
                     </svg>
                   </span>
-                  {{ pr.checkpointLabel || pr.songName }}
+                  {{ pr.songName }}
                 </li>
               </ul>
             </div>
@@ -1137,6 +1140,24 @@ function unpinTooltip() {
 .campaign-detail__creator-name {
   color: var(--text-secondary);
   font-weight: 500;
+}
+
+.campaign-detail__curated-row {
+  margin: 6px 0 0;
+}
+
+.campaign-detail__curated {
+  display: inline-flex;
+  padding: 2px 6px;
+  font-family: var(--font-sans);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--success) 45%, transparent);
+  border-radius: 2px;
 }
 
 .campaign-detail__mode {

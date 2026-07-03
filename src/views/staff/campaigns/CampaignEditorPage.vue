@@ -703,6 +703,7 @@ function peerActivity(p: PresencePeer): string {
   right: var(--space-md);
   display: flex;
   align-items: center;
+  gap: 6px;
   z-index: 4;
   pointer-events: none;
 }
@@ -711,7 +712,6 @@ function peerActivity(p: PresencePeer): string {
   position: relative;
   width: 38px;
   height: 38px;
-  margin-left: -8px;
   border-radius: 7px;
   border: 2px solid var(--peer-color);
   background: var(--bg-elevated);
@@ -725,10 +725,6 @@ function peerActivity(p: PresencePeer): string {
 .campaign-editor__presence-avatar:hover {
   transform: translateY(2px) scale(1.08);
   z-index: 5;
-}
-
-.campaign-editor__presence-avatar:first-child {
-  margin-left: 0;
 }
 
 .campaign-editor__presence-avatar img {
