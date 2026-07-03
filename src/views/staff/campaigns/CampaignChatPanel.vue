@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onAvatarError, pickAvatarFallback, pickAvatarUrl } from '@/composables/useAvatarFallback'
 import { colorForUser } from '@/composables/useCampaignPresence'
-import type { UseCampaignChatReturn } from '@/composables/useCampaignChat'
+import { messageTimeMillis, type UseCampaignChatReturn } from '@/composables/useCampaignChat'
 import { useAuthStore } from '@/stores/auth'
 import type { CampaignChatMessageResponse } from '@/types/api/campaigns'
 import { formatRelativeDate } from '@/utils/formatters'
@@ -9,33 +9,50 @@ import { computed, nextTick, ref, watch } from 'vue'
 
 const props = defineProps<{ chat: UseCampaignChatReturn }>()
 
+const emit = defineEmits<{ typing: []; 'typing-stop': [] }>()
+
 const auth = useAuthStore()
 
 const open = ref(false)
 const draft = ref('')
-const seenKey = ref('')
+const seenIds = ref(new Set<string>())
 const scroller = ref<HTMLDivElement | null>(null)
 
 const messages = computed(() => props.chat.messages.value)
 
-function keyOf(m: CampaignChatMessageResponse): string {
-  return `${m.createdAt}|${m.id}`
-}
-
 const unread = computed(() => {
   if (open.value) return 0
   let n = 0
-  for (const m of messages.value) if (keyOf(m) > seenKey.value) n += 1
+  for (const m of messages.value) if (!seenIds.value.has(m.id)) n += 1
   return n
 })
 
 function markSeen() {
   const list = messages.value
-  seenKey.value = list.length ? keyOf(list[list.length - 1]) : ''
+  if (list.length === 0) return
+  const next = new Set(seenIds.value)
+  let changed = false
+  for (const m of list) {
+    if (!next.has(m.id)) {
+      next.add(m.id)
+      changed = true
+    }
+  }
+  if (changed) seenIds.value = next
 }
 
 function isSelf(m: CampaignChatMessageResponse): boolean {
   return !!auth.userId && String(m.authorId) === String(auth.userId)
+}
+
+function displayTime(m: CampaignChatMessageResponse): string {
+  const ms = messageTimeMillis(m.createdAt)
+  return ms ? formatRelativeDate(new Date(ms).toISOString()) : 'just now'
+}
+
+function isoTime(m: CampaignChatMessageResponse): string {
+  const ms = messageTimeMillis(m.createdAt)
+  return ms ? new Date(ms).toISOString() : ''
 }
 
 function authorColor(m: CampaignChatMessageResponse): string {
@@ -94,6 +111,7 @@ async function onSend() {
   const ok = await props.chat.send(draft.value)
   if (!ok) return
   draft.value = ''
+  emit('typing-stop')
   await nextTick()
   scrollToBottom()
   markSeen()
@@ -211,8 +229,8 @@ watch(
           <div class="campaign-chat__bubble">
             <div class="campaign-chat__meta">
               <span class="campaign-chat__author">{{ m.authorName }}</span>
-              <time class="campaign-chat__time" :datetime="m.createdAt">
-                {{ formatRelativeDate(m.createdAt) }}
+              <time class="campaign-chat__time" :datetime="isoTime(m)">
+                {{ displayTime(m) }}
               </time>
             </div>
             <p class="campaign-chat__text">{{ m.content }}</p>
@@ -235,6 +253,9 @@ watch(
             placeholder="Message your collaborators"
             aria-label="Message"
             :aria-invalid="!!chat.contentError.value"
+            @focus="emit('typing')"
+            @input="emit('typing')"
+            @blur="emit('typing-stop')"
             @keydown.enter.exact.prevent="onSend"
           />
           <button
@@ -461,18 +482,16 @@ watch(
 }
 
 .campaign-chat__msg {
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
+  display: flex;
   gap: var(--space-sm);
-  align-items: start;
+  align-items: flex-start;
+  align-self: flex-start;
+  max-width: 85%;
 }
 
 .campaign-chat__msg--self {
-  grid-template-columns: minmax(0, 1fr) 28px;
-}
-
-.campaign-chat__msg--self .campaign-chat__avatar {
-  order: 2;
+  flex-direction: row-reverse;
+  align-self: flex-end;
 }
 
 .campaign-chat__avatar {

@@ -61,6 +61,7 @@ export interface CampaignDifficultyResponse {
   songAuthor: string
   mapAuthor: string
   coverUrl: string
+  cdnCoverUrl: string | null
   difficulty: string
   characteristic: string
   requirementType: CampaignRequirementType

@@ -81,7 +81,8 @@ const {
   requirementEquivalents,
   requirementValueDisplay,
   commitNodeField,
-  commitAvatarUrl,
+  uploadCheckpointAvatar,
+  removeCheckpointAvatar,
   isMilestone,
   setMilestone,
   defaultColorHex,
@@ -728,15 +729,17 @@ const backgroundSwatch = computed(() => {
           @select="selectNodeLabelPosition"
         />
       </div>
-      <label class="campaign-editor__field">
-        <span>Avatar URL <small>(optional)</small></span>
-        <input
-          v-model="formNode.checkpointAvatarUrl"
-          type="url"
-          placeholder="https://..."
-          @blur="commitAvatarUrl"
+      <div class="campaign-editor__avatar-upload">
+        <ImageUploader
+          label="Avatar"
+          hint="Square, optional"
+          aspect-ratio="1 / 1"
+          :image-url="selectedDifficulty?.checkpointAvatarUrl || null"
+          :disabled="!editable"
+          :upload-handler="uploadCheckpointAvatar"
+          :remove-handler="removeCheckpointAvatar"
         />
-      </label>
+      </div>
       <div class="campaign-editor__field-row">
         <label class="campaign-editor__field">
           <span>Band color</span>
@@ -1718,6 +1721,10 @@ const backgroundSwatch = computed(() => {
   font-size: var(--text-caption);
   color: var(--warning);
   line-height: 1.4;
+}
+
+.campaign-editor__avatar-upload {
+  max-width: 180px;
 }
 
 .campaign-editor__image-row {

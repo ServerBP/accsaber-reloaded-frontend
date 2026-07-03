@@ -33,6 +33,7 @@ import { useCampaignLifecycle } from './useCampaignLifecycle'
 import { useCampaignRewards } from './useCampaignRewards'
 import { ApiError, getApiErrorMessage, parseApiError } from '@/api/client'
 import type { Crumb } from '@/components/common/Breadcrumbs.vue'
+import { useCampaignDifficultyMeta } from '@/composables/useCampaignDifficultyMeta'
 import { useItemCatalog } from '@/composables/useItemCatalog'
 import { getCurve } from '@/api/curves'
 import { useAuthStore } from '@/stores/auth'
@@ -55,7 +56,6 @@ import type {
   CampaignTextResponse,
 } from '@/types/api/campaigns'
 import type { CurveResponse } from '@/types/api/categories'
-import type { PublicMapDifficultyResponse } from '@/types/api/maps'
 import type { BarrierConditionType, CampaignRequirementType } from '@/types/enums'
 import { barrierConditionMeta } from '@/utils/campaignLayout'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -95,12 +95,11 @@ export function useCampaignEditor() {
 
   const campaign = ref<CampaignDetailResponse | null>(null)
   const allTags = ref<CampaignTagResponse[]>([])
-  const difficultyMeta = ref(new Map<string, PublicMapDifficultyResponse>())
+  const { difficultyMeta, loadDifficultyMeta } = useCampaignDifficultyMeta()
   const loading = ref(true)
   const error = ref<string | null>(null)
   const actionPending = ref(false)
   const actionError = ref<string | null>(null)
-  const actionNotice = ref<string | null>(null)
   const fieldErrors = ref<Record<string, string>>({})
 
   function clearFieldErrors(keys: string[]) {
@@ -161,6 +160,35 @@ export function useCampaignEditor() {
   function clearSelection() {
     selectedIds.value = new Set()
   }
+
+  const SELECTION_STORAGE_PREFIX = 'campaign-editor:selection:'
+
+  function persistSelection() {
+    const id = campaign.value?.id
+    if (!id || selectedIds.value.size === 0) return
+    try {
+      localStorage.setItem(SELECTION_STORAGE_PREFIX + id, JSON.stringify([...selectedIds.value]))
+    } catch {}
+  }
+
+  function restoreSelection(c: CampaignDetailResponse): string[] {
+    try {
+      const raw = localStorage.getItem(SELECTION_STORAGE_PREFIX + c.id)
+      if (!raw) return []
+      const parsed: unknown = JSON.parse(raw)
+      if (!Array.isArray(parsed)) return []
+      const existing = new Set<string>([
+        ...c.difficulties.map((d) => d.id),
+        ...c.barriers.map((b) => b.id),
+        ...c.texts.map((t) => t.id),
+      ])
+      return parsed.filter((x): x is string => typeof x === 'string' && existing.has(x))
+    } catch {
+      return []
+    }
+  }
+
+  watch(selectedIds, persistSelection)
 
   const campaignId = computed(() => String(route.params.campaignId ?? ''))
 
@@ -259,8 +287,10 @@ export function useCampaignEditor() {
       if (allTags.value.length === 0) {
         allTags.value = await getCampaignTags()
       }
-      if (selectedIds.value.size === 0 && c.difficulties.length > 0) {
-        selectOnly(c.difficulties[0].id)
+      if (selectedIds.value.size === 0) {
+        const restored = restoreSelection(c)
+        if (restored.length > 0) setSelection(restored)
+        else if (c.difficulties.length > 0) selectOnly(c.difficulties[0].id)
       }
       void loadDifficultyMeta(c.difficulties)
     } catch (err) {
@@ -270,21 +300,6 @@ export function useCampaignEditor() {
     } finally {
       if (!silent) loading.value = false
     }
-  }
-
-  async function loadDifficultyMeta(difficulties: CampaignDifficultyResponse[]) {
-    if (difficulties.length === 0) return
-    const { getDifficulty } = await import('@/api/maps')
-    const next = new Map(difficultyMeta.value)
-    await Promise.all(
-      difficulties.map(async (d) => {
-        if (next.has(d.id)) return
-        try {
-          next.set(d.id, await getDifficulty(d.mapDifficultyId))
-        } catch {}
-      }),
-    )
-    difficultyMeta.value = next
   }
 
   let changeBroadcaster: (() => void) | null = null
@@ -775,12 +790,7 @@ export function useCampaignEditor() {
       const updated = useAdminEndpoint.value
         ? await updateCampaignDifficulty(id, patch)
         : await updatePlayerCampaignDifficulty(id, patch)
-      if (campaign.value) {
-        campaign.value = {
-          ...campaign.value,
-          difficulties: campaign.value.difficulties.map((d) => (d.id === id ? updated : d)),
-        }
-      }
+      mergeDifficulty(updated)
     } catch (err) {
       actionError.value = getApiErrorMessage(err, 'Failed to update node')
     }
@@ -900,29 +910,26 @@ export function useCampaignEditor() {
     void applyNodePatch(d.id, { [field]: send } as UpdateCampaignDifficultyRequest)
   }
 
-  function commitAvatarUrl() {
+  function mergeDifficulty(updated: CampaignDifficultyResponse) {
+    if (!campaign.value) return
+    campaign.value = {
+      ...campaign.value,
+      difficulties: campaign.value.difficulties.map((x) => (x.id === updated.id ? updated : x)),
+    }
+  }
+
+  async function uploadCheckpointAvatar(file: File) {
     const d = selectedDifficulty.value
     if (!editable.value || !d) return
-    const url = formNode.value.checkpointAvatarUrl.trim()
-    formNode.value.checkpointAvatarUrl = url
-    if (!url || url === (d.checkpointAvatarUrl ?? '')) {
-      commitNodeField('checkpointAvatarUrl')
-      return
-    }
-    const probe = new Image()
-    probe.onload = () => {
-      if (formNode.value.checkpointAvatarUrl !== url) return
-      commitNodeField('checkpointAvatarUrl')
-    }
-    probe.onerror = () => {
-      if (formNode.value.checkpointAvatarUrl !== url) return
-      const fallback = selectedMeta.value?.cdnCoverUrl || selectedMeta.value?.coverUrl || d.coverUrl
-      formNode.value.checkpointAvatarUrl = fallback
-      actionNotice.value =
-        "That avatar image couldn't load, so the map's cover is being used instead."
-      void applyNodePatch(d.id, { checkpointAvatarUrl: fallback })
-    }
-    probe.src = url
+    const { uploadCampaignCheckpointAvatar } = await import('@/api/cdn')
+    mergeDifficulty(await uploadCampaignCheckpointAvatar(d.id, file, useAdminEndpoint.value))
+  }
+
+  async function removeCheckpointAvatar() {
+    const d = selectedDifficulty.value
+    if (!editable.value || !d) return
+    const { deleteCampaignCheckpointAvatar } = await import('@/api/cdn')
+    mergeDifficulty(await deleteCampaignCheckpointAvatar(d.id, useAdminEndpoint.value))
   }
 
   function toggleTag(tagId: string) {
@@ -2215,7 +2222,6 @@ export function useCampaignEditor() {
     error,
     actionPending,
     actionError,
-    actionNotice,
     showMapPicker,
     selectedId,
     selectedIdList,
@@ -2254,7 +2260,8 @@ export function useCampaignEditor() {
     commitBackgroundColor,
     resetBackgroundColor,
     commitNodeField,
-    commitAvatarUrl,
+    uploadCheckpointAvatar,
+    removeCheckpointAvatar,
     toggleTag,
     doPlayerPublish,
     performPublish,

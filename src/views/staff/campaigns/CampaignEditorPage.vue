@@ -5,6 +5,7 @@ import BaseModal from '@/components/common/BaseModal.vue'
 import Breadcrumbs from '@/components/common/Breadcrumbs.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
+import CampaignPresenceActionGlyph from '@/components/domain/CampaignPresenceActionGlyph.vue'
 import CampaignRoadmap from '@/components/domain/CampaignRoadmap.vue'
 import { formatDifficulty } from '@/utils/mappers'
 import {
@@ -14,6 +15,7 @@ import {
   type PresencePeer,
 } from '@/composables/useCampaignPresence'
 import { useCampaignChat } from '@/composables/useCampaignChat'
+import { pickCoverUrl } from '@/composables/useAvatarFallback'
 import { computed, provide } from 'vue'
 import CampaignChatPanel from './CampaignChatPanel.vue'
 import CampaignCollaboratorPicker from './CampaignCollaboratorPicker.vue'
@@ -34,7 +36,6 @@ const {
   error,
   actionPending,
   actionError,
-  actionNotice,
   showMapPicker,
   selectedId,
   selectedIdList,
@@ -92,20 +93,19 @@ const {
   setChangeBroadcaster,
 } = editor
 
+const selectedCover = computed(() => pickCoverUrl(selectedDifficulty.value))
+
 const campaignIdRef = computed(() => campaign.value?.id ?? null)
 
 const chat = useCampaignChat(campaignIdRef)
 
 const canChat = computed(() => (isCreator.value || isCollaborator.value) && !isUnsavedDraft.value)
 
-const { peers: presencePeers, sendCursor, sendCursorOff, sendChange } = useCampaignPresence(
-  campaignIdRef,
-  editable,
-  {
+const { peers: presencePeers, sendCursor, sendCursorOff, sendChange, sendTyping, sendTypingStop } =
+  useCampaignPresence(campaignIdRef, editable, {
     onRemoteChange: () => void reloadFromRemote(),
     onChat: (message) => chat.ingest(message),
-  },
-)
+  })
 setChangeBroadcaster(sendChange)
 
 function onCursorMove(payload: {
@@ -139,6 +139,7 @@ const TRAY_ACTIVITY: Record<string, string> = {
 }
 
 function peerActivity(p: PresencePeer): string {
+  if (p.typing) return 'Typing in chat…'
   if (p.action === 'connect') return 'Connecting nodes'
   if (p.action === 'place') return 'Building a barrier'
   if (p.action === 'drag') {
@@ -297,10 +298,28 @@ function peerActivity(p: PresencePeer): string {
             v-for="p in presencePeers.slice(0, 6)"
             :key="p.userId"
             class="campaign-editor__presence-avatar"
+            :class="{ 'campaign-editor__presence-avatar--typing': p.typing }"
             :style="{ '--peer-color': p.color }"
           >
             <img v-if="p.avatarUrl" :src="p.avatarUrl" :alt="p.name" />
             <span v-else class="campaign-editor__presence-initial">{{ p.name.charAt(0) }}</span>
+            <span class="campaign-editor__presence-status" aria-hidden="true">
+              <span v-if="p.typing" class="campaign-editor__presence-dots">
+                <i></i><i></i><i></i>
+              </span>
+              <svg
+                v-else
+                class="campaign-editor__presence-glyph"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="var(--text-primary)"
+                stroke-width="2.4"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <CampaignPresenceActionGlyph :action="p.action" />
+              </svg>
+            </span>
             <span class="campaign-editor__presence-tip">
               <strong>{{ p.name }}</strong>
               <span>{{ peerActivity(p) }}</span>
@@ -340,35 +359,6 @@ function peerActivity(p: PresencePeer): string {
                 </svg>
               </template>
               <span class="campaign-editor__banner-text">{{ actionError }}</span>
-            </BaseBanner>
-          </Transition>
-
-          <Transition name="campaign-editor__banner">
-            <BaseBanner
-              v-if="actionNotice"
-              class="campaign-editor__banner"
-              variant="warning"
-              role="status"
-              @close="actionNotice = null"
-            >
-              <template #icon>
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
-                  <circle cx="12" cy="12" r="10" />
-                  <line x1="12" y1="16" x2="12" y2="12" />
-                  <line x1="12" y1="8" x2="12" y2="8.01" />
-                </svg>
-              </template>
-              <span class="campaign-editor__banner-text">{{ actionNotice }}</span>
             </BaseBanner>
           </Transition>
         </div>
@@ -411,7 +401,12 @@ function peerActivity(p: PresencePeer): string {
           </button>
         </div>
 
-        <CampaignChatPanel v-if="canChat" :chat="chat" />
+        <CampaignChatPanel
+          v-if="canChat"
+          :chat="chat"
+          @typing="sendTyping"
+          @typing-stop="sendTypingStop"
+        />
       </main>
 
       <CampaignTrayRail />
@@ -446,8 +441,8 @@ function peerActivity(p: PresencePeer): string {
           <div v-if="activeTrayIsNode && selectedDifficulty" class="campaign-editor__node-song">
             <div class="campaign-editor__node-cover">
               <img
-                v-if="selectedDifficulty.coverUrl"
-                :src="selectedDifficulty.coverUrl"
+                v-if="selectedCover"
+                :src="selectedCover"
                 :alt="selectedDifficulty.songName"
                 loading="lazy"
               />
@@ -691,6 +686,70 @@ function peerActivity(p: PresencePeer): string {
   height: 100%;
   object-fit: cover;
   border-radius: 4px;
+}
+
+.campaign-editor__presence-avatar--typing {
+  border-color: var(--peer-color);
+}
+
+.campaign-editor__presence-status {
+  position: absolute;
+  bottom: -5px;
+  right: -5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  background: var(--peer-color);
+  border: 1.5px solid var(--bg-base);
+  border-radius: 999px;
+}
+
+.campaign-editor__presence-glyph {
+  width: 9px;
+  height: 9px;
+}
+
+.campaign-editor__presence-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.5px;
+}
+
+.campaign-editor__presence-dots i {
+  width: 2.5px;
+  height: 2.5px;
+  border-radius: 50%;
+  background: var(--text-primary);
+  animation: presence-typing 1.2s ease-in-out infinite;
+}
+
+.campaign-editor__presence-dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.campaign-editor__presence-dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes presence-typing {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .campaign-editor__presence-dots i {
+    animation: none;
+    opacity: 0.85;
+  }
 }
 
 .campaign-editor__presence-tip {

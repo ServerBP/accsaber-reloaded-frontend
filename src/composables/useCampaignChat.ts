@@ -6,12 +6,27 @@ import { computed, ref, watch, type Ref } from 'vue'
 
 const PAGE_SIZE = 20
 
+export function messageTimeMillis(createdAt: unknown): number {
+  if (typeof createdAt === 'number' && Number.isFinite(createdAt)) {
+    return createdAt < 1e12 ? createdAt * 1000 : createdAt
+  }
+  if (typeof createdAt === 'string') {
+    const parsed = Date.parse(createdAt)
+    if (!Number.isNaN(parsed)) return parsed
+    const n = Number(createdAt)
+    if (Number.isFinite(n) && n > 0) return n < 1e12 ? n * 1000 : n
+  }
+  return 0
+}
+
 function orderMessages(
   a: CampaignChatMessageResponse,
   b: CampaignChatMessageResponse,
 ): number {
-  if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? -1 : 1
-  return a.id.localeCompare(b.id, undefined, { numeric: true })
+  const ta = messageTimeMillis(a.createdAt)
+  const tb = messageTimeMillis(b.createdAt)
+  if (ta !== tb) return ta - tb
+  return a.id.localeCompare(b.id)
 }
 
 export function useCampaignChat(campaignId: Ref<string | null | undefined>) {
@@ -28,8 +43,8 @@ export function useCampaignChat(campaignId: Ref<string | null | undefined>) {
 
   let nextPage = 0
 
-  function addMessage(message: CampaignChatMessageResponse) {
-    if (byId.value.has(message.id)) return
+  function addMessage(message: CampaignChatMessageResponse, overwrite = false) {
+    if (!overwrite && byId.value.has(message.id)) return
     const next = new Map(byId.value)
     next.set(message.id, message)
     byId.value = next
@@ -100,7 +115,7 @@ export function useCampaignChat(campaignId: Ref<string | null | undefined>) {
     error.value = null
     try {
       const created = await sendCampaignChatMessage(id, { content: trimmed })
-      addMessage(created)
+      addMessage(created, true)
       return true
     } catch (err) {
       const parsed = parseApiError(err, 'Failed to send message')

@@ -1,4 +1,7 @@
-import type { CampaignResponse } from '@/types/api/campaigns'
+import type {
+  CampaignDifficultyResponse,
+  CampaignResponse,
+} from '@/types/api/campaigns'
 import type { UserResponse } from '@/types/api/users'
 import { del, get, postMultipart } from './client'
 
@@ -64,6 +67,28 @@ export function deleteCampaignIcon(
 ): Promise<CampaignResponse> {
   const base = admin ? '/admin/campaigns' : '/campaigns'
   return del<CampaignResponse>(`${base}/${campaignId}/icon`)
+}
+
+export function uploadCampaignCheckpointAvatar(
+  difficultyId: string,
+  file: File,
+  admin = false,
+): Promise<CampaignDifficultyResponse> {
+  const base = admin ? '/admin/campaigns' : '/campaigns'
+  return postMultipart<CampaignDifficultyResponse>(
+    `${base}/difficulties/${difficultyId}/checkpoint-avatar`,
+    multipartFile(file),
+  )
+}
+
+export function deleteCampaignCheckpointAvatar(
+  difficultyId: string,
+  admin = false,
+): Promise<CampaignDifficultyResponse> {
+  const base = admin ? '/admin/campaigns' : '/campaigns'
+  return del<CampaignDifficultyResponse>(
+    `${base}/difficulties/${difficultyId}/checkpoint-avatar`,
+  )
 }
 
 export function uploadMyAvatar(file: File): Promise<UserResponse> {

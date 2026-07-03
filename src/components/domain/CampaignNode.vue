@@ -4,6 +4,7 @@ import type {
   CampaignDifficultyProgressResponse,
   CampaignDifficultyResponse,
 } from '@/types/api/campaigns'
+import { pickCoverUrl } from '@/composables/useAvatarFallback'
 import {
   parseNumericSize,
   resolveShape,
@@ -54,7 +55,7 @@ const effectiveAccent = computed(() => {
 })
 
 const avatarUrl = computed(
-  () => props.difficulty.checkpointAvatarUrl || props.difficulty.coverUrl || null,
+  () => props.difficulty.checkpointAvatarUrl || pickCoverUrl(props.difficulty) || null,
 )
 
 const avatarRadius = computed(() => effectiveSize.value)

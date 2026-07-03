@@ -136,7 +136,11 @@ function confirm() {
         </div>
 
         <p v-else-if="paged.length === 0" class="item-picker__empty">
-          No items match that search.
+          {{
+            debounced.trim()
+              ? 'No items match that search.'
+              : 'Sorry, no tradeable items are currently active. Come back soon!'
+          }}
         </p>
 
         <div v-else class="item-picker__grid">

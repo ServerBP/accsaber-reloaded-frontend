@@ -16,6 +16,8 @@ import CampaignRewardItem from '@/components/domain/CampaignRewardItem.vue'
 import CampaignRewardNotice from '@/views/campaign/CampaignRewardNotice.vue'
 import ComplexityBadge from '@/components/domain/ComplexityBadge.vue'
 import DifficultyBadge from '@/components/domain/DifficultyBadge.vue'
+import { pickCoverUrl } from '@/composables/useAvatarFallback'
+import { useCampaignDifficultyMeta } from '@/composables/useCampaignDifficultyMeta'
 import { useItemCatalog } from '@/composables/useItemCatalog'
 import { useAuthStore } from '@/stores/auth'
 import { useCategoryStore } from '@/stores/categories'
@@ -27,7 +29,6 @@ import type {
   CampaignDifficultyResponse,
   CampaignProgressResponse,
 } from '@/types/api/campaigns'
-import type { PublicMapDifficultyResponse } from '@/types/api/maps'
 import {
   campaignDifficultyColor,
   campaignDifficultyGradient,
@@ -59,7 +60,7 @@ const hoverId = ref<string | null>(null)
 const starting = ref(false)
 const abandoning = ref(false)
 const actionError = ref<string | null>(null)
-const difficultyMeta = ref(new Map<string, PublicMapDifficultyResponse>())
+const { difficultyMeta, loadDifficultyMeta } = useCampaignDifficultyMeta()
 
 const idOrSlug = computed(() => String(route.params.campaignId ?? ''))
 
@@ -112,21 +113,6 @@ async function load() {
   }
 }
 
-async function loadDifficultyMeta(difficulties: CampaignDifficultyResponse[]) {
-  if (difficulties.length === 0) return
-  const { getDifficulty } = await import('@/api/maps')
-  const next = new Map(difficultyMeta.value)
-  await Promise.all(
-    difficulties.map(async (d) => {
-      if (next.has(d.id)) return
-      try {
-        next.set(d.id, await getDifficulty(d.mapDifficultyId))
-      } catch {
-      }
-    }),
-  )
-  difficultyMeta.value = next
-}
 
 onMounted(load)
 
@@ -303,6 +289,8 @@ const displayedMeta = computed(() => {
   if (!d) return null
   return difficultyMeta.value.get(d.id) ?? null
 })
+
+const displayedCover = computed(() => pickCoverUrl(displayedDifficulty.value))
 
 const displayedAccent = computed(() => {
   const d = displayedDifficulty.value
@@ -670,7 +658,7 @@ function unpinTooltip() {
 
             <div class="campaign-detail__node-song">
               <div class="campaign-detail__node-cover">
-                <img v-if="displayedDifficulty.coverUrl" :src="displayedDifficulty.coverUrl"
+                <img v-if="displayedCover" :src="displayedCover"
                   :alt="displayedDifficulty.songName" loading="lazy" />
               </div>
               <div class="campaign-detail__node-meta">
@@ -732,7 +720,10 @@ function unpinTooltip() {
               </ul>
             </div>
 
-            <div v-if="displayedDifficulty.items.length > 0" class="campaign-detail__node-rewards">
+            <div
+              v-if="displayedDifficulty.items.length > 0 || displayedDifficulty.xp > 0"
+              class="campaign-detail__node-rewards"
+            >
               <h3 class="campaign-detail__section-label">
                 Awards
                 <span v-if="displayedDifficulty.xp > 0" class="campaign-detail__node-xp">
@@ -740,7 +731,7 @@ function unpinTooltip() {
                 </span>
               </h3>
               <CampaignRewardNotice :curated="campaign.status === 'CURATED'" />
-              <ul class="campaign-detail__rewards-list">
+              <ul v-if="displayedDifficulty.items.length > 0" class="campaign-detail__rewards-list">
                 <li v-for="item in displayedDifficulty.items" :key="item.itemId" class="campaign-detail__reward">
                   <CampaignRewardItem :name="item.itemName" :quantity="item.quantity"
                     :item="rewardItemsById.get(item.itemId) ?? null" />
@@ -868,7 +859,10 @@ function unpinTooltip() {
               {{ displayedBarrier.description }}
             </p>
 
-            <div v-if="displayedBarrier.items.length > 0" class="campaign-detail__node-rewards">
+            <div
+              v-if="displayedBarrier.items.length > 0 || displayedBarrier.xp > 0"
+              class="campaign-detail__node-rewards"
+            >
               <h3 class="campaign-detail__section-label">
                 Awards
                 <span v-if="displayedBarrier.xp > 0" class="campaign-detail__node-xp">
@@ -876,7 +870,7 @@ function unpinTooltip() {
                 </span>
               </h3>
               <CampaignRewardNotice :curated="campaign.status === 'CURATED'" />
-              <ul class="campaign-detail__rewards-list">
+              <ul v-if="displayedBarrier.items.length > 0" class="campaign-detail__rewards-list">
                 <li
                   v-for="item in displayedBarrier.items"
                   :key="item.itemId"

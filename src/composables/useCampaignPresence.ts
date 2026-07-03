@@ -18,6 +18,7 @@ export interface PresencePeer {
   targetId: string | null
   kind: PresenceKind
   tray: string | null
+  typing: boolean
   lastSeen: number
   lastCursorAt: number
 }
@@ -40,6 +41,8 @@ const INITIAL_RETRY_MS = 1000
 const MAX_RETRY_MS = 30000
 const HEARTBEAT_MS = 30000
 const CURSOR_STALE_MS = 20000
+const TYPING_SEND_INTERVAL = 2000
+const TYPING_TTL = 3500
 
 const ACTIONS: PresenceAction[] = ['move', 'select', 'drag', 'connect', 'place', 'edit']
 
@@ -91,6 +94,8 @@ interface UseCampaignPresenceReturn {
   ) => void
   sendCursorOff: () => void
   sendChange: () => void
+  sendTyping: () => void
+  sendTypingStop: () => void
 }
 
 export function useCampaignPresence(
@@ -125,6 +130,8 @@ export function useCampaignPresence(
   let sendTimer: ReturnType<typeof setTimeout> | null = null
   let lastSentAt = 0
   let lastSentKey = ''
+  const typingTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  let lastTypingSentAt = 0
 
   function selfId(): string | null {
     return auth.userId ?? null
@@ -148,6 +155,7 @@ export function useCampaignPresence(
         targetId: null,
         kind: null,
         tray: null,
+        typing: false,
         lastSeen: Date.now(),
         lastCursorAt: 0,
       }
@@ -197,7 +205,32 @@ export function useCampaignPresence(
     }
 
     if (type === 'presence_leave') {
+      clearTypingTimer(actorId)
       peerMap.delete(actorId)
+      syncPeers()
+      return
+    }
+
+    if (type === 'typing') {
+      const p = upsertPeer(actorId, msg.actorName, msg.actorAvatarUrl)
+      p.lastSeen = Date.now()
+      clearTypingTimer(actorId)
+      if (msg.field === 'off') {
+        p.typing = false
+      } else {
+        p.typing = true
+        typingTimers.set(
+          actorId,
+          setTimeout(() => {
+            typingTimers.delete(actorId)
+            const t = peerMap.get(actorId)
+            if (t) {
+              t.typing = false
+              syncPeers()
+            }
+          }, TYPING_TTL),
+        )
+      }
       syncPeers()
       return
     }
@@ -290,6 +323,41 @@ export function useCampaignPresence(
     }
   }
 
+  function sendTyping() {
+    if (ws?.readyState !== WebSocket.OPEN) return
+    const now = Date.now()
+    if (now - lastTypingSentAt < TYPING_SEND_INTERVAL) return
+    lastTypingSentAt = now
+    try {
+      ws.send(JSON.stringify({ type: 'typing', field: 'on' }))
+    } catch {
+      return
+    }
+  }
+
+  function sendTypingStop() {
+    lastTypingSentAt = 0
+    if (ws?.readyState !== WebSocket.OPEN) return
+    try {
+      ws.send(JSON.stringify({ type: 'typing', field: 'off' }))
+    } catch {
+      return
+    }
+  }
+
+  function clearTypingTimer(id: string) {
+    const timer = typingTimers.get(id)
+    if (timer) {
+      clearTimeout(timer)
+      typingTimers.delete(id)
+    }
+  }
+
+  function clearAllTypingTimers() {
+    for (const timer of typingTimers.values()) clearTimeout(timer)
+    typingTimers.clear()
+  }
+
   function stopTimers() {
     if (heartbeat) {
       clearInterval(heartbeat)
@@ -299,6 +367,7 @@ export function useCampaignPresence(
       clearInterval(staleSweep)
       staleSweep = null
     }
+    clearAllTypingTimers()
   }
 
   function startTimers() {
@@ -433,5 +502,5 @@ export function useCampaignPresence(
 
   onUnmounted(disconnect)
 
-  return { peers, sendCursor, sendCursorOff, sendChange }
+  return { peers, sendCursor, sendCursorOff, sendChange, sendTyping, sendTypingStop }
 }

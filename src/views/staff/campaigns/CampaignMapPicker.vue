@@ -9,6 +9,7 @@ import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import CategoryBadge from '@/components/domain/CategoryBadge.vue'
 import ComplexityBadge from '@/components/domain/ComplexityBadge.vue'
 import DifficultyBadge from '@/components/domain/DifficultyBadge.vue'
+import { pickCoverUrl } from '@/composables/useAvatarFallback'
 import { useDebouncedRef } from '@/composables/useDebouncedRef'
 import { useCategoryStore } from '@/stores/categories'
 import type { PublicMapDifficultyResponse } from '@/types/api/maps'
@@ -211,7 +212,7 @@ function commit() {
                 @click="rowClick(diff)"
               >
                 <span class="map-picker__cover">
-                  <img v-if="diff.coverUrl" :src="diff.coverUrl" :alt="diff.songName" loading="lazy" />
+                  <img v-if="pickCoverUrl(diff)" :src="pickCoverUrl(diff)" :alt="diff.songName" loading="lazy" />
                 </span>
                 <span class="map-picker__meta">
                   <CategoryBadge :category="categoryCodeFor(diff)" size="sm" class="map-picker__cat" />
@@ -279,7 +280,7 @@ function commit() {
           <ul v-if="staged.length > 0" class="map-picker__staged-list">
             <li v-for="d in staged" :key="d.id" class="map-picker__staged">
               <span class="map-picker__cover map-picker__cover--sm">
-                <img v-if="d.coverUrl" :src="d.coverUrl" :alt="d.songName" loading="lazy" />
+                <img v-if="pickCoverUrl(d)" :src="pickCoverUrl(d)" :alt="d.songName" loading="lazy" />
               </span>
               <span class="map-picker__staged-meta">
                 <span class="map-picker__staged-title">{{ d.songName }}</span>
