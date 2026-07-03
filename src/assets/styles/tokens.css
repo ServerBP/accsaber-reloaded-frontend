@@ -51,11 +51,15 @@
   --tier-diamond: #b9f2ff;
   --tier-apex: #a855f7;
 
-  /* --- XP Breakdown (profile XP delta tooltip) --- */
-  --xp-score: var(--accent);
-  --xp-milestone: var(--tier-gold);
-  --xp-set-bonus: var(--tier-platinum);
-  --xp-mission: var(--tier-diamond);
+  /* --- XP source colors (dark) — fixed hex, not theme-token refs, so equipped
+     item themes cannot collapse them; each distinct + AA on its own background --- */
+  --xp-score: #e58a3a;
+  --xp-milestone: #eec843;
+  --xp-set-bonus: #3ccfd6;
+  --xp-mission: #6a9bf5;
+  --xp-campaign: #e56fb0;
+  --xp-up: #33d17a;
+  --xp-down: #f2685f;
 
   /* --- Level Tier Colors --- */
   --tier-newcomer: #6b7280;
@@ -144,11 +148,14 @@
   --skeleton-base: var(--bg-elevated);
   --skeleton-highlight: color-mix(in srgb, var(--text-tertiary) 35%, var(--bg-elevated));
 
-  /* XP Breakdown (darkened counterparts for legibility on light background) */
-  --xp-score: #b45309;
-  --xp-milestone: #a16207;
-  --xp-set-bonus: #0f766e;
-  --xp-mission: #0369a1;
+  /* XP source colors (light) — darkened for AA legibility on the light background */
+  --xp-score: #a3450a;
+  --xp-milestone: #6f5807;
+  --xp-set-bonus: #0c665f;
+  --xp-mission: #1a5fc4;
+  --xp-campaign: #ab1c78;
+  --xp-up: #146c34;
+  --xp-down: #c02222;
 
   /* Category Tints (Light) */
   --tint-true-acc: #d4f5e0;

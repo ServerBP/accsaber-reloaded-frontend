@@ -17,15 +17,17 @@ import {
 } from '@/composables/useCampaignPresence'
 import { useCampaignChat } from '@/composables/useCampaignChat'
 import { pickCoverUrl } from '@/composables/useAvatarFallback'
-import { computed, provide, ref } from 'vue'
+import { computed, onMounted, provide, ref } from 'vue'
 import CampaignChatPanel from './CampaignChatPanel.vue'
 import CampaignCollaboratorPicker from './CampaignCollaboratorPicker.vue'
 import CampaignItemPicker from './CampaignItemPicker.vue'
 import CampaignMapPicker from './CampaignMapPicker.vue'
 import CampaignTrayRail from './CampaignTrayRail.vue'
 import CampaignTrays from './CampaignTrays.vue'
+import CampaignTutorialModal from './CampaignTutorialModal.vue'
 import { CAMPAIGN_EDITOR_KEY } from './campaignEditorContext'
 import { useCampaignEditor } from './useCampaignEditor'
+import { useCampaignTutorial } from './useCampaignTutorial'
 
 const editor = useCampaignEditor()
 provide(CAMPAIGN_EDITOR_KEY, editor)
@@ -95,6 +97,12 @@ const {
 } = editor
 
 const selectedCover = computed(() => pickCoverUrl(selectedDifficulty.value))
+
+const { showTutorial, openTutorial, closeTutorial, maybeAutoShow } = useCampaignTutorial()
+
+onMounted(() => {
+  void maybeAutoShow(auth.userId)
+})
 
 const campaignIdRef = computed(() => campaign.value?.id ?? null)
 
@@ -449,7 +457,7 @@ function peerActivity(p: PresencePeer): string {
         />
       </main>
 
-      <CampaignTrayRail />
+      <CampaignTrayRail @tutorial="openTutorial" />
 
       <Transition name="campaign-editor__tray">
         <section v-if="activeTray" class="campaign-editor__tray" aria-label="Editor tray">
@@ -617,6 +625,8 @@ function peerActivity(p: PresencePeer): string {
         @close="showCollaboratorPicker = false"
         @pick="handleCollaboratorPicked"
       />
+
+      <CampaignTutorialModal v-if="showTutorial" :accent="accent" @close="closeTutorial" />
 
       <BaseModal
         v-if="showRepublishWarning"

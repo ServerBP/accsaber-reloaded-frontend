@@ -92,5 +92,9 @@ defineProps<{ name: string; size?: number }>()
       <line x1="9" y1="20" x2="15" y2="20" />
       <line x1="12" y1="4" x2="12" y2="20" />
     </template>
+    <template v-else-if="name === 'compass'">
+      <circle cx="12" cy="12" r="10" />
+      <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+    </template>
   </svg>
 </template>

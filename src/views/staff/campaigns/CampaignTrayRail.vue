@@ -4,6 +4,10 @@ import { useCampaignEditorContext } from './campaignEditorContext'
 
 const { campaignTrays, nodeTrays, activeTray, selectedCount, toggleTray } =
   useCampaignEditorContext()
+
+const emit = defineEmits<{
+  tutorial: []
+}>()
 </script>
 
 <template>
@@ -44,6 +48,14 @@ const { campaignTrays, nodeTrays, activeTray, selectedCount, toggleTray } =
         <CampaignTrayIcon :name="tray.icon" />
         <span class="campaign-editor__tray-btn-label">{{ tray.label }}</span>
         <span v-if="tray.count" class="campaign-editor__tray-count">{{ tray.count }}</span>
+      </button>
+    </div>
+
+    <div class="campaign-editor__tray-group campaign-editor__tray-group--foot">
+      <span class="campaign-editor__tray-group-label">Help</span>
+      <button type="button" class="campaign-editor__tray-btn" @click="emit('tutorial')">
+        <CampaignTrayIcon name="compass" />
+        <span class="campaign-editor__tray-btn-label">Tutorial</span>
       </button>
     </div>
   </aside>
@@ -88,6 +100,10 @@ const { campaignTrays, nodeTrays, activeTray, selectedCount, toggleTray } =
 .campaign-editor__tray-group + .campaign-editor__tray-group {
   padding-top: var(--space-sm);
   border-top: 1px solid var(--bg-overlay);
+}
+
+.campaign-editor__tray-group--foot {
+  margin-top: auto;
 }
 
 .campaign-editor__tray-group-label {
@@ -207,6 +223,11 @@ const { campaignTrays, nodeTrays, activeTray, selectedCount, toggleTray } =
     padding-left: var(--space-sm);
     border-top: none;
     border-left: 1px solid var(--bg-overlay);
+  }
+
+  .campaign-editor__tray-group--foot {
+    margin-top: 0;
+    margin-left: auto;
   }
 
   .campaign-editor__tray-group-label {
