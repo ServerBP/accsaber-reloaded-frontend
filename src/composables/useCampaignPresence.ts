@@ -138,7 +138,8 @@ export function useCampaignPresence(
   }
 
   function syncPeers() {
-    peers.value = [...peerMap.values()]
+    const self = selfId()
+    peers.value = [...peerMap.values()].filter((p) => p.userId !== self)
   }
 
   function upsertPeer(id: string, name?: string | null, avatarUrl?: string | null): PresencePeer {
@@ -169,7 +170,8 @@ export function useCampaignPresence(
   function onMessage(event: MessageEvent) {
     let msg: PresenceWire
     try {
-      msg = JSON.parse(event.data)
+      const raw = typeof event.data === 'string' ? event.data : ''
+      msg = JSON.parse(raw.replace(/:\s*(\d{16,})/g, ': "$1"'))
     } catch {
       return
     }

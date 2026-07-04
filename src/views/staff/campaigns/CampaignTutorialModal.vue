@@ -409,6 +409,21 @@ function skipStep() {
   goNext()
 }
 
+function resetTutorial() {
+  clearAdvanceTimer()
+  nodes.value = []
+  barriers.value = []
+  selectedId.value = null
+  sandboxMode.value = 'drag'
+  barrierPlacement.value = false
+  pickerOpen.value = false
+  addError.value = null
+  goalTouched.value = false
+  barrierTouched.value = false
+  direction.value = 'back'
+  stepIndex.value = 0
+}
+
 function skipAll() {
   clearAdvanceTimer()
   emit('close', 'skipped')
@@ -466,6 +481,28 @@ onUnmounted(() => {
               }"
             />
           </div>
+          <button
+            v-if="nodes.length > 0 || barriers.length > 0 || stepIndex > 0"
+            type="button"
+            class="tutorial__reset"
+            @click="resetTutorial"
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <polyline points="1 4 1 10 7 10" />
+              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+            </svg>
+            Start over
+          </button>
           <BaseButton size="sm" @click="skipAll">Skip tutorial</BaseButton>
         </header>
 
@@ -627,7 +664,7 @@ onUnmounted(() => {
                           @change="commitGoal"
                         />
                         <input
-                          v-model.number="goalPct"
+                          v-model.number.lazy="goalPct"
                           type="number"
                           min="70"
                           max="100"
@@ -655,7 +692,7 @@ onUnmounted(() => {
                         >
                           {{ preset }}
                         </button>
-                        <input v-model.number="xpValue" type="number" min="0" step="5" @change="commitXp" />
+                        <input v-model.number.lazy="xpValue" type="number" min="0" step="5" @change="commitXp" />
                       </div>
                     </label>
                   </template>
@@ -716,7 +753,7 @@ onUnmounted(() => {
                           @change="commitBarrierValue"
                         />
                         <input
-                          v-model.number="barrierPct"
+                          v-model.number.lazy="barrierPct"
                           type="number"
                           min="70"
                           max="100"
@@ -926,6 +963,26 @@ onUnmounted(() => {
 
 .tutorial__progress-seg--done {
   background: var(--tutorial-accent);
+}
+
+.tutorial__reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+
+.tutorial__reset:hover {
+  color: var(--text-primary);
 }
 
 .tutorial__body {

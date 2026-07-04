@@ -1336,7 +1336,14 @@ watch(
   },
 )
 
-defineExpose({ fitToContent, focusNode })
+function getViewCenterCell(): { x: number; y: number } {
+  const cx = (stageWidth.value / 2 - translateX.value) / scale.value
+  const cy = (stageHeight.value / 2 - translateY.value) / scale.value
+  const { positionX, positionY } = contentToGrid(cx, cy)
+  return { x: positionX, y: positionY }
+}
+
+defineExpose({ fitToContent, focusNode, getViewCenterCell })
 
 const transformStyle = computed(
   () => `translate(${translateX.value} ${translateY.value}) scale(${scale.value})`,

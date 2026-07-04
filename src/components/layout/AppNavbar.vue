@@ -46,6 +46,7 @@ interface NavItem {
 const publicNavItems: NavItem[] = [
   { to: '/leaderboards', label: 'Leaderboards', mobileIcon: 'leaderboard' },
   { to: '/maps', label: 'Maps', mobileIcon: 'map' },
+  { to: '/campaigns', label: 'Campaigns' },
   { to: '/milestones', label: 'Milestones', mobileIcon: 'milestone' },
   { to: '/stats', label: 'Stats' },
   { to: '/ranked-queue', label: 'Ranking Queue' },

@@ -313,6 +313,12 @@ export function useCampaignEditor() {
     changeBroadcaster = fn
   }
 
+  let viewCenterProvider: (() => { x: number; y: number } | null) | null = null
+
+  function setViewCenterProvider(fn: (() => { x: number; y: number } | null) | null) {
+    viewCenterProvider = fn
+  }
+
   async function guardedLoad(silent = false) {
     applyingRemote++
     try {
@@ -751,10 +757,17 @@ export function useCampaignEditor() {
 
   onBeforeUnmount(cancelTextContentCommit)
 
+  let lastSyncedTextId: string | null = null
+
   function syncFormFromText() {
-    cancelTextContentCommit()
     const t = selectedText.value
-    if (!t) return
+    if (!t) {
+      lastSyncedTextId = null
+      cancelTextContentCommit()
+      return
+    }
+    if (t.id !== lastSyncedTextId) cancelTextContentCommit()
+    lastSyncedTextId = t.id
     formText.value = {
       content: t.content ?? '',
       font: t.font ?? '',
@@ -945,9 +958,11 @@ export function useCampaignEditor() {
 
   const {
     showRepublishWarning,
+    publishConfirm,
     doPlayerPublish,
     performPublish,
     doPlayerUnpublish,
+    performUnpublish,
     deleteDraft,
     doPublish,
     doReopen,
@@ -1165,17 +1180,35 @@ export function useCampaignEditor() {
       occupied.add(`${t.positionX},${t.positionY}`)
       if (t.positionY > maxY) maxY = t.positionY
     }
+
+    const cells: Array<{ x: number; y: number }> = []
+    const claim = (x: number, y: number) => {
+      const key = `${x},${y}`
+      if (occupied.has(key)) return
+      occupied.add(key)
+      cells.push({ x, y })
+    }
+
+    const origin = viewCenterProvider?.() ?? null
+    if (origin) {
+      claim(origin.x, origin.y)
+      const maxRing = count + 10
+      for (let r = 1; cells.length < count && r <= maxRing; r++) {
+        for (let dx = -r; dx <= r && cells.length < count; dx++) {
+          for (let dy = -r; dy <= r && cells.length < count; dy++) {
+            if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue
+            claim(origin.x + dx, origin.y + dy)
+          }
+        }
+      }
+      if (cells.length >= count) return cells.slice(0, count)
+    }
+
     if (occupied.size > 0) baseY = maxY + 2
     const perRow = Math.min(6, Math.max(1, count))
-    const cells: Array<{ x: number; y: number }> = []
     for (let row = 0; cells.length < count && row < count + 4; row++) {
       for (let col = 0; col < perRow && cells.length < count; col++) {
-        const x = col
-        const y = baseY + row * 2
-        const key = `${x},${y}`
-        if (occupied.has(key)) continue
-        occupied.add(key)
-        cells.push({ x, y })
+        claim(col, baseY + row * 2)
       }
     }
     return cells
@@ -1893,9 +1926,11 @@ export function useCampaignEditor() {
         ? await updateCampaignText(id, req)
         : await updatePlayerCampaignText(id, req)
       if (campaign.value) {
+        const merged =
+          selectedId.value === id ? { ...updated, content: formText.value.content } : updated
         campaign.value = {
           ...campaign.value,
-          texts: campaign.value.texts.map((x) => (x.id === id ? updated : x)),
+          texts: campaign.value.texts.map((x) => (x.id === id ? merged : x)),
         }
       }
     } catch (err) {
@@ -2222,6 +2257,7 @@ export function useCampaignEditor() {
   return {
     auth,
     setChangeBroadcaster,
+    setViewCenterProvider,
     reloadFromRemote: () => guardedLoad(true),
     rewardItemsById,
     campaign,
@@ -2239,6 +2275,8 @@ export function useCampaignEditor() {
     itemPickerFor,
     requirementDirtyIds,
     showRepublishWarning,
+    publishConfirm,
+    performUnpublish,
     isUnsavedDraft,
     isAdminRoute,
     isDraftStatus,

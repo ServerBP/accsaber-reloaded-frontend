@@ -249,6 +249,11 @@ export async function postMultipart<T>(path: string, formData: FormData): Promis
   }
   if (res.status === 204 || res.status === 202) return undefined as T
   const text = await res.text()
+  if (!text) return undefined as T
   const sanitized = text.replace(/:\s*(\d{16,})/g, ': "$1"')
-  return JSON.parse(sanitized) as T
+  try {
+    return JSON.parse(sanitized) as T
+  } catch {
+    return text as unknown as T
+  }
 }

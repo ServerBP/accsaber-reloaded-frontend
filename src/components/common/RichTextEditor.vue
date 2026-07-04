@@ -34,9 +34,16 @@ watch(
   () => props.modelValue,
   (val) => {
     const el = editorRef.value
-    if (el && el.innerHTML !== val) el.innerHTML = val
+    if (!el || el.innerHTML === val) return
+    if (el.contains(document.activeElement) || document.activeElement === el) return
+    el.innerHTML = val
   },
 )
+
+function onEditorBlur() {
+  const el = editorRef.value
+  if (el && el.innerHTML !== props.modelValue) el.innerHTML = props.modelValue
+}
 
 function emitChange() {
   const el = editorRef.value
@@ -354,6 +361,7 @@ const formatGroups: FormatButton[][] = [
       :aria-label="ariaLabel"
       :style="{ minHeight: minHeight + 'px', maxHeight: maxHeight + 'px' }"
       @input="emitChange"
+      @blur="onEditorBlur"
     />
   </div>
 </template>

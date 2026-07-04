@@ -29,6 +29,7 @@ export function useCampaignLifecycle(ctx: LifecycleContext) {
   const { campaign, actionPending, actionError, load } = ctx
 
   const showRepublishWarning = ref(false)
+  const publishConfirm = ref<'publish' | 'unpublish' | null>(null)
 
   function doPlayerPublish() {
     if (!campaign.value) return
@@ -36,12 +37,13 @@ export function useCampaignLifecycle(ctx: LifecycleContext) {
       showRepublishWarning.value = true
       return
     }
-    void performPublish()
+    publishConfirm.value = 'publish'
   }
 
   async function performPublish() {
     if (!campaign.value) return
     showRepublishWarning.value = false
+    publishConfirm.value = null
     actionPending.value = true
     actionError.value = null
     try {
@@ -54,8 +56,14 @@ export function useCampaignLifecycle(ctx: LifecycleContext) {
     }
   }
 
-  async function doPlayerUnpublish() {
+  function doPlayerUnpublish() {
     if (!campaign.value) return
+    publishConfirm.value = 'unpublish'
+  }
+
+  async function performUnpublish() {
+    if (!campaign.value) return
+    publishConfirm.value = null
     actionPending.value = true
     actionError.value = null
     try {
@@ -164,9 +172,11 @@ export function useCampaignLifecycle(ctx: LifecycleContext) {
 
   return {
     showRepublishWarning,
+    publishConfirm,
     doPlayerPublish,
     performPublish,
     doPlayerUnpublish,
+    performUnpublish,
     deleteDraft,
     doPublish,
     doReopen,

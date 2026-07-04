@@ -56,6 +56,8 @@ const {
   isUnsavedDraft,
   canAccess,
   editable,
+  publishConfirm,
+  performUnpublish,
   accent,
   nodeAccents,
   selectedDifficulty,
@@ -94,7 +96,11 @@ const {
   removeSelectedText,
   reloadFromRemote,
   setChangeBroadcaster,
+  setViewCenterProvider,
 } = editor
+
+const roadmapRef = ref<InstanceType<typeof CampaignRoadmap> | null>(null)
+setViewCenterProvider(() => roadmapRef.value?.getViewCenterCell() ?? null)
 
 const selectedCover = computed(() => pickCoverUrl(selectedDifficulty.value))
 
@@ -233,6 +239,7 @@ function peerActivity(p: PresencePeer): string {
     <template v-else>
       <main class="campaign-editor__canvas" aria-label="Campaign roadmap">
         <CampaignRoadmap
+          ref="roadmapRef"
           :difficulties="campaign.difficulties"
           :barriers="campaign.barriers"
           :texts="campaign.texts"
@@ -627,6 +634,44 @@ function peerActivity(p: PresencePeer): string {
       />
 
       <CampaignTutorialModal v-if="showTutorial" :accent="accent" @close="closeTutorial" />
+
+      <BaseModal
+        v-if="publishConfirm"
+        :open="true"
+        :title="publishConfirm === 'publish' ? 'Publish this campaign?' : 'Unpublish this campaign?'"
+        @close="publishConfirm = null"
+      >
+        <div class="campaign-editor__warn">
+          <template v-if="publishConfirm === 'publish'">
+            <p>
+              Publishing makes your campaign public. Any player will be able to find it, start it,
+              and earn its rewards.
+            </p>
+            <p>
+              Make sure everything is final before you go live: maps, goals, rewards, artwork, and
+              text.
+            </p>
+          </template>
+          <template v-else>
+            <p>Unpublishing takes your campaign offline and resets every player's progress on it.</p>
+            <p>Anyone who started or completed it will have to begin again when it returns.</p>
+          </template>
+        </div>
+        <template #footer>
+          <BaseButton :disabled="actionPending" @click="publishConfirm = null">Cancel</BaseButton>
+          <BaseButton
+            v-if="publishConfirm === 'publish'"
+            variant="primary"
+            :loading="actionPending"
+            @click="performPublish"
+          >
+            Publish
+          </BaseButton>
+          <BaseButton v-else variant="destructive" :loading="actionPending" @click="performUnpublish">
+            Unpublish
+          </BaseButton>
+        </template>
+      </BaseModal>
 
       <BaseModal
         v-if="showRepublishWarning"

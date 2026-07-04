@@ -522,7 +522,10 @@ const backgroundSwatch = computed(() => {
       }}</span>
     </div>
 
-    <div v-if="collaboratorsLoading" class="campaign-editor__collab-skeletons">
+    <div
+      v-if="collaboratorsLoading && activeCollaborators.length === 0"
+      class="campaign-editor__collab-skeletons"
+    >
       <SkeletonLoader v-for="i in 2" :key="i" variant="table-row" />
     </div>
 
@@ -671,7 +674,7 @@ const backgroundSwatch = computed(() => {
           :min="requirementNumberBounds.min"
           :max="requirementNumberBounds.max"
           :step="requirementNumberBounds.step"
-          v-model.number="requirementValueDisplay"
+          v-model.number.lazy="requirementValueDisplay"
           @blur="commitNodeField('requirementValue')"
         />
       </div>
@@ -777,7 +780,7 @@ const backgroundSwatch = computed(() => {
     class="campaign-editor__section"
     :disabled="!editable"
   >
-    <label class="campaign-editor__field">
+    <div class="campaign-editor__field">
       <span>Border shape</span>
       <div class="campaign-editor__shape-row">
         <CampaignEditorTile
@@ -790,7 +793,7 @@ const backgroundSwatch = computed(() => {
           <CampaignShapeGlyph :shape="t.value" />
         </CampaignEditorTile>
       </div>
-    </label>
+    </div>
     <div class="campaign-editor__field">
       <span>Node size: {{ parseSizeInt(formNode.size, 48) }}px</span>
       <div class="campaign-editor__shape-row">
@@ -842,7 +845,7 @@ const backgroundSwatch = computed(() => {
     <p class="campaign-editor__hint">
       {{ selectedCount }} nodes selected. Changes apply to all of them.
     </p>
-    <label class="campaign-editor__field">
+    <div class="campaign-editor__field">
       <span>Node size</span>
       <div class="campaign-editor__shape-row">
         <CampaignEditorTile
@@ -854,8 +857,8 @@ const backgroundSwatch = computed(() => {
           <CampaignShapeGlyph shape="hex" :radius="t.glyph" />
         </CampaignEditorTile>
       </div>
-    </label>
-    <label class="campaign-editor__field">
+    </div>
+    <div class="campaign-editor__field">
       <span>Border shape</span>
       <div class="campaign-editor__shape-row">
         <CampaignEditorTile
@@ -867,7 +870,7 @@ const backgroundSwatch = computed(() => {
           <CampaignShapeGlyph :shape="t.value" />
         </CampaignEditorTile>
       </div>
-    </label>
+    </div>
     <BaseButton
       size="sm"
       variant="destructive"
@@ -1055,7 +1058,7 @@ const backgroundSwatch = computed(() => {
           type="number"
           :min="barrierValueBounds.min"
           :step="barrierValueBounds.step"
-          v-model.number="barrierValueDisplay"
+          v-model.number.lazy="barrierValueDisplay"
           @blur="commitBarrierField('conditionValue')"
         />
       </div>
