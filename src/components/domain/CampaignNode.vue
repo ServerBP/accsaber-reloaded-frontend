@@ -252,6 +252,10 @@ const gateR = computed(() => effectiveSize.value * 0.3)
   fill: var(--text-tertiary);
 }
 
+.campaign-node--locked .campaign-node__avatar {
+  filter: grayscale(0.65) brightness(0.62);
+}
+
 .campaign-node__gate {
   color: var(--warning);
   cursor: help;

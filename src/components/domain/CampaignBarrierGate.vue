@@ -27,9 +27,15 @@ const thickness = computed(() => Math.max(props.unit * 0.075, 3.5))
 
 const dotR = computed(() => thickness.value * 1.05)
 
-const strokeColor = computed(() => (props.state === 'open' ? 'var(--success)' : props.accentColor))
+const strokeColor = computed(() => {
+  if (props.state === 'open') return 'var(--success)'
+  if (props.state === 'locked') {
+    return `color-mix(in srgb, ${props.accentColor} 45%, var(--bg-base))`
+  }
+  return props.accentColor
+})
 
-const opacity = computed(() => (props.state === 'locked' ? 0.45 : 1))
+const opacity = computed(() => 1)
 
 const geom = computed(() => {
   const wdx = props.x2 - props.x1

@@ -49,15 +49,12 @@ const fillVar = computed(() => {
   }
 })
 
-const fillOpacityFinal = computed(() => {
-  if (props.state === 'locked') return 0.55 * props.fillOpacity
-  return props.fillOpacity
-})
+const fillOpacityFinal = computed(() => props.fillOpacity)
 
 const accentOpacity = computed(() => {
   switch (props.state) {
     case 'locked':
-      return 0.35
+      return 1
     case 'available':
       return 0.85
     case 'current':
@@ -67,6 +64,19 @@ const accentOpacity = computed(() => {
     default:
       return 0.85
   }
+})
+
+const accentFill = computed(() => {
+  if (props.state === 'locked') {
+    return `color-mix(in srgb, ${props.accentColor} 40%, var(--bg-base))`
+  }
+  return props.accentColor
+})
+
+const bodyStroke = computed(() => {
+  if (props.state === 'cleared') return '#ffffff'
+  if (props.state === 'locked') return 'var(--text-tertiary)'
+  return 'rgba(255,255,255,0.92)'
 })
 </script>
 
@@ -78,7 +88,7 @@ const accentOpacity = computed(() => {
         :cx="cx"
         :cy="cy"
         :r="outerRadius"
-        :fill="accentColor"
+        :fill="accentFill"
         :opacity="accentOpacity"
       />
       <circle
@@ -88,7 +98,7 @@ const accentOpacity = computed(() => {
         :r="size"
         :fill="fillVar"
         :fill-opacity="fillOpacityFinal"
-        :stroke="state === 'cleared' ? '#ffffff' : 'rgba(255,255,255,0.92)'"
+        :stroke="bodyStroke"
         :stroke-width="innerBorder"
       />
       <circle
@@ -106,7 +116,7 @@ const accentOpacity = computed(() => {
       <polygon
         class="campaign-shape__accent"
         :points="outerPoints"
-        :fill="accentColor"
+        :fill="accentFill"
         :opacity="accentOpacity"
       />
       <polygon
@@ -114,7 +124,7 @@ const accentOpacity = computed(() => {
         :points="innerPoints"
         :fill="fillVar"
         :fill-opacity="fillOpacityFinal"
-        :stroke="state === 'cleared' ? '#ffffff' : 'rgba(255,255,255,0.92)'"
+        :stroke="bodyStroke"
         :stroke-width="innerBorder"
         stroke-linejoin="miter"
       />
@@ -134,10 +144,6 @@ const accentOpacity = computed(() => {
 <style scoped>
 .campaign-shape {
   transition: opacity 160ms ease-out;
-}
-
-.campaign-shape--locked {
-  opacity: 0.55;
 }
 
 .campaign-shape__pulse {
