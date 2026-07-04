@@ -12,7 +12,7 @@ import {
 } from '@/api/campaigns'
 import { getApiErrorMessage } from '@/api/client'
 import type { CampaignDetailResponse } from '@/types/api/campaigns'
-import { ref, type ComputedRef, type Ref } from 'vue'
+import { ref, type Ref } from 'vue'
 
 interface LifecycleContext {
   campaign: Ref<CampaignDetailResponse | null>
@@ -21,8 +21,6 @@ interface LifecycleContext {
   load: () => Promise<void>
   editedLiveCampaign: Ref<boolean>
   requirementDirtyIds: Ref<Set<string>>
-  isTerminal: ComputedRef<boolean>
-  sinkCount: ComputedRef<number>
 }
 
 export function useCampaignLifecycle(ctx: LifecycleContext) {
@@ -122,10 +120,6 @@ export function useCampaignLifecycle(ctx: LifecycleContext) {
 
   async function doCurate() {
     if (!campaign.value) return
-    if (ctx.isTerminal.value && ctx.sinkCount.value !== 1) {
-      actionError.value = `Terminal campaigns need exactly one sink node, found ${ctx.sinkCount.value}.`
-      return
-    }
     actionPending.value = true
     actionError.value = null
     try {

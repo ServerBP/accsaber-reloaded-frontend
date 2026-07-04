@@ -30,9 +30,6 @@ const {
   isAdmin,
   isCurator,
   isCreator,
-  isTerminal,
-  sinkCount,
-  canCurate,
   creatorBlocked,
   statusLabel,
   statusMeaning,
@@ -230,7 +227,6 @@ const backgroundSwatch = computed(() => {
             size="sm"
             variant="primary"
             :loading="actionPending"
-            :disabled="!canCurate"
             @click="doCurate"
           >
             Curate
@@ -255,12 +251,6 @@ const backgroundSwatch = computed(() => {
         </template>
       </div>
 
-      <p
-        v-if="isAdminRoute && isTerminal && sinkCount !== 1 && isCurator"
-        class="campaign-editor__status-warning"
-      >
-        Terminal mode needs exactly one sink. You have {{ sinkCount }}.
-      </p>
       <p v-if="creatorBlocked" class="campaign-editor__status-warning">
         You flagged this campaign for review. A curator needs to lift the flag before you can edit
         again.

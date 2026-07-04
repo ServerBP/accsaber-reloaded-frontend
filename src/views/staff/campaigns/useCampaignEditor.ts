@@ -548,21 +548,6 @@ export function useCampaignEditor() {
 
   const campaignTagIds = computed(() => new Set(campaign.value?.tags.map((t) => t.id) ?? []))
 
-  const sinkCount = computed(() => {
-    if (!campaign.value) return 0
-    const hasOutgoing = new Set<string>()
-    for (const d of campaign.value.difficulties) {
-      for (const pid of d.prerequisiteCampaignDifficultyIds ?? []) hasOutgoing.add(pid)
-    }
-    for (const b of campaign.value.barriers ?? []) {
-      for (const pid of b.prerequisiteCampaignDifficultyIds ?? []) hasOutgoing.add(pid)
-    }
-    return campaign.value.difficulties.filter((d) => !hasOutgoing.has(d.id)).length
-  })
-
-  const isTerminal = computed(() => campaign.value?.completionMode === 'TERMINAL')
-
-  const canCurate = computed(() => !!campaign.value && (!isTerminal.value || sinkCount.value === 1))
 
   const statusLabel: Record<string, string> = {
     DRAFT: 'Draft',
@@ -980,8 +965,6 @@ export function useCampaignEditor() {
     load,
     editedLiveCampaign,
     requirementDirtyIds,
-    isTerminal,
-    sinkCount,
   })
 
   const { uploadBackground, removeBackground, uploadIcon, removeIcon } = useCampaignAssets({
@@ -2316,9 +2299,6 @@ export function useCampaignEditor() {
     selectedMeta,
     tagsByKind,
     campaignTagIds,
-    sinkCount,
-    isTerminal,
-    canCurate,
     statusLabel,
     statusMeaning,
     creatorStatusMeaning,
