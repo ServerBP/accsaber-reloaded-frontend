@@ -44,6 +44,8 @@ const pane = computed<Pane>(() => {
 
 const curatedOnly = computed(() => route.query.curated === '1')
 
+const officialOnly = computed(() => route.query.official === '1')
+
 const searchTerm = computed(() => {
   const raw = route.query.q
   return typeof raw === 'string' ? raw.trim() : ''
@@ -268,6 +270,7 @@ async function loadCampaigns() {
         tagIds: selectedTagIds.value.length > 0 ? selectedTagIds.value : undefined,
         status: statusFilter.value,
         search: searchTerm.value || undefined,
+        official: officialOnly.value || undefined,
       })
       items.value = page.content
       totalPages.value = page.totalPages || 1
@@ -320,6 +323,17 @@ function toggleCuratedOnly() {
   router.replace({ query })
 }
 
+function toggleOfficialOnly() {
+  const query = { ...route.query }
+  if (officialOnly.value) {
+    delete query.official
+  } else {
+    query.official = '1'
+  }
+  delete query.page
+  router.replace({ query })
+}
+
 function toggleTag(id: string) {
   const current = new Set(selectedTagIds.value)
   if (current.has(id)) current.delete(id)
@@ -367,6 +381,7 @@ watch(
   () => [
     pane.value,
     curatedOnly.value,
+    officialOnly.value,
     selectedTagIds.value.join(','),
     searchTerm.value,
     paginationParams.value.page,
@@ -453,6 +468,11 @@ watch(
       </div>
 
       <div class="campaigns-page__toolbar-right">
+        <button type="button" class="campaigns-page__chip campaigns-page__chip--toggle"
+          :class="{ 'campaigns-page__chip--active': officialOnly }" @click="toggleOfficialOnly">
+          Official only
+        </button>
+
         <button type="button" class="campaigns-page__chip campaigns-page__chip--toggle"
           :class="{ 'campaigns-page__chip--active': curatedOnly }" @click="toggleCuratedOnly">
           Curated only

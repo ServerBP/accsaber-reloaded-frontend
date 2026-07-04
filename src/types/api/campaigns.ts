@@ -220,6 +220,7 @@ export interface CampaignListParams extends PaginationParams {
   tagIds?: string[]
   creatorId?: string
   search?: string
+  official?: boolean
 }
 
 export interface CampaignTagListParams {
