@@ -41,9 +41,9 @@ const themeTags = computed(() =>
 )
 
 const accent = computed(() => {
-  const code = categoryTag.value?.categoryId
-    ? categoryStore.getCategoryCode(categoryTag.value.categoryId)
-    : null
+  const cats = props.campaign.tags.filter((t) => t.kind === 'CATEGORY')
+  if (cats.length !== 1 || !cats[0].categoryId) return 'var(--accent-overall)'
+  const code = categoryStore.getCategoryCode(cats[0].categoryId)
   if (code) return categoryStore.getCategoryInfo(code)?.accent ?? 'var(--accent-overall)'
   return 'var(--accent-overall)'
 })
@@ -153,10 +153,9 @@ const hasCover = computed(() => !!coverUrl.value)
       </div>
 
       <footer class="campaign-card__foot">
-        <CampaignStatusBadge v-if="showStatusBadge" :campaign="campaign" size="sm" />
-        <span v-else class="campaign-card__status" :data-tone="statusTone">{{ statusLabel }}</span>
-        <span class="campaign-card__foot-right">
-          <CampaignVoteControl :campaign="campaign" size="sm" />
+        <div class="campaign-card__foot-row">
+          <CampaignStatusBadge v-if="showStatusBadge" :campaign="campaign" size="sm" />
+          <span v-else class="campaign-card__status" :data-tone="statusTone">{{ statusLabel }}</span>
           <span v-if="progress" class="campaign-card__progress">
             <span class="campaign-card__progress-track" aria-hidden="true">
               <span class="campaign-card__progress-fill"
@@ -169,7 +168,8 @@ const hasCover = computed(() => !!coverUrl.value)
           <span v-else class="campaign-card__count">
             {{ totalNodes }} nodes
           </span>
-        </span>
+        </div>
+        <CampaignVoteControl :campaign="campaign" size="sm" />
       </footer>
     </div>
   </router-link>
@@ -342,17 +342,17 @@ const hasCover = computed(() => !!coverUrl.value)
 .campaign-card__foot {
   margin-top: auto;
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: stretch;
   gap: var(--space-sm);
   padding-top: var(--space-sm);
   border-top: 1px solid var(--bg-overlay);
 }
 
-.campaign-card__foot-right {
-  display: inline-flex;
+.campaign-card__foot-row {
+  display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: var(--space-sm);
   min-width: 0;
 }

@@ -131,8 +131,9 @@ watch(() => auth.isLoggedIn, (next, prev) => {
 const categoryTag = computed(() => campaign.value?.tags.find((t) => t.kind === 'CATEGORY') ?? null)
 
 const accent = computed(() => {
-  if (!categoryTag.value?.categoryId) return 'var(--accent-overall)'
-  const code = categoryStore.getCategoryCode(categoryTag.value.categoryId)
+  const cats = campaign.value?.tags.filter((t) => t.kind === 'CATEGORY') ?? []
+  if (cats.length !== 1 || !cats[0].categoryId) return 'var(--accent-overall)'
+  const code = categoryStore.getCategoryCode(cats[0].categoryId)
   if (!code) return 'var(--accent-overall)'
   return categoryStore.getCategoryInfo(code)?.accent ?? 'var(--accent-overall)'
 })

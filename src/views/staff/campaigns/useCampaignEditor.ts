@@ -444,9 +444,9 @@ export function useCampaignEditor() {
   })
 
   const accent = computed(() => {
-    const cat = campaign.value?.tags.find((t) => t.kind === 'CATEGORY')
-    if (!cat?.categoryId) return 'var(--accent-overall)'
-    const code = categoryStore.getCategoryCode(cat.categoryId)
+    const cats = campaign.value?.tags.filter((t) => t.kind === 'CATEGORY') ?? []
+    if (cats.length !== 1 || !cats[0].categoryId) return 'var(--accent-overall)'
+    const code = categoryStore.getCategoryCode(cats[0].categoryId)
     if (!code) return 'var(--accent-overall)'
     return categoryStore.getCategoryInfo(code)?.accent ?? 'var(--accent-overall)'
   })
@@ -1315,6 +1315,20 @@ export function useCampaignEditor() {
     return 'requirement'
   }
 
+  function trayForSelection(id: string): TrayId {
+    const current = activeTray.value
+    if (isBarrierId(id)) {
+      return current && BARRIER_TRAY_IDS.includes(current) ? current : 'barrierCondition'
+    }
+    if (isTextId(id)) return 'text'
+    if (current && NODE_TRAY_IDS.includes(current)) {
+      if (current !== 'unlock') return current
+      const d = campaign.value?.difficulties.find((x) => x.id === id)
+      if ((d?.prerequisiteCampaignDifficultyIds ?? []).length >= 2) return current
+    }
+    return 'requirement'
+  }
+
   function handleSelect(id: string) {
     if (
       affectedPickMode.value &&
@@ -1327,7 +1341,7 @@ export function useCampaignEditor() {
     }
     barrierPlacementMode.value = false
     selectOnly(id)
-    activeTray.value = vertexTrayFor(id)
+    activeTray.value = trayForSelection(id)
   }
 
   function handleToggleSelect(id: string) {
@@ -1488,15 +1502,21 @@ export function useCampaignEditor() {
   const isMilestone = ref(false)
   let suppressMilestoneAutoOpen = false
 
+  let milestoneSyncedNodeId: string | null = null
+
   watch(
     selectedDifficulty,
     (d) => {
       if (!d) {
+        milestoneSyncedNodeId = null
         isMilestone.value = false
         return
       }
+      if (d.id === milestoneSyncedNodeId) return
+      milestoneSyncedNodeId = d.id
       isMilestone.value = !!(
         d.checkpointLabel ||
+        d.checkpointLabelPosition ||
         d.checkpointAvatarUrl ||
         d.checkpointColor ||
         d.checkpointSize

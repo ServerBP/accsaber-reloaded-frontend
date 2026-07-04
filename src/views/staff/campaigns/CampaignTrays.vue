@@ -429,7 +429,7 @@ const backgroundSwatch = computed(() => {
       </svg>
       <span>Rewards are only handed out once the campaign is curated.</span>
     </p>
-    <label v-if="isCurator" class="campaign-editor__field">
+    <label class="campaign-editor__field">
       <span>Completion XP</span>
       <div class="campaign-editor__slider-row">
         <input
