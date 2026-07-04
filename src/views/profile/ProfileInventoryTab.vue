@@ -8,6 +8,7 @@ import SearchBox from '@/components/common/SearchBox.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import InventoryDetailPanel from '@/components/domain/InventoryDetailPanel.vue'
 import InventoryItemCell from '@/components/domain/InventoryItemCell.vue'
+import { useCrateContents } from '@/composables/useCrateContents'
 import { usePageableRoute } from '@/composables/usePageableRoute'
 import { getItems, getUserInventory, getUserItems } from '@/api/items'
 import { useAuthStore } from '@/stores/auth'
@@ -19,7 +20,7 @@ import type { ItemRarity, ItemResponse, ItemTypeKey, UserItemResponse } from '@/
 import type { Page } from '@/types/pagination'
 import { RARITY_ORDER, readThemeValue } from '@/utils/items'
 import { computed, onMounted, ref, watch } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 
 const props = defineProps<{
   userId: string
@@ -31,6 +32,9 @@ const itemTypeStore = useItemTypeStore()
 const itemModifierStore = useItemModifierStore()
 const themeStore = useThemeStore()
 
+const route = useRoute()
+const router = useRouter()
+
 const isOwnProfile = computed(() => authStore.isLoggedIn && authStore.userId === props.userId)
 const canOfferTrade = computed(() => authStore.isLoggedIn && !!authStore.userId && authStore.userId !== props.userId)
 
@@ -38,8 +42,18 @@ const typeKey = ref<string>('')
 const rarity = ref<string>('')
 const modifierKey = ref<string>('')
 const search = ref('')
-const showUnowned = ref(false)
 const CATALOG_PAGE_SIZE = 20
+
+const showUnowned = computed<boolean>({
+  get: () => route.query.unowned === '1',
+  set: (val) => {
+    const query = { ...route.query }
+    if (val) query.unowned = '1'
+    else delete query.unowned
+    delete query.page
+    router.replace({ query })
+  },
+})
 
 const { currentPage, sortState, paginationParams, setPage, setSort, resetPage } = usePageableRoute({
   defaultSort: 'date',
@@ -189,6 +203,10 @@ const selectedItem = computed<UserItemResponse | null>(() => {
   return items.value.find((u) => u.linkId === selectedLinkId.value) ?? null
 })
 
+const { contents: crateContents, loading: crateContentsLoading } = useCrateContents(
+  () => selectedItem.value?.item ?? null,
+)
+
 const isSelectedLocked = computed(() => isLockedLink(selectedLinkId.value))
 
 const isSelectedEquipped = computed(() => {
@@ -250,7 +268,6 @@ async function fetchCatalog() {
 function toggleShowUnowned() {
   showUnowned.value = !showUnowned.value
   selectedLinkId.value = null
-  resetPage()
   if (showUnowned.value && catalogAllItems.value.length === 0) {
     fetchCatalog()
   }
@@ -328,9 +345,17 @@ watch(() => props.userId, (id) => {
   if (id && isOwnProfile.value) inventoryStore.fetchEquipped(id)
 }, { immediate: true })
 
+watch([totalPages, currentPage], () => {
+  if (loading.value || catalogLoading.value) return
+  if (totalPages.value >= 1 && currentPage.value > totalPages.value) {
+    setPage(totalPages.value)
+  }
+})
+
 onMounted(() => {
   itemTypeStore.fetchItemTypes()
   itemModifierStore.fetchModifiers()
+  if (showUnowned.value && catalogAllItems.value.length === 0) fetchCatalog()
 })
 </script>
 
@@ -412,6 +437,8 @@ onMounted(() => {
           :equipped="isSelectedEquipped"
           :busy="actionBusy"
           :locked="isSelectedLocked"
+          :crate-contents="crateContents"
+          :crate-contents-loading="crateContentsLoading"
           @equip="handleEquip"
           @unequip="handleUnequip"
         />
@@ -425,6 +452,8 @@ onMounted(() => {
         :equipped="isSelectedEquipped"
         :busy="actionBusy"
         :locked="isSelectedLocked"
+        :crate-contents="crateContents"
+        :crate-contents-loading="crateContentsLoading"
         @equip="handleEquip"
         @unequip="handleUnequip"
       />

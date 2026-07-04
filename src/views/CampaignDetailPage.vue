@@ -13,6 +13,7 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import CampaignRoadmap from '@/components/domain/CampaignRoadmap.vue'
 import CampaignRewardItem from '@/components/domain/CampaignRewardItem.vue'
+import CampaignStatusBadge from '@/components/domain/CampaignStatusBadge.vue'
 import CampaignVoteControl from '@/components/domain/CampaignVoteControl.vue'
 import CampaignRewardNotice from '@/views/campaign/CampaignRewardNotice.vue'
 import ComplexityBadge from '@/components/domain/ComplexityBadge.vue'
@@ -506,8 +507,11 @@ function unpinTooltip() {
                 {{ campaign.creatorAlias || campaign.creatorName || 'AccSaber' }}
               </span>
             </p>
-            <p v-if="campaign.status === 'CURATED'" class="campaign-detail__curated-row">
-              <span class="campaign-detail__curated">Curated</span>
+            <p
+              v-if="campaign.official || campaign.status === 'CURATED'"
+              class="campaign-detail__curated-row"
+            >
+              <CampaignStatusBadge :campaign="campaign" size="md" />
             </p>
             <p class="campaign-detail__mode">
               <span>{{ campaign.completionMode === 'ALL' ? 'Clear every node' : 'Reach the end' }}</span>
@@ -1144,20 +1148,6 @@ function unpinTooltip() {
 
 .campaign-detail__curated-row {
   margin: 6px 0 0;
-}
-
-.campaign-detail__curated {
-  display: inline-flex;
-  padding: 2px 6px;
-  font-family: var(--font-sans);
-  font-size: 0.625rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--success);
-  background: color-mix(in srgb, var(--success) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--success) 45%, transparent);
-  border-radius: 2px;
 }
 
 .campaign-detail__mode {

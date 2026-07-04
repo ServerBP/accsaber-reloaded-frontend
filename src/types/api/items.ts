@@ -355,6 +355,12 @@ export interface ItemResponse {
   createdAt: string
 }
 
+export interface CrateContentResponse {
+  rewardItem: ItemResponse
+  dropWeight: number
+  dropChance: number
+}
+
 export interface UserItemResponse {
   linkId: string
   item: ItemResponse

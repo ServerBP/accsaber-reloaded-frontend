@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CampaignStatusBadge from '@/components/domain/CampaignStatusBadge.vue'
 import CampaignVoteControl from '@/components/domain/CampaignVoteControl.vue'
 import { useCategoryStore } from '@/stores/categories'
 import type {
@@ -91,6 +92,17 @@ const coverUrl = computed(
   () => props.campaign.iconUrl || props.campaign.backgroundUrl || null,
 )
 
+const hasProgressLabel = computed(
+  () =>
+    props.progress?.progressStatus === 'COMPLETED' ||
+    props.progress?.progressStatus === 'IN_PROGRESS',
+)
+
+const showStatusBadge = computed(
+  () =>
+    !hasProgressLabel.value && (props.campaign.official || props.campaign.status === 'CURATED'),
+)
+
 const hasCover = computed(() => !!coverUrl.value)
 </script>
 
@@ -141,7 +153,7 @@ const hasCover = computed(() => !!coverUrl.value)
       </div>
 
       <footer class="campaign-card__foot">
-        <span v-if="statusLabel === 'Curated'" class="campaign-card__curated">Curated</span>
+        <CampaignStatusBadge v-if="showStatusBadge" :campaign="campaign" size="sm" />
         <span v-else class="campaign-card__status" :data-tone="statusTone">{{ statusLabel }}</span>
         <span class="campaign-card__foot-right">
           <CampaignVoteControl :campaign="campaign" size="sm" />
@@ -355,20 +367,6 @@ const hasCover = computed(() => !!coverUrl.value)
 
 .campaign-card__status[data-tone="success"] { color: var(--success); }
 .campaign-card__status[data-tone="accent"] { color: var(--card-accent); }
-
-.campaign-card__curated {
-  display: inline-flex;
-  padding: 2px 6px;
-  font-family: var(--font-sans);
-  font-size: 0.5625rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--success);
-  background: color-mix(in srgb, var(--success) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--success) 45%, transparent);
-  border-radius: 2px;
-}
 
 .campaign-card__progress {
   display: inline-flex;

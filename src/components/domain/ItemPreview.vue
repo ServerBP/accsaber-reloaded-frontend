@@ -219,10 +219,14 @@ const fallbackInitial = computed(() => props.item.name.charAt(0).toUpperCase())
       viewBox="0 0 24 24"
       aria-hidden="true"
     >
-      <rect class="item-preview__crate-body" x="3" y="5" width="18" height="14" rx="2" />
-      <line class="item-preview__crate-seam" x1="3.6" y1="8.7" x2="20.4" y2="8.7" />
-      <rect class="item-preview__crate-strap" x="7.4" y="5" width="2.1" height="14" />
-      <rect class="item-preview__crate-strap" x="14.5" y="5" width="2.1" height="14" />
+      <rect class="item-preview__crate-body" x="3" y="4.5" width="18" height="15" rx="1.6" />
+      <path class="item-preview__crate-lid" d="M3,9 L3,6.1 Q3,4.5 4.6,4.5 L19.4,4.5 Q21,4.5 21,6.1 L21,9 Z" />
+      <line class="item-preview__crate-seam" x1="3.4" y1="9" x2="20.6" y2="9" />
+      <rect class="item-preview__crate-strap" x="6.05" y="5.4" width="1.9" height="13.2" rx="0.3" />
+      <rect class="item-preview__crate-strap" x="16.05" y="5.4" width="1.9" height="13.2" rx="0.3" />
+      <rect class="item-preview__crate-latch" x="5.5" y="8.35" width="3" height="1.3" rx="0.25" />
+      <rect class="item-preview__crate-latch" x="15.5" y="8.35" width="3" height="1.3" rx="0.25" />
+      <rect class="item-preview__crate-frame" x="3" y="4.5" width="18" height="15" rx="1.6" />
     </svg>
 
     <img
@@ -374,24 +378,37 @@ const fallbackInitial = computed(() => props.item.name.charAt(0).toUpperCase())
 }
 
 .item-preview__crate {
-  width: 64%;
+  width: 66%;
   aspect-ratio: 1 / 1;
+  overflow: visible;
 }
 
 .item-preview__crate-body {
-  fill: var(--bg-base);
-  stroke: var(--text-secondary);
-  stroke-width: 1.4;
-  stroke-linejoin: round;
+  fill: var(--bg-elevated);
+}
+
+.item-preview__crate-lid {
+  fill: var(--bg-overlay);
 }
 
 .item-preview__crate-seam {
-  stroke: var(--text-secondary);
-  stroke-width: 1.2;
+  stroke: var(--bg-base);
+  stroke-width: 0.9;
   stroke-linecap: round;
 }
 
 .item-preview__crate-strap {
-  fill: var(--error);
+  fill: color-mix(in srgb, var(--tier-gold) 65%, var(--tier-bronze));
+}
+
+.item-preview__crate-latch {
+  fill: var(--tier-gold);
+}
+
+.item-preview__crate-frame {
+  fill: none;
+  stroke: var(--text-secondary);
+  stroke-width: 1;
+  stroke-linejoin: round;
 }
 </style>

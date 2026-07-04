@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import BaseButton from '@/components/common/BaseButton.vue'
+import CrateContentsList from '@/components/domain/CrateContentsList.vue'
 import ItemPreview from '@/components/domain/ItemPreview.vue'
 import ModifierCompositions from '@/components/domain/ModifierCompositions.vue'
 import { useModifierColor } from '@/composables/useModifierColor'
 import { useItemModifierStore } from '@/stores/itemModifiers'
 import { useItemTypeStore } from '@/stores/itemTypes'
-import type { ItemModifierRef, UserItemResponse } from '@/types/api/items'
+import type { CrateContentResponse, ItemModifierRef, UserItemResponse } from '@/types/api/items'
 import { formatRelativeDate } from '@/utils/formatters'
 import {
   displayItemName,
@@ -22,6 +23,8 @@ const props = defineProps<{
   equipped: boolean
   busy?: boolean
   locked?: boolean
+  crateContents?: CrateContentResponse[]
+  crateContentsLoading?: boolean
 }>()
 
 defineEmits<{
@@ -33,6 +36,7 @@ const itemTypeStore = useItemTypeStore()
 const modifierStore = useItemModifierStore()
 
 const item = computed(() => props.userItem?.item ?? null)
+const isCrate = computed(() => item.value?.typeKey === 'crate')
 const modifiers = computed<ItemModifierRef[]>(() =>
   sortModifiersByKey(props.userItem?.modifiers ?? []),
 )
@@ -117,6 +121,12 @@ onMounted(() => {
     </div>
 
     <p v-if="item.description" class="inv-detail__description">{{ item.description }}</p>
+
+    <CrateContentsList
+      v-if="isCrate"
+      :contents="crateContents ?? []"
+      :loading="crateContentsLoading"
+    />
 
     <dl v-if="hasMetaRows" class="inv-detail__meta">
       <div v-if="!locked" class="inv-detail__row">

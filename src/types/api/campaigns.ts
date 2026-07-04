@@ -31,6 +31,7 @@ export interface CampaignResponse {
   summary: string | null
   description: string | null
   status: CampaignStatus
+  official: boolean
   seekingCuration: boolean
   progressionAgnostic: boolean
   completionMode: CampaignCompletionMode

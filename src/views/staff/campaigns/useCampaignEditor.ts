@@ -213,6 +213,7 @@ export function useCampaignEditor() {
       summary: null,
       description: null,
       status: 'DRAFT',
+      official: false,
       seekingCuration: false,
       progressionAgnostic: false,
       completionMode: 'TERMINAL',

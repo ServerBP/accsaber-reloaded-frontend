@@ -1,11 +1,7 @@
-import type { ItemResponse } from '@/types/api/items'
+import type { CrateContentResponse, ItemResponse } from '@/types/api/items'
 import { del, get, put } from '../client'
 
-export interface CrateContentResponse {
-  rewardItem: ItemResponse
-  dropWeight: number
-  dropChance: number
-}
+export type { CrateContentResponse }
 
 export function getAdminCrates(): Promise<ItemResponse[]> {
   return get<ItemResponse[]>('/admin/crates')
