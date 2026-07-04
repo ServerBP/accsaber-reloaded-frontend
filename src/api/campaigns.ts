@@ -115,7 +115,7 @@ export function abandonCampaign(campaignId: string): Promise<void> {
 
 export function getPlaylistExportUrl(campaignId: string): string {
   const base = import.meta.env.VITE_API_BASE
-  return `${base}/campaigns/${campaignId}/playlist.bplist`
+  return `${base}/playlists/campaign/${campaignId}`
 }
 
 export function createPlayerCampaign(req: CreateCampaignRequest): Promise<CampaignResponse> {

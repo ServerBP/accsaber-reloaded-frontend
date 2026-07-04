@@ -52,7 +52,7 @@ const multiline = computed(
 
 const enumOptions = computed(() => {
   const opts = (props.schema.enum ?? []).map((v) => ({ value: String(v), label: String(v) }))
-  if (!props.required) return [{ value: '', label: '— none —' }, ...opts]
+  if (!props.required) return [{ value: '', label: '- none -' }, ...opts]
   return opts
 })
 
@@ -186,7 +186,7 @@ const label = computed(() => (props.fieldKey ? humanizeKey(props.fieldKey) : '')
       :checked="modelValue === true"
       @change="setBoolean(($event.target as HTMLInputElement).checked)"
     />
-    <span>{{ label }}<span v-if="schema.description" class="schema-node__desc"> — {{ schema.description }}</span></span>
+    <span>{{ label }}<span v-if="schema.description" class="schema-node__desc"> - {{ schema.description }}</span></span>
   </label>
 
   <div v-else-if="kind === 'enum'" class="schema-node__field">
@@ -221,7 +221,7 @@ const label = computed(() => (props.fieldKey ? humanizeKey(props.fieldKey) : '')
     <label class="schema-node__label">
       {{ label }}<span v-if="required"> *</span>
       <span v-if="isUnitRange(schema)" class="schema-node__readout">{{
-        typeof modelValue === 'number' ? modelValue : '—'
+        typeof modelValue === 'number' ? modelValue : '-'
       }}</span>
     </label>
     <input

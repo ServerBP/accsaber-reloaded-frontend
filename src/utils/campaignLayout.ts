@@ -363,7 +363,7 @@ export function barrierConditionLabel(type: BarrierConditionType): string {
 }
 
 export function barrierPairValue(type: BarrierConditionType, value: number | null): string {
-  if (value == null) return '—'
+  if (value == null) return '-'
   switch (BARRIER_CONDITION_META[type].metric) {
     case 'acc':
       return `${(value * 100).toFixed(2)}%`

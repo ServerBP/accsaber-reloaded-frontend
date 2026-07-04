@@ -102,7 +102,7 @@ const typeOptionsRequired = computed(() =>
 const selectedType = computed(() => itemTypeStore.byId.get(form.value.typeId) ?? null)
 
 const selectedTypeLabel = computed(() =>
-  selectedType.value ? `${selectedType.value.name} (${selectedType.value.key})` : '—',
+  selectedType.value ? `${selectedType.value.name} (${selectedType.value.key})` : '-',
 )
 
 const selectedTypeSchema = computed<JsonSchema | null>(
