@@ -66,6 +66,8 @@ export type BarrierConditionType =
 
 export type CampaignVoteDirection = 'UP' | 'DOWN'
 
+export type CampaignLeaderboardBoard = 'COMPLETIONS' | 'AVG_ACCURACY' | 'AVG_AP' | 'PROGRESS'
+
 export type CampaignCollaboratorStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED'
 
 export type UserCampaignStatus = 'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED'

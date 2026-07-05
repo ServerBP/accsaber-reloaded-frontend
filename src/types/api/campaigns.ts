@@ -2,6 +2,7 @@ import type {
   BarrierConditionType,
   CampaignCollaboratorStatus,
   CampaignCompletionMode,
+  CampaignLeaderboardBoard,
   CampaignPrerequisiteMode,
   CampaignVoteDirection,
   CheckpointLabelPosition,
@@ -225,6 +226,38 @@ export interface CampaignListParams extends PaginationParams {
 
 export interface CampaignTagListParams {
   kind?: CampaignTagKind
+}
+
+export interface CampaignLeaderboardPlayer {
+  userId: string
+  userName: string
+  country?: string
+  avatarUrl?: string
+  cdnAvatarUrl?: string
+}
+
+export interface CampaignLeaderboardEntry {
+  rank?: number
+  player: CampaignLeaderboardPlayer
+  completedAt?: string
+  averageAccuracy?: number
+  averageAp?: number
+  nodesCounted?: number
+  progressStatus?: 'IN_PROGRESS' | 'COMPLETED'
+  completedNodes?: number
+  totalNodes?: number
+}
+
+export interface CampaignNodeScoreEntry {
+  rank: number
+  player: CampaignLeaderboardPlayer
+  score?: number
+  accuracy?: number
+  ap?: number
+}
+
+export interface CampaignLeaderboardParams extends PaginationParams {
+  board?: CampaignLeaderboardBoard
 }
 
 export interface CampaignMapResponse {

@@ -16,7 +16,10 @@ import type {
   CampaignDetailResponse,
   CampaignDifficultyResponse,
   CampaignItemAwardResponse,
+  CampaignLeaderboardEntry,
+  CampaignLeaderboardParams,
   CampaignListParams,
+  CampaignNodeScoreEntry,
   CampaignProgressResponse,
   CampaignResponse,
   CampaignTagListParams,
@@ -92,6 +95,25 @@ export async function getMyCampaignProgressBulk(
     ),
   )
   return results.flat()
+}
+
+export function getCampaignLeaderboard(
+  campaignId: string,
+  params?: CampaignLeaderboardParams,
+): Promise<Page<CampaignLeaderboardEntry>> {
+  return get<Page<CampaignLeaderboardEntry>>(
+    `/campaigns/${campaignId}/leaderboard${buildQuery(params)}`,
+  )
+}
+
+export function getCampaignNodeLeaderboard(
+  campaignId: string,
+  nodeId: string,
+  params?: PaginationParams,
+): Promise<Page<CampaignNodeScoreEntry>> {
+  return get<Page<CampaignNodeScoreEntry>>(
+    `/campaigns/${campaignId}/leaderboard/nodes/${nodeId}${buildQuery(params)}`,
+  )
 }
 
 export function voteCampaign(

@@ -15,6 +15,7 @@ import CampaignRoadmap from '@/components/domain/CampaignRoadmap.vue'
 import CampaignRewardItem from '@/components/domain/CampaignRewardItem.vue'
 import CampaignStatusBadge from '@/components/domain/CampaignStatusBadge.vue'
 import CampaignVoteControl from '@/components/domain/CampaignVoteControl.vue'
+import CampaignLeaderboardTray from '@/views/campaign/CampaignLeaderboardTray.vue'
 import CampaignRewardNotice from '@/views/campaign/CampaignRewardNotice.vue'
 import ComplexityBadge from '@/components/domain/ComplexityBadge.vue'
 import DifficultyBadge from '@/components/domain/DifficultyBadge.vue'
@@ -442,6 +443,16 @@ function handleSelect(id: string) {
   pinnedPos.value = { ...cursorPos.value }
 }
 
+const lbNodeId = ref<string | null>(null)
+
+watch(selectedId, (id) => {
+  if (id && campaign.value?.difficulties.some((d) => d.id === id)) {
+    lbNodeId.value = id
+  } else if (!id) {
+    lbNodeId.value = null
+  }
+})
+
 function handleHover(id: string | null) {
   hoverId.value = id
 }
@@ -487,6 +498,13 @@ function unpinTooltip() {
 
         <Breadcrumbs class="campaign-detail__breadcrumbs" :crumbs="breadcrumbs" />
       </main>
+
+      <CampaignLeaderboardTray
+        v-if="campaign.status !== 'DRAFT'"
+        :campaign="campaign"
+        :node-id="lbNodeId"
+        @update:node-id="lbNodeId = $event"
+      />
 
       <div class="campaign-detail__floats">
         <aside class="campaign-detail__rail campaign-detail__rail--left" aria-label="Campaign overview">
