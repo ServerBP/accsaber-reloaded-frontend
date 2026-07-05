@@ -462,7 +462,7 @@ function goBack() {
 
 .lb__panel {
   position: absolute;
-  top: calc(var(--space-md) + 40px);
+  top: var(--space-md);
   right: var(--space-md);
   bottom: var(--space-md);
   z-index: 6;
