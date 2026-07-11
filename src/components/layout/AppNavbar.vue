@@ -95,8 +95,7 @@ const rankingNavItems = computed<NavItem[]>(() => {
 const creativesBase = isCreativesSubdomain ? '/manage' : '/staff/creatives'
 const creativesNavItems: NavItem[] = [
   ...publicNavItems,
-  { to: `${creativesBase}?tab=crates`, label: 'Crates' },
-  { to: `${creativesBase}?tab=preview`, label: 'Live Preview' },
+  { to: creativesBase, label: 'Crates' },
 ]
 
 const isRankingContext = computed(() =>

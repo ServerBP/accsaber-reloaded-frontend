@@ -27,10 +27,10 @@ export function usePreviewTheme() {
   }
 
   watch(
-    () => [preview.active, preview.theme] as const,
-    ([active, themeItem]) => {
+    () => preview.theme,
+    (themeItem) => {
       if (!isCreativesSubdomain) return
-      const tokens = active && themeItem ? readThemeValue(themeItem.value)?.tokens ?? null : null
+      const tokens = themeItem ? readThemeValue(themeItem.value)?.tokens ?? null : null
       if (tokens) apply(tokens)
       else revert()
     },

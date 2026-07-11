@@ -1,31 +1,14 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent } from 'vue'
-import { useRoute } from 'vue-router'
+import { defineAsyncComponent } from 'vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 
-const route = useRoute()
-
-type CreativesTab = 'crates' | 'preview'
-
-const VALID_TABS: CreativesTab[] = ['crates', 'preview']
-
-const activeTab = computed<CreativesTab>(() => {
-  const t = route.query.tab as string
-  return (VALID_TABS.includes(t as CreativesTab) ? t : 'crates') as CreativesTab
-})
-
-const tabComponents: Record<CreativesTab, ReturnType<typeof defineAsyncComponent>> = {
-  crates: defineAsyncComponent(() => import('./CreativesCratesTab.vue')),
-  preview: defineAsyncComponent(() => import('./CreativesPreviewTab.vue')),
-}
-
-const activeComponent = computed(() => tabComponents[activeTab.value])
+const CreativesCratesTab = defineAsyncComponent(() => import('./CreativesCratesTab.vue'))
 </script>
 
 <template>
   <div class="creatives-page">
     <Suspense>
-      <component :is="activeComponent" :key="activeTab" />
+      <CreativesCratesTab />
       <template #fallback>
         <div class="creatives-loading">
           <SkeletonLoader variant="card" v-for="i in 4" :key="i" style="margin-bottom: 12px" />

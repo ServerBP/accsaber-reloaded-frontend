@@ -19,7 +19,7 @@ const modifierStore = useItemModifierStore()
 
 usePreviewTheme()
 
-const visible = computed(() => isCreativesSubdomain && preview.active)
+const visible = computed(() => isCreativesSubdomain)
 const expanded = ref(true)
 
 const loaded = ref(false)

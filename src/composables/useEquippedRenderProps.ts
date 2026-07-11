@@ -21,7 +21,7 @@ export function useEquippedRenderProps(
 
   const equipped = computed<EquippedItemsResponse>(() => {
     const base = toValue(source) ?? {}
-    if (options?.previewable && isCreativesSubdomain && preview.active) {
+    if (options?.previewable && isCreativesSubdomain) {
       return { ...base, ...preview.overrides }
     }
     return base

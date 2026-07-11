@@ -12,7 +12,6 @@ import { computed, ref, watch } from 'vue'
 const STORAGE_KEY = 'creatives:preview'
 
 interface PreviewSnapshot {
-  active: boolean
   borderShape: ItemResponse | null
   borderShapeVariant: string | null
   borderShapeEffect: UnusualEffectRef | null
@@ -89,8 +88,6 @@ function syntheticEntry(
 export const usePreviewStore = defineStore('creativesPreview', () => {
   const saved = loadSnapshot()
 
-  const active = ref(saved.active ?? false)
-
   const borderShape = ref<ItemResponse | null>(saved.borderShape ?? null)
   const borderShapeVariant = ref<string | null>(saved.borderShapeVariant ?? null)
   const borderShapeEffect = ref<UnusualEffectRef | null>(saved.borderShapeEffect ?? null)
@@ -145,7 +142,6 @@ export const usePreviewStore = defineStore('creativesPreview', () => {
     let canPersist = true
     watch(
       [
-        active,
         borderShape,
         borderShapeVariant,
         borderShapeEffect,
@@ -166,7 +162,6 @@ export const usePreviewStore = defineStore('creativesPreview', () => {
           sessionStorage.setItem(
             STORAGE_KEY,
             JSON.stringify({
-              active: active.value,
               borderShape: borderShape.value,
               borderShapeVariant: borderShapeVariant.value,
               borderShapeEffect: borderShapeEffect.value,
@@ -190,7 +185,6 @@ export const usePreviewStore = defineStore('creativesPreview', () => {
   }
 
   return {
-    active,
     borderShape,
     borderShapeVariant,
     borderShapeEffect,
