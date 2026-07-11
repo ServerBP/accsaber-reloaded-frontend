@@ -11,6 +11,7 @@ import CampaignShapeGlyph from './CampaignShapeGlyph.vue'
 import CampaignLabelPositionPicker from './CampaignLabelPositionPicker.vue'
 import { useCampaignEditorContext } from './campaignEditorContext'
 import { onAvatarError } from '@/composables/useAvatarFallback'
+import { resolveSize } from '@/utils/campaignLayout'
 import { computed } from 'vue'
 
 const fontOptions = [
@@ -84,7 +85,6 @@ const {
   setMilestone,
   defaultColorHex,
   resetNodeColor,
-  parseSizeInt,
   shapeTiles,
   sizeTiles,
   selectBorderShape,
@@ -111,6 +111,7 @@ const {
   affectedPickMode,
   toggleAffectedPickMode,
   toggleAffected,
+  setBarrierPrereqMode,
   resetBarrierColor,
   selectBarrierLabelPosition,
   canAddBarrierReward,
@@ -750,14 +751,14 @@ const backgroundSwatch = computed(() => {
           </div>
         </label>
         <label class="campaign-editor__field">
-          <span>Band size: {{ parseSizeInt(formNode.checkpointSize, 30) }}px</span>
+          <span>Band size: {{ resolveSize(formNode.checkpointSize, 30) }}px</span>
           <input
             type="range"
             min="14"
             max="64"
             step="1"
-            :value="parseSizeInt(formNode.checkpointSize, 30)"
-            @input="formNode.checkpointSize = ($event.target as HTMLInputElement).value"
+            :value="resolveSize(formNode.checkpointSize, 30)"
+            @input="formNode.checkpointSize = Number(($event.target as HTMLInputElement).value)"
             @change="commitNodeField('checkpointSize')"
           />
         </label>
@@ -785,12 +786,12 @@ const backgroundSwatch = computed(() => {
       </div>
     </div>
     <div class="campaign-editor__field">
-      <span>Node size: {{ parseSizeInt(formNode.size, 48) }}px</span>
+      <span>Node size: {{ resolveSize(formNode.size, 48) }}px</span>
       <div class="campaign-editor__shape-row">
         <CampaignEditorTile
           v-for="t in sizeTiles"
           :key="t.value"
-          :active="parseSizeInt(formNode.size, 48) === t.value"
+          :active="resolveSize(formNode.size, 48) === t.value"
           :label="`${t.label} (${t.value}px)`"
           @select="selectNodeSize(t.value)"
         >
@@ -802,8 +803,8 @@ const backgroundSwatch = computed(() => {
         min="24"
         max="96"
         step="1"
-        :value="parseSizeInt(formNode.size, 48)"
-        @input="formNode.size = ($event.target as HTMLInputElement).value"
+        :value="resolveSize(formNode.size, 48)"
+        @input="formNode.size = Number(($event.target as HTMLInputElement).value)"
         @change="commitNodeField('size')"
       />
     </div>
@@ -1121,6 +1122,41 @@ const backgroundSwatch = computed(() => {
     <p v-else class="campaign-editor__hint">
       No nodes yet. The gate can't be evaluated until it measures at least one node.
     </p>
+    <div class="campaign-editor__field">
+      <span>Opens when</span>
+      <div
+        class="campaign-editor__prereq-mode-toggle"
+        role="radiogroup"
+        aria-label="Gate opens when"
+      >
+        <button
+          type="button"
+          role="radio"
+          :aria-checked="selectedBarrier.prerequisiteMode !== 'AND'"
+          class="campaign-editor__prereq-mode-btn"
+          :class="{
+            'campaign-editor__prereq-mode-btn--active':
+              selectedBarrier.prerequisiteMode !== 'AND',
+          }"
+          @click="setBarrierPrereqMode('OR')"
+        >
+          any clears
+        </button>
+        <button
+          type="button"
+          role="radio"
+          :aria-checked="selectedBarrier.prerequisiteMode === 'AND'"
+          class="campaign-editor__prereq-mode-btn"
+          :class="{
+            'campaign-editor__prereq-mode-btn--active':
+              selectedBarrier.prerequisiteMode === 'AND',
+          }"
+          @click="setBarrierPrereqMode('AND')"
+        >
+          all clear
+        </button>
+      </div>
+    </div>
   </fieldset>
 
   <fieldset
@@ -1129,14 +1165,14 @@ const backgroundSwatch = computed(() => {
     :disabled="!editable"
   >
     <div class="campaign-editor__field">
-      <span>Gate length: {{ parseSizeInt(formBarrier.size, 48) }}px</span>
+      <span>Gate length: {{ resolveSize(formBarrier.size, 48) }}px</span>
       <input
         type="range"
         min="32"
         max="120"
         step="1"
-        :value="parseSizeInt(formBarrier.size, 48)"
-        @input="formBarrier.size = ($event.target as HTMLInputElement).value"
+        :value="resolveSize(formBarrier.size, 48)"
+        @input="formBarrier.size = Number(($event.target as HTMLInputElement).value)"
         @change="commitBarrierField('size')"
       />
     </div>

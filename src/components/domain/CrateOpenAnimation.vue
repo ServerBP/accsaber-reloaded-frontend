@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import CrateCardFace from '@/components/domain/internal/CrateCardFace.vue'
+import FragmentedItem from '@/components/domain/FragmentedItem.vue'
 import ItemPreview from '@/components/domain/ItemPreview.vue'
 import ModifierCompositions from '@/components/domain/ModifierCompositions.vue'
 import {
   useCrateAnimation,
   type CrateAnimationPoolEntry,
 } from '@/composables/useCrateAnimation'
-import type { ItemModifierRef, ItemResponse } from '@/types/api/items'
+import type { ItemModifierRef, ItemResponse, UnusualEffectRef } from '@/types/api/items'
+import { buildEffectLayers, readFragmentSpec } from '@/utils/items'
 import { computed, ref, toRef, watch } from 'vue'
 
 export type { CrateAnimationPoolEntry }
@@ -16,6 +18,7 @@ const props = withDefaults(
     pool: CrateAnimationPoolEntry[]
     result: ItemResponse | null
     resultModifiers?: ItemModifierRef[]
+    resultUnusualEffect?: UnusualEffectRef | null
     playToken: number
     cardWidth?: number
     cardHeight?: number
@@ -32,6 +35,7 @@ const props = withDefaults(
     height: 260,
     spinDurationMs: 4500,
     resultModifiers: () => [],
+    resultUnusualEffect: null,
   },
 )
 
@@ -42,6 +46,11 @@ const emit = defineEmits<{
 
 const stageEl = ref<HTMLElement | null>(null)
 const resultModifiersRef = computed(() => props.resultModifiers)
+const resultUnusualEffectRef = computed(() => props.resultUnusualEffect ?? null)
+const resultLayers = computed(() =>
+  buildEffectLayers(props.resultModifiers, props.resultUnusualEffect),
+)
+const resultFragmentSpec = computed(() => readFragmentSpec(props.resultUnusualEffect ?? null))
 
 const {
   phase,
@@ -57,6 +66,7 @@ const {
 } = useCrateAnimation({
   result: toRef(props, 'result'),
   resultModifiers: resultModifiersRef,
+  resultUnusualEffect: resultUnusualEffectRef,
   pool: toRef(props, 'pool'),
   cardWidth: toRef(props, 'cardWidth'),
   cardGap: toRef(props, 'cardGap'),
@@ -147,9 +157,10 @@ const scoreLabel = computed(() => {
         >
           <CrateCardFace :item="slot.item" selected />
           <ModifierCompositions
-            v-for="m in slot.modifiers"
-            :key="m.id"
-            :modifier="m"
+            v-for="layer in buildEffectLayers(slot.modifiers, slot.unusualEffect)"
+            :key="layer.key"
+            :spec="layer.spec"
+            :type-key="slot.item.typeKey"
           />
         </div>
       </div>
@@ -166,9 +177,10 @@ const scoreLabel = computed(() => {
       >
         <CrateCardFace :item="result" selected />
         <ModifierCompositions
-          v-for="m in resultModifiers"
-          :key="m.id"
-          :modifier="m"
+          v-for="layer in resultLayers"
+          :key="layer.key"
+          :spec="layer.spec"
+          :type-key="result?.typeKey"
         />
       </div>
       <div
@@ -179,9 +191,10 @@ const scoreLabel = computed(() => {
       >
         <CrateCardFace :item="result" selected />
         <ModifierCompositions
-          v-for="m in resultModifiers"
-          :key="m.id"
-          :modifier="m"
+          v-for="layer in resultLayers"
+          :key="layer.key"
+          :spec="layer.spec"
+          :type-key="result?.typeKey"
         />
       </div>
     </template>
@@ -203,14 +216,16 @@ const scoreLabel = computed(() => {
       :class="`rarity--${result.rarity}`"
     >
       <div class="crate-anim__reveal-icon">
-        <ItemPreview :item="result" selected />
+        <FragmentedItem v-if="resultFragmentSpec" :item="result" :spec="resultFragmentSpec" :selected="true" />
+        <ItemPreview v-else :item="result" selected />
       </div>
       <div class="crate-anim__reveal-name">{{ result.name }}</div>
       <div class="crate-anim__reveal-rarity">{{ result.rarity }}</div>
       <ModifierCompositions
-        v-for="m in resultModifiers"
-        :key="m.id"
-        :modifier="m"
+        v-for="layer in resultLayers"
+        :key="layer.key"
+        :spec="layer.spec"
+        :type-key="result?.typeKey"
       />
       <div
         class="crate-anim__score-badge"
@@ -577,7 +592,7 @@ const scoreLabel = computed(() => {
 .rarity--common    { --rarity-color: var(--text-tertiary); }
 .rarity--uncommon  { --rarity-color: var(--success); }
 .rarity--rare      { --rarity-color: var(--info); }
-.rarity--epic      { --rarity-color: var(--accent-overall); }
+.rarity--epic      { --rarity-color: var(--tier-apex); }
 .rarity--legendary { --rarity-color: var(--tier-gold); }
 .rarity--mythic    { --rarity-color: var(--error); }
 

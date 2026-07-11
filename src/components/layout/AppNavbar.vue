@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import logoUrl from '@/assets/logo.png'
 import BaseButton from '@/components/common/BaseButton.vue'
 import BaseModal from '@/components/common/BaseModal.vue'
 import GlobalSearchModal from '@/components/domain/GlobalSearchModal.vue'
@@ -7,6 +6,7 @@ import MissionsDropdown from '@/components/domain/MissionsDropdown.vue'
 import PseudoLoginModal from '@/components/domain/PseudoLoginModal.vue'
 import { useAuthStore } from '@/stores/auth'
 import { onAvatarError } from '@/composables/useAvatarFallback'
+import { useBrandLogo } from '@/composables/useBrandLogo'
 import { isAdminSubdomain, isRankingSubdomain, isStaffSubdomain, playerProfileHref } from '@/utils/subdomain'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -14,6 +14,8 @@ import { useRoute, useRouter } from 'vue-router'
 const authStore = useAuthStore()
 const route = useRoute()
 const router = useRouter()
+
+const logoSrc = useBrandLogo()
 
 const loginModalOpen = ref(false)
 const searchModalOpen = ref(false)
@@ -166,7 +168,7 @@ onUnmounted(() => {
   <header class="navbar" :class="{ 'navbar--scrolled': scrolled }">
     <div class="navbar__inner">
       <router-link to="/" class="navbar__logo" aria-label="Home">
-        <img :src="logoUrl" alt="AccSaber" class="navbar__logo-img" fetchpriority="high" decoding="async" />
+        <img :src="logoSrc" alt="AccSaber" class="navbar__logo-img" fetchpriority="high" decoding="async" />
       </router-link>
 
       <div class="navbar__mobile-quick">
@@ -337,14 +339,14 @@ onUnmounted(() => {
   right: 0;
   z-index: 100;
   height: var(--navbar-height);
-  background: color-mix(in srgb, var(--bg-surface) 80%, transparent);
+  background: var(--navbar-bg);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   transition: box-shadow 200ms ease, background 200ms ease;
 }
 
 .navbar--scrolled {
-  background: color-mix(in srgb, var(--bg-surface) 92%, transparent);
+  background: var(--navbar-bg-scrolled);
   box-shadow: 0 1px 0 var(--bg-overlay), 0 8px 24px rgba(0, 0, 0, 0.18);
 }
 
@@ -370,7 +372,7 @@ onUnmounted(() => {
 }
 
 .navbar__logo:hover {
-  background: var(--bg-elevated);
+  background: color-mix(in srgb, var(--navbar-text-strong) 10%, transparent);
 }
 
 .navbar__logo-img {
@@ -394,19 +396,19 @@ onUnmounted(() => {
   padding: 0 var(--space-md);
   font-size: var(--text-body);
   font-weight: 500;
-  color: var(--text-secondary);
+  color: var(--navbar-text);
   text-decoration: none;
   border-radius: var(--radius-btn);
   transition: color 120ms ease, background 120ms ease;
 }
 
 .navbar__link:hover {
-  color: var(--text-primary);
-  background: var(--bg-elevated);
+  color: var(--navbar-text-strong);
+  background: color-mix(in srgb, var(--navbar-text-strong) 10%, transparent);
 }
 
 .navbar__link--active {
-  color: var(--text-primary);
+  color: var(--navbar-text-strong);
 }
 
 .navbar__link--active::after {
@@ -478,14 +480,14 @@ onUnmounted(() => {
   background: none;
   border: none;
   border-radius: var(--radius-btn);
-  color: var(--text-secondary);
+  color: var(--navbar-text);
   cursor: pointer;
   transition: color 120ms ease, background 120ms ease;
 }
 
 .navbar__icon-btn:hover {
-  color: var(--text-primary);
-  background: var(--bg-elevated);
+  color: var(--navbar-text-strong);
+  background: color-mix(in srgb, var(--navbar-text-strong) 10%, transparent);
 }
 
 .navbar__logout:hover {

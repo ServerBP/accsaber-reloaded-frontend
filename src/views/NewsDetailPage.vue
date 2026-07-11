@@ -31,7 +31,7 @@ const { dominantColor } = useColorExtract(imageUrlRef)
 const detailAccent = computed(() => {
   const color = dominantColor.value
   if (!color) return accent.value
-  if (themeStore.theme === 'dark') {
+  if (themeStore.resolvedBase === 'dark') {
     const match = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/)
     if (match) {
       const r = Math.min(255, Number(match[1]) + 60)

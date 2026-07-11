@@ -222,7 +222,7 @@ onMounted(async () => {
 }
 
 .crates-list__rarity.rarity--epic {
-  --rarity-color: var(--accent-overall);
+  --rarity-color: var(--tier-apex);
 }
 
 .crates-list__rarity.rarity--legendary {

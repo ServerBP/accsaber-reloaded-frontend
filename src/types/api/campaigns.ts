@@ -88,8 +88,8 @@ export interface CampaignDifficultyResponse {
   borderColor: string | null
   borderShape: string | null
   checkpointColor: string | null
-  checkpointSize: string | null
-  size: string | null
+  checkpointSize: number | null
+  size: number | null
   positionX: number
   positionY: number
   xp: number
@@ -109,12 +109,13 @@ export interface CampaignBarrierResponse {
   checkpointColor: string | null
   borderColor: string | null
   borderShape: string | null
-  size: string | null
-  checkpointSize: string | null
+  size: number | null
+  checkpointSize: number | null
   positionX: number
   positionY: number
   xp: number
   prerequisiteCampaignDifficultyIds: string[]
+  prerequisiteMode: CampaignPrerequisiteMode
   affectedCampaignDifficultyIds: string[]
   items: CampaignItemAwardResponse[]
 }

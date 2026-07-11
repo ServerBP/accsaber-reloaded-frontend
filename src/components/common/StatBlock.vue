@@ -39,6 +39,7 @@ const trendArrow = computed(() => {
     <div class="stat-block__header">
       <span v-if="icon" class="stat-block__icon">{{ icon }}</span>
       <span class="stat-block__label">{{ label }}</span>
+      <slot name="label-suffix" />
     </div>
     <div class="stat-block__value">
       {{ isNumeric ? displayValue : value }}

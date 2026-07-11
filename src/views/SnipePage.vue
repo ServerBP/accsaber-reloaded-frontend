@@ -33,6 +33,8 @@ import {
   readBorderColorValue,
   readBorderShapeValue,
   readTitleValue,
+  resolveEquippedVariant,
+  unusualEffectLayers,
 } from '@/utils/items'
 import { toScoreDisplay } from '@/utils/mappers'
 import { computed, ref, watch } from 'vue'
@@ -128,10 +130,20 @@ const targetEquipped = ref<EquippedItemsResponse>({})
 
 const sniperTitle = computed(() => readTitleValue(sniperEquipped.value.title?.item.value))
 const sniperBorderShape = computed(() => readBorderShapeValue(sniperEquipped.value.profile_border_shape?.item.value))
-const sniperBorderColor = computed(() => readBorderColorValue(sniperEquipped.value.profile_border_color?.item.value))
+const sniperBorderColor = computed(() => resolveEquippedVariant(sniperEquipped.value.profile_border_color, readBorderColorValue))
+const sniperTitleEffects = computed(() => unusualEffectLayers(sniperEquipped.value.title?.unusualEffect))
+const sniperBorderEffects = computed(() => [
+  ...unusualEffectLayers(sniperEquipped.value.profile_border_shape?.unusualEffect),
+  ...unusualEffectLayers(sniperEquipped.value.profile_border_color?.unusualEffect),
+])
 const targetTitle = computed(() => readTitleValue(targetEquipped.value.title?.item.value))
 const targetBorderShape = computed(() => readBorderShapeValue(targetEquipped.value.profile_border_shape?.item.value))
-const targetBorderColor = computed(() => readBorderColorValue(targetEquipped.value.profile_border_color?.item.value))
+const targetBorderColor = computed(() => resolveEquippedVariant(targetEquipped.value.profile_border_color, readBorderColorValue))
+const targetTitleEffects = computed(() => unusualEffectLayers(targetEquipped.value.title?.unusualEffect))
+const targetBorderEffects = computed(() => [
+  ...unusualEffectLayers(targetEquipped.value.profile_border_shape?.unusualEffect),
+  ...unusualEffectLayers(targetEquipped.value.profile_border_color?.unusualEffect),
+])
 const data = ref<Page<SnipeComparisonResponse> | null>(null)
 const loading = ref(false)
 
@@ -152,7 +164,7 @@ const { dominantColor } = useColorExtract(targetAvatar)
 const heroAccent = computed(() => {
   const raw = dominantColor.value
   if (!raw) return 'var(--accent-overall)'
-  return themeStore.theme === 'dark' ? brightenRgb(raw, 60) : raw
+  return themeStore.resolvedBase === 'dark' ? brightenRgb(raw, 60) : raw
 })
 
 const rows = computed(() => data.value?.content ?? [])
@@ -409,7 +421,9 @@ watch(
           :avatar-url="sniperAvatar" :fallback-title="sniperLevel?.title" hide-progress
           :equipped-title="sniperTitle"
           :equipped-border-shape="sniperBorderShape"
-          :equipped-border-color="sniperBorderColor" />
+          :equipped-border-color="sniperBorderColor"
+          :title-effects="sniperTitleEffects"
+          :border-effects="sniperBorderEffects" />
         <SkeletonLoader v-else variant="avatar" width="64px" height="64px" />
         <div class="snipe-hero__player-info">
           <span class="snipe-hero__role">You</span>
@@ -440,7 +454,9 @@ watch(
           :avatar-url="targetAvatar" :fallback-title="targetLevel?.title" hide-progress
           :equipped-title="targetTitle"
           :equipped-border-shape="targetBorderShape"
-          :equipped-border-color="targetBorderColor" />
+          :equipped-border-color="targetBorderColor"
+          :title-effects="targetTitleEffects"
+          :border-effects="targetBorderEffects" />
         <SkeletonLoader v-else variant="avatar" width="64px" height="64px" />
         <div class="snipe-hero__player-info">
           <span class="snipe-hero__role snipe-hero__role--target">Target</span>

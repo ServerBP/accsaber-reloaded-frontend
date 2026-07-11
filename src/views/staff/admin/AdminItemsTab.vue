@@ -3,8 +3,8 @@ import BaseTabs from '@/components/common/BaseTabs.vue'
 import { computed, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-type ItemsSubTab = 'items' | 'types' | 'modifiers' | 'award' | 'crates'
-const VALID: ItemsSubTab[] = ['items', 'types', 'modifiers', 'award', 'crates']
+type ItemsSubTab = 'items' | 'types' | 'modifiers' | 'unusual' | 'award' | 'crates'
+const VALID: ItemsSubTab[] = ['items', 'types', 'modifiers', 'unusual', 'award', 'crates']
 
 const route = useRoute()
 const router = useRouter()
@@ -13,6 +13,7 @@ const tabs = [
   { key: 'items', label: 'Items' },
   { key: 'types', label: 'Types' },
   { key: 'modifiers', label: 'Modifiers' },
+  { key: 'unusual', label: 'Unusual FX' },
   { key: 'crates', label: 'Crates' },
   { key: 'award', label: 'Award' },
 ]
@@ -30,6 +31,7 @@ const subComponents: Record<ItemsSubTab, ReturnType<typeof defineAsyncComponent>
   items: defineAsyncComponent(() => import('./items/ItemsManagementTab.vue')),
   types: defineAsyncComponent(() => import('./items/ItemTypesManagementTab.vue')),
   modifiers: defineAsyncComponent(() => import('./items/ItemModifiersListTab.vue')),
+  unusual: defineAsyncComponent(() => import('./items/UnusualEffectsListTab.vue')),
   crates: defineAsyncComponent(() => import('./items/CratesListTab.vue')),
   award: defineAsyncComponent(() => import('./items/AwardItemTab.vue')),
 }

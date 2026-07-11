@@ -624,10 +624,10 @@ export function useCampaignEditor() {
     checkpointLabelPosition: string
     checkpointAvatarUrl: string
     checkpointColor: string
-    checkpointSize: string
+    checkpointSize: number | null
     borderColor: string
     borderShape: string
-    size: string
+    size: number | null
     xp: number
   }>({
     requirementType: 'ACC',
@@ -637,10 +637,10 @@ export function useCampaignEditor() {
     checkpointLabelPosition: '',
     checkpointAvatarUrl: '',
     checkpointColor: '',
-    checkpointSize: '',
+    checkpointSize: null,
     borderColor: '',
     borderShape: '',
-    size: '',
+    size: null,
     xp: 0,
   })
 
@@ -655,10 +655,10 @@ export function useCampaignEditor() {
       checkpointLabelPosition: d.checkpointLabelPosition ?? '',
       checkpointAvatarUrl: d.checkpointAvatarUrl ?? '',
       checkpointColor: d.checkpointColor ?? '',
-      checkpointSize: d.checkpointSize ?? '',
+      checkpointSize: d.checkpointSize,
       borderColor: d.borderColor ?? '',
       borderShape: d.borderShape ?? 'hex',
-      size: d.size ?? '',
+      size: d.size,
       xp: d.xp ?? 0,
     }
   }
@@ -673,9 +673,9 @@ export function useCampaignEditor() {
     checkpointLabelPosition: string
     checkpointAvatarUrl: string
     checkpointColor: string
-    checkpointSize: string
+    checkpointSize: number | null
     borderColor: string
-    size: string
+    size: number | null
     xp: number
   }>({
     conditionType: 'AVERAGE_ACC',
@@ -685,9 +685,9 @@ export function useCampaignEditor() {
     checkpointLabelPosition: '',
     checkpointAvatarUrl: '',
     checkpointColor: '',
-    checkpointSize: '',
+    checkpointSize: null,
     borderColor: '',
-    size: '',
+    size: null,
     xp: 0,
   })
 
@@ -702,9 +702,9 @@ export function useCampaignEditor() {
       checkpointLabelPosition: b.checkpointLabelPosition ?? '',
       checkpointAvatarUrl: b.checkpointAvatarUrl ?? '',
       checkpointColor: b.checkpointColor ?? '',
-      checkpointSize: b.checkpointSize ?? '',
+      checkpointSize: b.checkpointSize,
       borderColor: b.borderColor ?? '',
-      size: b.size ?? '',
+      size: b.size,
       xp: b.xp ?? 0,
     }
   }
@@ -896,9 +896,7 @@ export function useCampaignEditor() {
     'checkpointLabel',
     'checkpointAvatarUrl',
     'checkpointColor',
-    'checkpointSize',
     'borderColor',
-    'size',
   ])
 
   function commitNodeField(field: keyof UpdateCampaignDifficultyRequest) {
@@ -1528,24 +1526,19 @@ export function useCampaignEditor() {
     formNode.value.checkpointLabel = ''
     formNode.value.checkpointAvatarUrl = ''
     formNode.value.checkpointColor = ''
-    formNode.value.checkpointSize = ''
+    formNode.value.checkpointSize = null
     const d = selectedDifficulty.value
     if (d) {
       void applyNodePatch(d.id, {
         checkpointLabel: '',
         checkpointAvatarUrl: '',
         checkpointColor: '',
-        checkpointSize: '',
+        checkpointSize: null,
       })
     }
     setTimeout(() => {
       suppressMilestoneAutoOpen = false
     }, 0)
-  }
-
-  function parseSizeInt(value: string, fallback: number): number {
-    const n = parseInt(value, 10)
-    return Number.isFinite(n) && n > 0 ? n : fallback
   }
 
   const FALLBACK_NODE_COLOR = '#f5b800'
@@ -1609,15 +1602,15 @@ export function useCampaignEditor() {
   }
 
   function selectNodeSize(value: number) {
-    formNode.value.size = String(value)
+    formNode.value.size = value
     commitNodeField('size')
   }
 
   async function applyBulkSize(value: number) {
     if (!editable.value) return
     for (const id of selectedIdList.value) {
-      if (isBarrierId(id)) await applyBarrierPatch(id, { size: String(value) })
-      else await applyNodePatch(id, { size: String(value) })
+      if (isBarrierId(id)) await applyBarrierPatch(id, { size: value })
+      else await applyNodePatch(id, { size: value })
     }
   }
 
@@ -1759,9 +1752,7 @@ export function useCampaignEditor() {
     'checkpointLabel',
     'checkpointAvatarUrl',
     'checkpointColor',
-    'checkpointSize',
     'borderColor',
-    'size',
   ])
 
   function commitBarrierField(field: keyof UpdateCampaignBarrierRequest) {
@@ -1885,6 +1876,13 @@ export function useCampaignEditor() {
       }
     }
     void applyBarrierPatch(b.id, { affectedCampaignDifficultyIds: next })
+  }
+
+  function setBarrierPrereqMode(mode: 'AND' | 'OR') {
+    const b = selectedBarrier.value
+    if (!editable.value || !b) return
+    if (b.prerequisiteMode === mode) return
+    void applyBarrierPatch(b.id, { prerequisiteMode: mode })
   }
 
   async function removeSelectedBarrier() {
@@ -2365,7 +2363,6 @@ export function useCampaignEditor() {
     requirementEquivalents,
     isMilestone,
     setMilestone,
-    parseSizeInt,
     defaultColorHex,
     shapeTiles,
     sizeTiles,
@@ -2410,6 +2407,7 @@ export function useCampaignEditor() {
     affectedPickMode,
     toggleAffectedPickMode,
     toggleAffected,
+    setBarrierPrereqMode,
     pickModeBarrierId,
     selectedText,
     formText,

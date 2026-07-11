@@ -27,8 +27,8 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   }
 
-  async function equip(linkId: string, currentUserId?: string | null): Promise<void> {
-    await apiEquipItem({ linkId })
+  async function equip(linkId: string, currentUserId?: string | null, variantKey?: string): Promise<void> {
+    await apiEquipItem(variantKey ? { linkId, variantKey } : { linkId })
     if (currentUserId) await fetchEquipped(currentUserId, true)
   }
 

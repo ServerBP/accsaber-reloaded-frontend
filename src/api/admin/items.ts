@@ -7,6 +7,7 @@ import type {
   ItemModifierResponse,
   ItemResponse,
   ItemTypeResponse,
+  PatchItemModifierRequest,
   UpdateItemRequest,
   UpdateItemTypeRequest,
   UserItemResponse,
@@ -79,6 +80,13 @@ export function deleteItemIcon(id: string): Promise<ItemResponse> {
 
 export function getAdminItemModifiers(): Promise<ItemModifierResponse[]> {
   return get<ItemModifierResponse[]>('/admin/item-modifiers')
+}
+
+export function patchAdminItemModifier(
+  id: string,
+  req: PatchItemModifierRequest,
+): Promise<ItemModifierResponse> {
+  return patch<ItemModifierResponse>(`/admin/item-modifiers/${id}`, req)
 }
 
 export function awardItem(req: AwardItemRequest): Promise<UserItemResponse> {

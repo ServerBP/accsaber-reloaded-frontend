@@ -1,5 +1,5 @@
 import type { PaginationParams } from '../pagination'
-import type { ItemModifierRef, ItemResponse } from './items'
+import type { ItemModifierRef, ItemResponse, UnusualEffectRef } from './items'
 
 export type TradeStatus = 'pending' | 'accepted' | 'declined' | 'cancelled' | 'expired'
 
@@ -11,6 +11,7 @@ export interface TradeItemRef {
   linkId: string
   item: ItemResponse
   modifiers: ItemModifierRef[]
+  unusualEffect: UnusualEffectRef | null
   serialNumber: number | null
   quantity: number
 }

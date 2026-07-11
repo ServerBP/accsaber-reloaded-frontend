@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import type { LevelThreshold } from '@/api/levels'
-import logoUrl from '@/assets/logo.png'
 import BaseButton from '@/components/common/BaseButton.vue'
 import ParticleCanvas from '@/components/common/ParticleCanvas.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import FollowedActivity from '@/components/domain/FollowedActivity.vue'
 import NewsHighlightBanner from '@/components/domain/NewsHighlightBanner.vue'
+import { useBrandLogo } from '@/composables/useBrandLogo'
 import { usePageMeta } from '@/composables/usePageMeta'
 import { useAuthStore } from '@/stores/auth'
 import { tierKey, useLevelStore } from '@/stores/levels'
@@ -17,6 +17,9 @@ const router = useRouter()
 const themeStore = useThemeStore()
 const levelStore = useLevelStore()
 const authStore = useAuthStore()
+
+const logoUrl = useBrandLogo()
+const showHeroAmbience = computed(() => themeStore.activeTokens?.['fx-hero-particles'] !== '0')
 
 const isLoggedIn = computed(() => authStore.isLoggedIn)
 const displayName = computed(() => authStore.userProfile?.name ?? '')
@@ -72,14 +75,14 @@ onUnmounted(() => {
       <div class="hero__banner-slot">
         <NewsHighlightBanner />
       </div>
-      <div class="hero__glow" />
-      <ParticleCanvas class="hero__particles" :dark-mode="themeStore.theme === 'dark'" :interactive="!isLoggedIn" />
+      <div v-if="showHeroAmbience" class="hero__glow" />
+      <ParticleCanvas v-if="showHeroAmbience" class="hero__particles" :dark-mode="themeStore.resolvedBase === 'dark'" :interactive="!isLoggedIn" />
 
       <div class="hero__content">
         <div class="hero__identity">
           <div class="hero__logo-block">
             <div class="hero__logo-wrap">
-              <div class="hero__logo-glow" aria-hidden="true" />
+              <div v-if="showHeroAmbience" class="hero__logo-glow" aria-hidden="true" />
               <img :src="logoUrl" alt="AccSaber" class="hero__logo" fetchpriority="high" decoding="async" />
             </div>
           </div>

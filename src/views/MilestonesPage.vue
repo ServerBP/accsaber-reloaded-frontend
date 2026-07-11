@@ -155,7 +155,7 @@ watch(() => authStore.userId, fetchData)
 
 <template>
   <div class="milestones-page">
-    <ParticleCanvas class="milestones-page__particles" :dark-mode="themeStore.theme === 'dark'"
+    <ParticleCanvas class="milestones-page__particles" :dark-mode="themeStore.resolvedBase === 'dark'"
       :particle-count="isMobile ? 60 : 120" />
 
     <header class="milestones-page__header">

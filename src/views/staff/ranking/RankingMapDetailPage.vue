@@ -65,7 +65,7 @@ const categoryAccent = computed(() => categoryStore.getAccent(categoryCode.value
 const resolvedAccent = computed(() => {
   const raw = dominantColor.value
   if (!raw) return categoryAccent.value
-  return themeStore.theme === 'dark' ? brightenRgb(raw, 60) : raw
+  return themeStore.resolvedBase === 'dark' ? brightenRgb(raw, 60) : raw
 })
 
 const categoryName = computed(() => {
@@ -590,7 +590,6 @@ const statusTransitions = computed<{ value: string; label: string }[]>(() => {
     <template v-else-if="difficulty">
       <div class="rank-detail__bg">
         <div class="rank-detail__bg-image" :style="{ backgroundImage: `url(${coverUrl})` }" />
-        <div class="rank-detail__bg-fade" />
       </div>
 
       <div class="rank-detail__content">
@@ -1077,6 +1076,8 @@ const statusTransitions = computed<{ value: string; label: string }[]>(() => {
   z-index: 0;
   pointer-events: none;
   overflow: hidden;
+  -webkit-mask-image: linear-gradient(180deg, black 0%, transparent 100%);
+  mask-image: linear-gradient(180deg, black 0%, transparent 100%);
 }
 
 .rank-detail__bg-image {
@@ -1087,12 +1088,6 @@ const statusTransitions = computed<{ value: string; label: string }[]>(() => {
   filter: blur(40px);
   opacity: 0.3;
   transform: scale(1.1);
-}
-
-.rank-detail__bg-fade {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, transparent 0%, var(--bg-base) 100%);
 }
 
 .rank-detail__loading {

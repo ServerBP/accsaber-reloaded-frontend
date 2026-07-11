@@ -9,9 +9,22 @@ const props = withDefaults(
     maxHeight?: number
     ariaLabel?: string
     autofocus?: boolean
+    allowRichEffects?: boolean
   }>(),
-  { minHeight: 180, maxHeight: 360, ariaLabel: 'Rich text editor', autofocus: false },
+  {
+    minHeight: 180,
+    maxHeight: 360,
+    ariaLabel: 'Rich text editor',
+    autofocus: false,
+    allowRichEffects: true,
+  },
 )
+
+const LOCKED_HINT = 'Custom colors, fonts & effects are a supporter perk'
+
+function richTitle(base: string): string {
+  return props.allowRichEffects ? base : LOCKED_HINT
+}
 
 const emit = defineEmits<{
   'update:modelValue': [html: string]
@@ -122,6 +135,7 @@ function clearFormatting() {
 }
 
 function wrapSelectionSpan(style: Record<string, string>, className?: string) {
+  if (!props.allowRichEffects) return
   focusEditor()
   const sel = window.getSelection()
   if (!sel || sel.rangeCount === 0) return
@@ -289,7 +303,9 @@ const formatGroups: FormatButton[][] = [
         :key="fx.key"
         type="button"
         class="rich-editor__tb-btn rich-editor__tb-btn--text"
-        :title="fx.title"
+        :class="{ 'rich-editor__tb-btn--locked': !allowRichEffects }"
+        :title="richTitle(fx.title)"
+        :aria-disabled="!allowRichEffects"
         @click="wrapSelectionSpan({}, fx.key)"
       >
         {{ fx.label }}
@@ -300,7 +316,9 @@ const formatGroups: FormatButton[][] = [
         :key="sz.value"
         type="button"
         class="rich-editor__tb-btn"
-        :title="sz.title"
+        :class="{ 'rich-editor__tb-btn--locked': !allowRichEffects }"
+        :title="richTitle(sz.title)"
+        :aria-disabled="!allowRichEffects"
         @click="wrapSelectionSpan({ 'font-size': sz.value })"
       >
         {{ sz.label }}
@@ -310,7 +328,9 @@ const formatGroups: FormatButton[][] = [
         :key="ft.value"
         type="button"
         class="rich-editor__tb-btn rich-editor__tb-btn--text"
-        :title="ft.title"
+        :class="{ 'rich-editor__tb-btn--locked': !allowRichEffects }"
+        :title="richTitle(ft.title)"
+        :aria-disabled="!allowRichEffects"
         @click="wrapSelectionSpan({ 'font-family': ft.value })"
       >
         {{ ft.label }}
@@ -321,9 +341,11 @@ const formatGroups: FormatButton[][] = [
         :key="sw.value"
         type="button"
         class="rich-editor__tb-swatch"
+        :class="{ 'rich-editor__tb-swatch--locked': !allowRichEffects }"
         :style="{ background: sw.value }"
-        :title="sw.title"
+        :title="richTitle(sw.title)"
         :aria-label="`Color ${sw.title}`"
+        :aria-disabled="!allowRichEffects"
         @click="wrapSelectionSpan({ color: sw.value })"
       />
       <span class="rich-editor__tb-spacer" />
@@ -428,6 +450,21 @@ const formatGroups: FormatButton[][] = [
 
 .rich-editor__tb-swatch:hover {
   transform: scale(1.12);
+}
+
+.rich-editor__tb-btn--locked,
+.rich-editor__tb-swatch--locked {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.rich-editor__tb-btn--locked:hover {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.rich-editor__tb-swatch--locked:hover {
+  transform: none;
 }
 
 .rich-editor__tb-divider {

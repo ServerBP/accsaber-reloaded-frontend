@@ -253,10 +253,10 @@ export interface AddCampaignDifficultyRequest {
   checkpointLabelPosition?: CheckpointLabelPosition
   checkpointAvatarUrl?: string
   checkpointColor?: string
-  checkpointSize?: string
+  checkpointSize?: number
   borderColor?: string
   borderShape?: string
-  size?: string
+  size?: number
   positionX: number
   positionY: number
   xp?: number
@@ -272,10 +272,10 @@ export interface UpdateCampaignDifficultyRequest {
   checkpointLabelPosition?: CheckpointLabelPosition | null
   checkpointAvatarUrl?: string | null
   checkpointColor?: string | null
-  checkpointSize?: string | null
+  checkpointSize?: number | null
   borderColor?: string | null
   borderShape?: string | null
-  size?: string | null
+  size?: number | null
   positionX?: number
   positionY?: number
   xp?: number
@@ -303,8 +303,8 @@ export interface AddCampaignBarrierRequest {
   checkpointColor?: string
   borderColor?: string
   borderShape?: string
-  size?: string
-  checkpointSize?: string
+  size?: number
+  checkpointSize?: number
   positionX: number
   positionY: number
   xp?: number
@@ -322,12 +322,13 @@ export interface UpdateCampaignBarrierRequest {
   checkpointColor?: string | null
   borderColor?: string | null
   borderShape?: string | null
-  size?: string | null
-  checkpointSize?: string | null
+  size?: number | null
+  checkpointSize?: number | null
   positionX?: number
   positionY?: number
   xp?: number
   prerequisiteCampaignDifficultyIds?: string[]
+  prerequisiteMode?: CampaignPrerequisiteMode
   affectedCampaignDifficultyIds?: string[]
 }
 

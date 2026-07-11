@@ -4,10 +4,18 @@ import BaseInput from '@/components/common/BaseInput.vue'
 import BaseSelect from '@/components/common/BaseSelect.vue'
 import UserPicker from '@/components/domain/UserPicker.vue'
 import { awardItem, getAdminItems } from '@/api/admin/items'
+import { getUnusualEffects } from '@/api/items'
 import { useItemModifierStore } from '@/stores/itemModifiers'
 import { useItemTypeStore } from '@/stores/itemTypes'
-import type { AwardItemRequest, ItemResponse, UserItemResponse } from '@/types/api/items'
+import type {
+  AwardItemRequest,
+  ItemResponse,
+  UnusualEffectResponse,
+  UserItemResponse,
+} from '@/types/api/items'
 import { computed, onMounted, ref, watch } from 'vue'
+
+const UNUSUAL_MODIFIER_KEY = 'unusual'
 
 const itemTypeStore = useItemTypeStore()
 const modifierStore = useItemModifierStore()
@@ -15,10 +23,12 @@ const modifierStore = useItemModifierStore()
 const userId = ref<string | null>(null)
 const itemId = ref<string>('')
 const modifierKeys = ref<string[]>([])
+const unusualEffectId = ref<string>('')
 const quantity = ref<number>(1)
 const reason = ref<string>('')
 const typeFilter = ref<string>('')
 const items = ref<ItemResponse[]>([])
+const unusualEffects = ref<UnusualEffectResponse[]>([])
 const itemsLoading = ref(false)
 const submitting = ref(false)
 
@@ -40,6 +50,17 @@ const itemOptions = computed(() => {
 })
 
 const activeModifiers = computed(() => modifierStore.modifiers.filter((m) => m.active))
+
+const unusualSelected = computed(() => modifierKeys.value.includes(UNUSUAL_MODIFIER_KEY))
+
+const unusualEffectOptions = computed(() => [
+  { value: '', label: 'None (default sparkle)' },
+  ...unusualEffects.value.map((e) => ({
+    value: e.id,
+    label: e.name || e.key,
+    description: e.description ?? undefined,
+  })),
+])
 
 const selectedItem = computed<ItemResponse | null>(
   () => items.value.find((i) => i.id === itemId.value) ?? null,
@@ -68,6 +89,10 @@ async function fetchItems() {
   }
 }
 
+async function fetchUnusualEffects() {
+  unusualEffects.value = await getUnusualEffects()
+}
+
 async function submit() {
   if (!userId.value || !itemId.value) return
   submitting.value = true
@@ -78,6 +103,8 @@ async function submit() {
       itemId: itemId.value,
       reason: reason.value.trim() || undefined,
       modifierKeys: modifierKeys.value.length ? [...modifierKeys.value] : undefined,
+      unusualEffectId:
+        unusualSelected.value && unusualEffectId.value ? unusualEffectId.value : undefined,
       quantity: isStackable.value ? Math.max(1, Math.floor(quantity.value)) : 1,
     }
     const awarded = await awardItem(req)
@@ -89,6 +116,7 @@ async function submit() {
     itemId.value = ''
     reason.value = ''
     modifierKeys.value = []
+    unusualEffectId.value = ''
     quantity.value = 1
   } catch (e) {
     status.value = { kind: 'error', message: (e as Error).message || 'Award failed' }
@@ -101,11 +129,20 @@ watch(isStackable, (stackable) => {
   if (!stackable) quantity.value = 1
 })
 
+watch(unusualSelected, (selected) => {
+  if (!selected) {
+    unusualEffectId.value = ''
+  } else if (!unusualEffectId.value && unusualEffects.value.length) {
+    unusualEffectId.value = unusualEffects.value[0].id
+  }
+})
+
 onMounted(async () => {
   await Promise.all([
     itemTypeStore.fetchItemTypes(),
     modifierStore.fetchModifiers(),
     fetchItems(),
+    fetchUnusualEffects(),
   ])
 })
 </script>
@@ -146,6 +183,19 @@ onMounted(async () => {
         </div>
         <p v-if="!modifierKeys.length" class="award-tab__hint">
           Non-stackable items auto-resolve to founders/seasonal/normal. Stackable items default to "normal".
+        </p>
+      </div>
+
+      <div v-if="unusualSelected" class="award-tab__field">
+        <BaseSelect
+          v-model="unusualEffectId"
+          :options="unusualEffectOptions"
+          label="Unusual effect"
+          searchable
+        />
+        <p class="award-tab__hint">
+          Choose which unusual effect this item receives. Pick "None" to leave it on the
+          default sparkle.
         </p>
       </div>
 

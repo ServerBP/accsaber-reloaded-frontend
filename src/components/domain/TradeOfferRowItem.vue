@@ -1,12 +1,15 @@
 <script setup lang="ts">
+import FragmentedItem from '@/components/domain/FragmentedItem.vue'
 import ItemPreview from '@/components/domain/ItemPreview.vue'
 import ModifierCompositions from '@/components/domain/ModifierCompositions.vue'
 import { useModifierColor } from '@/composables/useModifierColor'
 import type { ItemModifierRef } from '@/types/api/items'
 import type { TradeItemRef } from '@/types/api/trades'
 import {
+  buildEffectLayers,
   displayItemName,
   rarityClass,
+  readFragmentSpec,
   sortModifiersByKey,
 } from '@/utils/items'
 import { computed } from 'vue'
@@ -16,6 +19,10 @@ const props = defineProps<{
 }>()
 
 const sortedModifiers = computed<ItemModifierRef[]>(() => sortModifiersByKey(props.itemRef.modifiers ?? []))
+const effectLayers = computed(() =>
+  buildEffectLayers(props.itemRef.modifiers, props.itemRef.unusualEffect),
+)
+const fragmentSpec = computed(() => readFragmentSpec(props.itemRef.unusualEffect))
 const quantity = computed(() => props.itemRef.quantity ?? 1)
 const name = computed(() => displayItemName(props.itemRef.modifiers, props.itemRef.item.name))
 
@@ -31,12 +38,15 @@ const accentStyle = computed(() => (accent.value ? { '--cell-accent': accent.val
       tabindex="0"
       :aria-label="itemRef.item.name"
     >
-      <ItemPreview :item="itemRef.item" :selected="false" />
+      <FragmentedItem v-if="fragmentSpec" :item="itemRef.item" :spec="fragmentSpec" />
+      <ItemPreview v-else :item="itemRef.item" :selected="false" />
       <ModifierCompositions
-        v-for="m in sortedModifiers"
-        :key="m.id"
-        :modifier="m"
+        v-for="layer in effectLayers"
+        :key="layer.key"
+        :spec="layer.spec"
         :context="{ serial: itemRef.serialNumber }"
+        :type-key="itemRef.item.typeKey"
+        measure-selector=".title-renderer, .item-preview > *"
       />
       <span v-if="itemRef.serialNumber != null" class="trade-row-item__serial">#{{ itemRef.serialNumber }}</span>
       <span v-if="quantity > 1" class="trade-row-item__qty">x{{ quantity }}</span>
@@ -77,7 +87,7 @@ const accentStyle = computed(() => (accent.value ? { '--cell-accent': accent.val
 .trade-row-item__tile.rarity--common { --rarity-color: var(--text-tertiary); }
 .trade-row-item__tile.rarity--uncommon { --rarity-color: var(--success); }
 .trade-row-item__tile.rarity--rare { --rarity-color: var(--info); }
-.trade-row-item__tile.rarity--epic { --rarity-color: var(--accent-overall); }
+.trade-row-item__tile.rarity--epic { --rarity-color: var(--tier-apex); }
 .trade-row-item__tile.rarity--legendary { --rarity-color: var(--tier-gold); }
 .trade-row-item__tile.rarity--mythic { --rarity-color: var(--error); }
 
@@ -168,7 +178,7 @@ const accentStyle = computed(() => (accent.value ? { '--cell-accent': accent.val
 .trade-row-item__tooltip-rarity.rarity--common { --rarity-color: var(--text-tertiary); }
 .trade-row-item__tooltip-rarity.rarity--uncommon { --rarity-color: var(--success); }
 .trade-row-item__tooltip-rarity.rarity--rare { --rarity-color: var(--info); }
-.trade-row-item__tooltip-rarity.rarity--epic { --rarity-color: var(--accent-overall); }
+.trade-row-item__tooltip-rarity.rarity--epic { --rarity-color: var(--tier-apex); }
 .trade-row-item__tooltip-rarity.rarity--legendary { --rarity-color: var(--tier-gold); }
 .trade-row-item__tooltip-rarity.rarity--mythic { --rarity-color: var(--error); }
 </style>

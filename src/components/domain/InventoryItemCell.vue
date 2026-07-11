@@ -1,12 +1,15 @@
 <script setup lang="ts">
+import FragmentedItem from '@/components/domain/FragmentedItem.vue'
 import ItemPreview from '@/components/domain/ItemPreview.vue'
 import ModifierCompositions from '@/components/domain/ModifierCompositions.vue'
 import { useModifierColor } from '@/composables/useModifierColor'
 import { useItemModifierStore } from '@/stores/itemModifiers'
 import type { ItemModifierRef, UserItemResponse } from '@/types/api/items'
 import {
+  buildEffectLayers,
   displayItemName,
   rarityClass,
+  readFragmentSpec,
   sortModifiersByKey,
   userItemTokenContext,
 } from '@/utils/items'
@@ -27,6 +30,10 @@ const modifierStore = useItemModifierStore()
 
 const item = computed(() => props.userItem.item)
 const modifiers = computed<ItemModifierRef[]>(() => sortModifiersByKey(props.userItem.modifiers ?? []))
+const effectLayers = computed(() =>
+  buildEffectLayers(props.userItem.modifiers, props.userItem.unusualEffect),
+)
+const fragmentSpec = computed(() => readFragmentSpec(props.userItem.unusualEffect))
 const tokenCtx = computed(() => userItemTokenContext(props.userItem))
 const quantity = computed(() => props.userItem.quantity ?? 1)
 
@@ -53,6 +60,7 @@ onMounted(() => {
           'inventory-cell--equipped': equipped,
           'inventory-cell--deprecated': item.deprecated,
           'inventory-cell--locked': locked,
+          'inventory-cell--title-fx': item.typeKey === 'title',
         },
       ]"
       :style="cellAccentStyle"
@@ -61,14 +69,17 @@ onMounted(() => {
       @click="$emit('select', userItem.linkId)"
     >
       <span class="inventory-cell__art">
-        <ItemPreview :item="item" :selected="selected" />
+        <FragmentedItem v-if="fragmentSpec" :item="item" :spec="fragmentSpec" :selected="selected" />
+        <ItemPreview v-else :item="item" :selected="selected" />
       </span>
 
       <ModifierCompositions
-        v-for="m in modifiers"
-        :key="m.id"
-        :modifier="m"
+        v-for="layer in effectLayers"
+        :key="layer.key"
+        :spec="layer.spec"
         :context="tokenCtx"
+        :type-key="item.typeKey"
+        measure-selector=".title-renderer, .item-preview > *"
       />
 
       <span v-if="equipped && !locked" class="inventory-cell__equipped" aria-hidden="true">EQUIPPED</span>
@@ -163,7 +174,7 @@ onMounted(() => {
 .inventory-cell-tooltip__rarity.rarity--common { --rarity-color: var(--text-tertiary); }
 .inventory-cell-tooltip__rarity.rarity--uncommon { --rarity-color: var(--success); }
 .inventory-cell-tooltip__rarity.rarity--rare { --rarity-color: var(--info); }
-.inventory-cell-tooltip__rarity.rarity--epic { --rarity-color: var(--accent-overall); }
+.inventory-cell-tooltip__rarity.rarity--epic { --rarity-color: var(--tier-apex); }
 .inventory-cell-tooltip__rarity.rarity--legendary { --rarity-color: var(--tier-gold); }
 .inventory-cell-tooltip__rarity.rarity--mythic { --rarity-color: var(--error); }
 
@@ -191,7 +202,7 @@ onMounted(() => {
 .inventory-cell.rarity--common { --rarity-color: var(--text-tertiary); }
 .inventory-cell.rarity--uncommon { --rarity-color: var(--success); }
 .inventory-cell.rarity--rare { --rarity-color: var(--info); }
-.inventory-cell.rarity--epic { --rarity-color: var(--accent-overall); }
+.inventory-cell.rarity--epic { --rarity-color: var(--tier-apex); }
 .inventory-cell.rarity--legendary { --rarity-color: var(--tier-gold); }
 .inventory-cell.rarity--mythic { --rarity-color: var(--error); }
 
@@ -247,6 +258,11 @@ onMounted(() => {
   justify-content: center;
   width: 100%;
   height: 100%;
+}
+
+.inventory-cell--title-fx .inventory-cell__art {
+  position: relative;
+  z-index: 1;
 }
 
 .inventory-cell__equipped {

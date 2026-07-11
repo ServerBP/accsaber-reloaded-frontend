@@ -1,11 +1,14 @@
 import type {
+  DisintegrationResponse,
   EquipItemRequest,
   EquippedItemsResponse,
+  EssenceBalance,
   InventoryListParams,
   ItemListParams,
   ItemModifierResponse,
   ItemResponse,
   ItemTypeResponse,
+  UnusualEffectResponse,
   UserItemListParams,
   UserItemResponse,
 } from '@/types/api/items'
@@ -19,6 +22,10 @@ export function getItemTypes(): Promise<ItemTypeResponse[]> {
 
 export function getItemModifiers(): Promise<ItemModifierResponse[]> {
   return get<ItemModifierResponse[]>('/item-modifiers')
+}
+
+export function getUnusualEffects(): Promise<UnusualEffectResponse[]> {
+  return get<UnusualEffectResponse[]>('/unusual-effects')
 }
 
 export function getItems(params?: ItemListParams): Promise<ItemResponse[]> {
@@ -53,4 +60,16 @@ export function equipItem(req: EquipItemRequest): Promise<void> {
 
 export function unequipItem(typeKey: string): Promise<void> {
   return del<void>(`/users/me/items/equip/${typeKey}`)
+}
+
+export function disintegrateItem(
+  linkId: string,
+  quantity?: number,
+): Promise<DisintegrationResponse> {
+  const query = buildQuery(quantity != null ? { quantity } : undefined)
+  return post<DisintegrationResponse>(`/users/me/items/${linkId}/disintegrate${query}`)
+}
+
+export function getEssenceBalance(): Promise<EssenceBalance> {
+  return get<EssenceBalance>('/users/me/essence')
 }

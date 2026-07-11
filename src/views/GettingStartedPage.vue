@@ -16,7 +16,7 @@ usePageMeta({
 
 <template>
   <div class="gs">
-    <ParticleCanvas class="gs__particles" :dark-mode="themeStore.theme === 'dark'" :particle-count="100" />
+    <ParticleCanvas class="gs__particles" :dark-mode="themeStore.resolvedBase === 'dark'" :particle-count="100" />
 
     <RouterLink to="/" class="gs__back">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"

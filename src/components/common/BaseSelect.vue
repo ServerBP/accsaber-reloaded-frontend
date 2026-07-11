@@ -5,6 +5,7 @@ interface SelectOption {
   value: string
   label: string
   icon?: string
+  description?: string
 }
 
 const props = defineProps<{
@@ -36,7 +37,11 @@ const selectedLabel = computed(() => {
 const filteredOptions = computed(() => {
   if (!search.value) return props.options
   const q = search.value.toLowerCase()
-  return props.options.filter((o) => o.label.toLowerCase().includes(q))
+  return props.options.filter(
+    (o) =>
+      o.label.toLowerCase().includes(q) ||
+      (o.description?.toLowerCase().includes(q) ?? false),
+  )
 })
 
 function updatePanelPosition() {
@@ -116,7 +121,10 @@ onUnmounted(() => {
           <button v-for="opt in filteredOptions" :key="opt.value" class="base-select__option"
             :class="{ 'base-select__option--selected': opt.value === modelValue }" @click="select(opt.value)">
             <span v-if="opt.icon" class="base-select__option-icon">{{ opt.icon }}</span>
-            {{ opt.label }}
+            <span class="base-select__option-text">
+              <span class="base-select__option-label">{{ opt.label }}</span>
+              <span v-if="opt.description" class="base-select__option-desc">{{ opt.description }}</span>
+            </span>
           </button>
           <div v-if="filteredOptions.length === 0" class="base-select__empty">No results</div>
         </div>
@@ -239,6 +247,30 @@ onUnmounted(() => {
 
 .base-select__option--selected {
   color: var(--accent);
+}
+
+.base-select__option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.base-select__option-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.base-select__option-desc {
+  font-size: var(--text-caption);
+  color: var(--text-tertiary);
+  line-height: 1.3;
+  white-space: normal;
+}
+
+.base-select__option--selected .base-select__option-desc {
+  color: var(--text-secondary);
 }
 
 .base-select__empty {

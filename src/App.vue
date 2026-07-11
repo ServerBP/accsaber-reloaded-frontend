@@ -1,14 +1,20 @@
 <script setup lang="ts">
 import BaseBanner from '@/components/common/BaseBanner.vue'
 import AppNavbar from '@/components/layout/AppNavbar.vue'
+import ThemeBackdrop from '@/components/layout/ThemeBackdrop.vue'
+import { useBrandFavicon } from '@/composables/useBrandLogo'
 import { useAuthStore } from '@/stores/auth'
+import { useEssenceStore } from '@/stores/essence'
 import { useRelationsStore } from '@/stores/relations'
 import { useSettingsStore } from '@/stores/settings'
 import { computed, watch } from 'vue'
 
 const authStore = useAuthStore()
+const essenceStore = useEssenceStore()
 const relationsStore = useRelationsStore()
 const settingsStore = useSettingsStore()
+
+useBrandFavicon()
 
 const showLegacyBanner = computed(() => authStore.legacyUserIdDetected !== null)
 
@@ -32,6 +38,7 @@ watch(
     } else {
       relationsStore.reset()
       settingsStore.reset()
+      essenceStore.reset()
     }
   },
   { immediate: true },
@@ -39,6 +46,7 @@ watch(
 </script>
 
 <template>
+  <ThemeBackdrop />
   <AppNavbar />
   <main class="main-content">
     <BaseBanner v-if="showRestrictedBanner" variant="error" @close="dismissRestrictedBanner">

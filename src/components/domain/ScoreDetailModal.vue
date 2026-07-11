@@ -31,6 +31,8 @@ import {
   readBorderColorValue,
   readBorderShapeValue,
   readTitleValue,
+  resolveEquippedVariant,
+  unusualEffectLayers,
 } from '@/utils/items'
 import { buildMapRoute } from '@/utils/mapRoute'
 import { scoreSaberReplayUrl } from '@/utils/replay'
@@ -68,7 +70,7 @@ const { dominantColor } = useColorExtract(coverUrl)
 const resolvedAccent = computed(() => {
   const raw = dominantColor.value
   if (!raw) return 'var(--accent)'
-  return themeStore.theme === 'dark' ? brightenRgb(raw, 60) : raw
+  return themeStore.resolvedBase === 'dark' ? brightenRgb(raw, 60) : raw
 })
 
 const historicData = ref<ScoreResponse[]>([])
@@ -90,8 +92,13 @@ const equippedBorderShape = computed<BorderShapeValue | null>(() =>
   readBorderShapeValue(equipped.value.profile_border_shape?.item.value),
 )
 const equippedBorderColor = computed<BorderColorValue | null>(() =>
-  readBorderColorValue(equipped.value.profile_border_color?.item.value),
+  resolveEquippedVariant(equipped.value.profile_border_color, readBorderColorValue),
 )
+const equippedTitleEffects = computed(() => unusualEffectLayers(equipped.value.title?.unusualEffect))
+const equippedBorderEffects = computed(() => [
+  ...unusualEffectLayers(equipped.value.profile_border_shape?.unusualEffect),
+  ...unusualEffectLayers(equipped.value.profile_border_color?.unusualEffect),
+])
 
 const playerName = computed(() => player.value?.name ?? props.score?.userName ?? '')
 const playerCountry = computed(() => player.value?.country ?? '')
@@ -361,6 +368,8 @@ watch(
           :equipped-title="equippedTitle"
           :equipped-border-shape="equippedBorderShape"
           :equipped-border-color="equippedBorderColor"
+          :title-effects="equippedTitleEffects"
+          :border-effects="equippedBorderEffects"
         />
         <div v-else class="score-detail__player-skeleton" />
 

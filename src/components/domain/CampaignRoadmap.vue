@@ -3,6 +3,7 @@ import ParticleCanvas from '@/components/common/ParticleCanvas.vue'
 import CampaignBarrierGate from '@/components/domain/CampaignBarrierGate.vue'
 import CampaignNode from '@/components/domain/CampaignNode.vue'
 import { useThemeStore } from '@/stores/theme'
+import { readBackdropConfig } from '@/utils/themeBackdrop'
 import type {
   BarrierProgressResponse,
   CampaignBarrierResponse,
@@ -24,7 +25,7 @@ import {
   computeLabelPlacements,
   edgePointOnShape,
   layoutNodes,
-  parseNumericSize,
+  resolveSize,
   resolveShape,
   shapeCorners,
   SQRT3,
@@ -93,6 +94,12 @@ function nodeAccentFor(id: string): string {
 }
 
 const backgroundFill = computed(() => props.backgroundColor?.trim() || 'var(--accent-overall)')
+
+const themeBackdropActive = computed(() => readBackdropConfig(themeStore.activeTokens) !== null)
+const showOwnStarfield = computed(() => props.showStarfield && !themeBackdropActive.value)
+const transparentToThemeBackdrop = computed(
+  () => props.showStarfield && themeBackdropActive.value && !props.backgroundUrl,
+)
 
 const emit = defineEmits<{
   select: [id: string]
@@ -314,7 +321,7 @@ const labelLayout = computed(() =>
         id: n.id,
         cx: n.cx,
         cy: n.cy,
-        size: parseNumericSize(d?.size, props.unit),
+        size: resolveSize(d?.size, props.unit),
         text: d?.songName ?? '',
       }
     }),
@@ -349,7 +356,7 @@ interface CheckpointLabel {
 const checkpointLabels = computed<CheckpointLabel[]>(() => {
   const groups = new Map<
     string,
-    { nodes: NodeLayout[]; color: string | null; size: string | null; label: string; position: string }
+    { nodes: NodeLayout[]; color: string | null; size: number | null; label: string; position: string }
   >()
   for (const d of props.difficulties) {
     if (!d.checkpointLabel) continue
@@ -382,13 +389,13 @@ const checkpointLabels = computed<CheckpointLabel[]>(() => {
     const midX = (minX + maxX) / 2
     const midY = (Math.min(...ys) + Math.max(...ys)) / 2
     const sizeOf = (n: NodeLayout) =>
-      parseNumericSize(difficultyById.value.get(n.id)?.size, props.unit)
+      resolveSize(difficultyById.value.get(n.id)?.size, props.unit)
     const topNode = g.nodes.reduce((a, b) => (b.cy < a.cy ? b : a))
     const bottomNode = g.nodes.reduce((a, b) => (b.cy > a.cy ? b : a))
     const leftNode = g.nodes.reduce((a, b) => (b.cx < a.cx ? b : a))
     const rightNode = g.nodes.reduce((a, b) => (b.cx > a.cx ? b : a))
     const color = g.color || 'var(--accent-overall)'
-    const fontSize = parseNumericSize(g.size, Math.max(props.unit * 0.34, 14))
+    const fontSize = resolveSize(g.size, Math.max(props.unit * 0.34, 14))
     let x = midX
     let y = topNode.cy - (sizeOf(topNode) * 1.3 + props.unit * 0.7)
     let anchor: 'middle' | 'start' | 'end' = 'middle'
@@ -416,9 +423,9 @@ const barrierCheckpointLabels = computed<CheckpointLabel[]>(() => {
     if (position === 'NONE') continue
     const node = barrierById.value.get(b.id)
     if (!node) continue
-    const size = parseNumericSize(b.size, props.unit)
+    const size = resolveSize(b.size, props.unit)
     const color = b.checkpointColor || 'var(--warning)'
-    const fontSize = parseNumericSize(b.checkpointSize, Math.max(props.unit * 0.3, 13))
+    const fontSize = resolveSize(b.checkpointSize, Math.max(props.unit * 0.3, 13))
     const gap = size * 1.2 + props.unit * 0.5
     let x = node.cx
     let y = node.cy - gap
@@ -445,7 +452,7 @@ interface NodeFootprint {
 }
 
 function nodeFootprint(d: CampaignDifficultyResponse): NodeFootprint {
-  const size = parseNumericSize(d.size, props.unit)
+  const size = resolveSize(d.size, props.unit)
   const accentBand = Math.max(size * 0.07, 3)
   return {
     shape: resolveShape(d.borderShape),
@@ -572,7 +579,7 @@ const barrierGeometry = computed<BarrierGeom[]>(() => {
     const fy = dy / len
     const wx = -fy
     const wy = fx
-    const half = (Math.max(parseNumericSize(b.size, props.unit), props.unit) * 1.7) / 2
+    const half = (Math.max(resolveSize(b.size, props.unit), props.unit) * 1.7) / 2
     let ax = center.cx - wx * half
     let ay = center.cy - wy * half
     let bx = center.cx + wx * half
@@ -625,7 +632,7 @@ const affectedHighlight = computed(() => {
     .map((nid) => {
       const n = nodeById.value.get(nid)
       if (!n) return null
-      const size = parseNumericSize(difficultyById.value.get(nid)?.size, props.unit)
+      const size = resolveSize(difficultyById.value.get(nid)?.size, props.unit)
       return { id: n.id, cx: n.cx, cy: n.cy, r: size + Math.max(size * 0.07, 3) + 6 }
     })
     .filter((n): n is { id: string; cx: number; cy: number; r: number } => !!n)
@@ -1376,7 +1383,7 @@ const snapTarget = computed<{
     cx,
     cy,
     shape: resolveShape(diff.borderShape),
-    size: parseNumericSize(diff.size, props.unit),
+    size: resolveSize(diff.size, props.unit),
   }
 })
 
@@ -1414,7 +1421,10 @@ const arrowDecorations = computed(() =>
   <div
     ref="stage"
     class="campaign-roadmap"
-    :class="{ 'campaign-roadmap--select': editable && mode === 'select' }"
+    :class="{
+      'campaign-roadmap--select': editable && mode === 'select',
+      'campaign-roadmap--transparent': transparentToThemeBackdrop,
+    }"
     @wheel="onWheel"
     @pointerdown="onPointerDown"
     @pointermove="onPointerMove"
@@ -1428,7 +1438,7 @@ const arrowDecorations = computed(() =>
       :style="{ backgroundImage: `url(${backgroundUrl})` }"
       aria-hidden="true"
     />
-    <template v-else-if="showStarfield">
+    <template v-else-if="showOwnStarfield">
       <div
         class="campaign-roadmap__glow"
         :style="{ '--starfield-accent': backgroundFill }"
@@ -1436,7 +1446,7 @@ const arrowDecorations = computed(() =>
       />
       <ParticleCanvas
         class="campaign-roadmap__particles"
-        :dark-mode="themeStore.theme === 'dark'"
+        :dark-mode="themeStore.resolvedBase === 'dark'"
       />
     </template>
     <svg class="campaign-roadmap__svg" :width="stageWidth" :height="stageHeight">
@@ -1869,6 +1879,10 @@ const arrowDecorations = computed(() =>
   touch-action: none;
   cursor: grab;
   user-select: none;
+}
+
+.campaign-roadmap--transparent {
+  background: transparent;
 }
 
 .campaign-roadmap:active {

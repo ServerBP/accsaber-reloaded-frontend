@@ -17,6 +17,8 @@ import {
 } from '@/composables/useCampaignPresence'
 import { useCampaignChat } from '@/composables/useCampaignChat'
 import { pickCoverUrl } from '@/composables/useAvatarFallback'
+import { useThemeStore } from '@/stores/theme'
+import { readBackdropConfig } from '@/utils/themeBackdrop'
 import { computed, onMounted, provide, ref } from 'vue'
 import CampaignChatPanel from './CampaignChatPanel.vue'
 import CampaignCollaboratorPicker from './CampaignCollaboratorPicker.vue'
@@ -101,6 +103,9 @@ const {
 
 const roadmapRef = ref<InstanceType<typeof CampaignRoadmap> | null>(null)
 setViewCenterProvider(() => roadmapRef.value?.getViewCenterCell() ?? null)
+
+const themeStore = useThemeStore()
+const themeBackdropActive = computed(() => readBackdropConfig(themeStore.activeTokens) !== null)
 
 const selectedCover = computed(() => pickCoverUrl(selectedDifficulty.value))
 
@@ -213,7 +218,11 @@ function peerActivity(p: PresencePeer): string {
 </script>
 
 <template>
-  <div class="campaign-editor" :style="{ '--page-accent': accent }">
+  <div
+    class="campaign-editor"
+    :class="{ 'campaign-editor--backdrop': themeBackdropActive }"
+    :style="{ '--page-accent': accent }"
+  >
     <template v-if="loading">
       <div class="campaign-editor__loading">
         <SkeletonLoader variant="card" />
@@ -717,6 +726,10 @@ function peerActivity(p: PresencePeer): string {
   width: 100%;
   background: var(--bg-base);
   overflow: hidden;
+}
+
+.campaign-editor--backdrop {
+  background: transparent;
 }
 
 .campaign-editor__loading {

@@ -1,20 +1,29 @@
 <script setup lang="ts">
 import {
   deleteAdminCrateContent,
+  deleteAdminCrateModifier,
+  deleteAdminCrateUnusualEffect,
   getAdminCrateContents,
+  getAdminCrateModifiers,
+  getAdminCrateUnusualEffects,
   putAdminCrateContent,
+  putAdminCrateModifier,
+  putAdminCrateUnusualEffect,
   type CrateContentResponse,
+  type CrateModifierResponse,
 } from '@/api/admin/crates'
+import { getAdminUnusualEffects } from '@/api/admin/unusual-effects'
 import {
   deleteItemIcon,
   getAdminItem,
+  getAdminItemModifiers,
   getAdminItems,
   reactivateItem,
   deleteItem as retireItem,
   updateItem,
   uploadItemIcon,
 } from '@/api/admin/items'
-import { ApiError, getApiErrorMessage } from '@/api/client'
+import { ApiError, getApiErrorMessage, parseApiError } from '@/api/client'
 import BaseButton from '@/components/common/BaseButton.vue'
 import BaseInput from '@/components/common/BaseInput.vue'
 import BaseSelect from '@/components/common/BaseSelect.vue'
@@ -22,13 +31,17 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import ImageUploader from '@/components/common/ImageUploader.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import CrateOpenAnimation from '@/components/domain/CrateOpenAnimation.vue'
+import CratePreviewModal from '@/components/domain/CratePreviewModal.vue'
 import type {
+  ItemModifierResponse,
   ItemRarity,
   ItemResponse,
   ItemTypeKey,
+  UnusualEffectResponse,
   UpdateItemRequest,
 } from '@/types/api/items'
 import { RARITY_ORDER } from '@/utils/items'
+import { decimalToPercent, percentToDecimal } from '@/utils/modifiers'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -40,6 +53,10 @@ const crateId = computed(() => String(route.params.crateItemId))
 const crate = ref<ItemResponse | null>(null)
 const contents = ref<CrateContentResponse[]>([])
 const allItems = ref<ItemResponse[]>([])
+const attachedModifiers = ref<CrateModifierResponse[]>([])
+const allModifiers = ref<ItemModifierResponse[]>([])
+const attachedEffects = ref<UnusualEffectResponse[]>([])
+const allEffects = ref<UnusualEffectResponse[]>([])
 const loading = ref(true)
 const errorMsg = ref<string | null>(null)
 
@@ -49,6 +66,7 @@ const groupByType = ref(true)
 
 const metaSaving = ref(false)
 const statusBusy = ref(false)
+const previewOpen = ref(false)
 
 const selectedIds = ref<Set<string>>(new Set())
 const bulkWeight = ref(100)
@@ -106,14 +124,22 @@ async function refresh() {
   loading.value = true
   errorMsg.value = null
   try {
-    const [meta, pool, all] = await Promise.all([
+    const [meta, pool, all, crateMods, mods, crateEffects, effects] = await Promise.all([
       getAdminItem(crateId.value),
       getAdminCrateContents(crateId.value),
       getAdminItems({ includeInactive: false }),
+      getAdminCrateModifiers(crateId.value),
+      getAdminItemModifiers(),
+      getAdminCrateUnusualEffects(crateId.value),
+      getAdminUnusualEffects(),
     ])
     crate.value = meta
     contents.value = pool
     allItems.value = all
+    attachedModifiers.value = crateMods
+    allModifiers.value = mods
+    attachedEffects.value = crateEffects
+    allEffects.value = effects
     syncFormFromCrate()
   } catch (e) {
     errorMsg.value = getApiErrorMessage(e, 'Failed to load crate')
@@ -404,6 +430,187 @@ function formatSignedPct(v: number, digits = 2) {
   return `${sign}${pct.toFixed(digits)}%`
 }
 
+const modifierById = computed(() => {
+  const map = new Map<string, ItemModifierResponse>()
+  for (const m of allModifiers.value) map.set(m.id, m)
+  return map
+})
+
+const attachedModifierIds = computed(
+  () => new Set(attachedModifiers.value.map((m) => m.modifier.id)),
+)
+
+const attachableModifiers = computed(() =>
+  allModifiers.value.filter(
+    (m) => m.key !== 'normal' && !attachedModifierIds.value.has(m.id),
+  ),
+)
+
+const modifierPickerOptions = computed(() => [
+  { value: '', label: 'Select a modifier...' },
+  ...attachableModifiers.value.map((m) => ({
+    value: m.id,
+    label: m.name,
+    description: m.description ?? undefined,
+  })),
+])
+
+const newModifierId = ref('')
+const newChancePct = ref('25')
+const attachBusy = ref(false)
+const modifierError = ref<string | null>(null)
+
+const selectedModifier = computed(() =>
+  newModifierId.value ? modifierById.value.get(newModifierId.value) ?? null : null,
+)
+
+function isSeasonalModifier(mod: ItemModifierResponse | null | undefined): boolean {
+  return !!mod && (mod.globalDropChance != null || !!mod.seasonStart || !!mod.seasonEnd)
+}
+
+function modifierDescription(id: string): string | null {
+  return modifierById.value.get(id)?.description ?? null
+}
+
+function isSeasonalById(id: string): boolean {
+  return isSeasonalModifier(modifierById.value.get(id))
+}
+
+function parseChancePct(value: string | number): number | null {
+  const str = String(value).trim()
+  const pct = Number(str)
+  if (!str || !Number.isFinite(pct) || pct <= 0 || pct > 100) return null
+  return percentToDecimal(pct)
+}
+
+async function attachModifier() {
+  if (!newModifierId.value) return
+  const decimal = parseChancePct(newChancePct.value)
+  if (decimal == null) {
+    modifierError.value = 'Enter a chance between 0 (exclusive) and 100.'
+    return
+  }
+  attachBusy.value = true
+  modifierError.value = null
+  try {
+    await putAdminCrateModifier(crateId.value, newModifierId.value, decimal)
+    attachedModifiers.value = await getAdminCrateModifiers(crateId.value)
+    newModifierId.value = ''
+    newChancePct.value = '25'
+  } catch (e) {
+    modifierError.value = parseApiError(e, 'Failed to attach modifier').message
+  } finally {
+    attachBusy.value = false
+  }
+}
+
+const modRowBusy = ref<Record<string, boolean>>({})
+const modChanceDrafts = ref<Record<string, string>>({})
+const modChanceErrors = ref<Record<string, string>>({})
+const modChanceTimers: Record<string, ReturnType<typeof setTimeout>> = {}
+
+function onModChanceInput(modId: string, value: string) {
+  modChanceDrafts.value[modId] = value
+  const decimal = parseChancePct(value)
+  if (decimal == null) {
+    modChanceErrors.value[modId] = '0-100, exclusive of 0'
+    return
+  }
+  delete modChanceErrors.value[modId]
+  if (modChanceTimers[modId]) clearTimeout(modChanceTimers[modId])
+  modChanceTimers[modId] = setTimeout(() => commitModChance(modId, decimal), 400)
+}
+
+async function commitModChance(modId: string, decimal: number) {
+  modRowBusy.value[modId] = true
+  try {
+    await putAdminCrateModifier(crateId.value, modId, decimal)
+    attachedModifiers.value = await getAdminCrateModifiers(crateId.value)
+    delete modChanceDrafts.value[modId]
+  } catch (e) {
+    modChanceErrors.value[modId] = parseApiError(e, 'Failed to update chance').message
+  } finally {
+    delete modRowBusy.value[modId]
+  }
+}
+
+async function detachModifier(modId: string) {
+  const snapshot = attachedModifiers.value
+  attachedModifiers.value = attachedModifiers.value.filter((m) => m.modifier.id !== modId)
+  modRowBusy.value[modId] = true
+  try {
+    await deleteAdminCrateModifier(crateId.value, modId)
+    attachedModifiers.value = await getAdminCrateModifiers(crateId.value)
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) {
+      attachedModifiers.value = await getAdminCrateModifiers(crateId.value)
+    } else {
+      attachedModifiers.value = snapshot
+      errorMsg.value = getApiErrorMessage(e, 'Failed to remove modifier')
+    }
+  } finally {
+    delete modRowBusy.value[modId]
+  }
+}
+
+const crateRollsUnusual = computed(() =>
+  attachedModifiers.value.some((m) => m.modifier.key === 'unusual'),
+)
+
+const attachedEffectIds = computed(() => new Set(attachedEffects.value.map((e) => e.id)))
+
+const attachableEffects = computed(() =>
+  allEffects.value.filter((e) => !attachedEffectIds.value.has(e.id)),
+)
+
+const effectPickerOptions = computed(() => [
+  { value: '', label: 'Select an effect...' },
+  ...attachableEffects.value.map((e) => ({
+    value: e.id,
+    label: e.name,
+    description: e.description ?? undefined,
+  })),
+])
+
+const newEffectId = ref('')
+const effectAttachBusy = ref(false)
+const effectError = ref<string | null>(null)
+const effectRowBusy = ref<Record<string, boolean>>({})
+
+async function attachEffect() {
+  if (!newEffectId.value) return
+  effectAttachBusy.value = true
+  effectError.value = null
+  try {
+    await putAdminCrateUnusualEffect(crateId.value, newEffectId.value)
+    attachedEffects.value = await getAdminCrateUnusualEffects(crateId.value)
+    newEffectId.value = ''
+  } catch (e) {
+    effectError.value = parseApiError(e, 'Failed to attach effect').message
+  } finally {
+    effectAttachBusy.value = false
+  }
+}
+
+async function detachEffect(effectId: string) {
+  const snapshot = attachedEffects.value
+  attachedEffects.value = attachedEffects.value.filter((e) => e.id !== effectId)
+  effectRowBusy.value[effectId] = true
+  try {
+    await deleteAdminCrateUnusualEffect(crateId.value, effectId)
+    attachedEffects.value = await getAdminCrateUnusualEffects(crateId.value)
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) {
+      attachedEffects.value = await getAdminCrateUnusualEffects(crateId.value)
+    } else {
+      attachedEffects.value = snapshot
+      errorMsg.value = getApiErrorMessage(e, 'Failed to remove effect')
+    }
+  } finally {
+    delete effectRowBusy.value[effectId]
+  }
+}
+
 onMounted(refresh)
 
 watch(crateId, refresh)
@@ -420,6 +627,7 @@ watch(crateId, refresh)
       </div>
       <div class="crate-editor__spacer" />
       <div v-if="crate" class="crate-editor__status-group">
+        <BaseButton size="sm" @click="previewOpen = true">Preview</BaseButton>
         <span class="crate-editor__status" :class="{
           'crate-editor__status--live': crate.active && !crate.deprecated,
           'crate-editor__status--draft': !crate.active,
@@ -616,6 +824,193 @@ watch(crateId, refresh)
       </section>
 
       <section class="crate-editor__panel">
+        <header class="crate-editor__panel-header">
+          <h2 class="crate-editor__panel-title">Modifiers</h2>
+          <div class="crate-editor__totals">
+            Attached: <span class="mono">{{ attachedModifiers.length }}</span>
+          </div>
+        </header>
+        <p class="crate-editor__hint">
+          Each attached modifier rolls independently on every open - several can hit at once
+          and stack on the reward. A chance is a standalone probability, not a share of a pie.
+          100% is guaranteed; 0% is rejected.
+        </p>
+
+        <div class="crate-editor__mod-attach">
+          <div class="crate-editor__mod-attach-picker">
+            <BaseSelect
+              v-model="newModifierId"
+              :options="modifierPickerOptions"
+              label="Add modifier"
+              searchable
+            />
+          </div>
+          <label class="crate-editor__mod-chance-field">
+            <span class="crate-editor__mod-chance-label">Chance (%)</span>
+            <input
+              v-model="newChancePct"
+              type="number"
+              min="0"
+              max="100"
+              step="any"
+              class="crate-editor__weight-input"
+            />
+          </label>
+          <BaseButton
+            size="sm"
+            variant="primary"
+            :loading="attachBusy"
+            :disabled="!newModifierId"
+            @click="attachModifier"
+          >
+            Attach
+          </BaseButton>
+        </div>
+        <p
+          v-if="selectedModifier && isSeasonalModifier(selectedModifier)"
+          class="crate-editor__mod-season-hint"
+        >
+          Attached here &rarr; uses this chance and drops year-round on this crate, overriding
+          its season window.
+        </p>
+        <p v-if="modifierError" class="crate-editor__weight-err">{{ modifierError }}</p>
+
+        <div v-if="attachedModifiers.length === 0" class="crate-editor__pool-empty">
+          <EmptyState message="No modifiers attached. Add one above." />
+        </div>
+        <table v-else class="crate-editor__pool-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>Name</th>
+              <th>Chance</th>
+              <th class="right"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="m in attachedModifiers" :key="m.modifier.id">
+              <td class="crate-editor__mod-chip-cell">
+                <span
+                  class="crate-editor__mod-chip"
+                  :style="{ background: m.modifier.colorHex }"
+                  aria-hidden="true"
+                />
+              </td>
+              <td>
+                <div class="crate-editor__pool-name">{{ m.modifier.name }}</div>
+                <div class="crate-editor__pool-type">
+                  {{ modifierDescription(m.modifier.id) ?? m.modifier.key }}
+                </div>
+                <div v-if="isSeasonalById(m.modifier.id)" class="crate-editor__mod-season-tag">
+                  Seasonal &rarr; overrides season, drops year-round here
+                </div>
+              </td>
+              <td class="crate-editor__pool-weight">
+                <div class="crate-editor__mod-chance-edit">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="any"
+                    class="crate-editor__weight-input"
+                    :value="modChanceDrafts[m.modifier.id] ?? String(decimalToPercent(m.dropChance))"
+                    :disabled="modRowBusy[m.modifier.id]"
+                    @input="onModChanceInput(m.modifier.id, ($event.target as HTMLInputElement).value)"
+                  />
+                  <span class="crate-editor__mod-pct">%</span>
+                </div>
+                <div v-if="modChanceErrors[m.modifier.id]" class="crate-editor__weight-err">
+                  {{ modChanceErrors[m.modifier.id] }}
+                </div>
+              </td>
+              <td class="right">
+                <button
+                  type="button"
+                  class="crate-editor__remove"
+                  :disabled="modRowBusy[m.modifier.id]"
+                  @click="detachModifier(m.modifier.id)"
+                  aria-label="Detach modifier"
+                >
+                  &times;
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="crate-editor__panel">
+        <header class="crate-editor__panel-header">
+          <h2 class="crate-editor__panel-title">Unusual effects</h2>
+          <div class="crate-editor__totals">
+            Attached: <span class="mono">{{ attachedEffects.length }}</span>
+          </div>
+        </header>
+        <p class="crate-editor__hint">
+          On an Unusual roll, one of these is chosen at equal chance. Add the Unusual modifier
+          above to give this crate a chance to roll one.
+        </p>
+        <p
+          v-if="attachedEffects.length && !crateRollsUnusual"
+          class="crate-editor__mod-season-hint"
+        >
+          This crate has no Unusual modifier attached, so these effects will never roll here.
+        </p>
+
+        <div class="crate-editor__mod-attach">
+          <div class="crate-editor__mod-attach-picker">
+            <BaseSelect
+              v-model="newEffectId"
+              :options="effectPickerOptions"
+              label="Add effect"
+              searchable
+            />
+          </div>
+          <BaseButton
+            size="sm"
+            variant="primary"
+            :loading="effectAttachBusy"
+            :disabled="!newEffectId"
+            @click="attachEffect"
+          >
+            Attach
+          </BaseButton>
+        </div>
+        <p v-if="effectError" class="crate-editor__weight-err">{{ effectError }}</p>
+
+        <div v-if="attachedEffects.length === 0" class="crate-editor__pool-empty">
+          <EmptyState message="No effects attached. The default Unusual sparkle will be used." />
+        </div>
+        <table v-else class="crate-editor__pool-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th class="right"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="e in attachedEffects" :key="e.id">
+              <td>
+                <div class="crate-editor__pool-name">{{ e.name }}</div>
+                <div class="crate-editor__pool-type">{{ e.description ?? e.key }}</div>
+              </td>
+              <td class="right">
+                <button
+                  type="button"
+                  class="crate-editor__remove"
+                  :disabled="effectRowBusy[e.id]"
+                  @click="detachEffect(e.id)"
+                  aria-label="Detach effect"
+                >
+                  &times;
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="crate-editor__panel">
         <h2 class="crate-editor__panel-title">Test</h2>
         <p class="crate-editor__hint">
           Playground for testing the contents and animation.
@@ -665,6 +1060,15 @@ watch(crateId, refresh)
           </tbody>
         </table>
       </section>
+
+      <CratePreviewModal
+        :open="previewOpen"
+        :crate="crate"
+        :contents="contents"
+        :modifiers="attachedModifiers"
+        :effects="attachedEffects"
+        @close="previewOpen = false"
+      />
     </template>
   </div>
 </template>
@@ -1047,7 +1451,7 @@ watch(crateId, refresh)
 }
 
 .crate-editor__rarity.rarity--epic {
-  --rarity-color: var(--accent-overall);
+  --rarity-color: var(--tier-apex);
 }
 
 .crate-editor__rarity.rarity--legendary {
@@ -1228,5 +1632,72 @@ watch(crateId, refresh)
 
 .crate-editor__sim-out {
   color: var(--error);
+}
+
+.crate-editor__mod-attach {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.crate-editor__mod-attach-picker {
+  flex: 1;
+  min-width: 200px;
+}
+
+.crate-editor__mod-chance-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.crate-editor__mod-chance-label {
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 500;
+}
+
+.crate-editor__mod-season-hint {
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--info);
+  background: color-mix(in srgb, var(--info) 10%, transparent);
+  color: var(--info);
+  border-radius: var(--radius-card);
+  font-size: var(--text-caption);
+  line-height: 1.4;
+}
+
+.crate-editor__mod-chip-cell {
+  width: 28px;
+}
+
+.crate-editor__mod-chip {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-badge);
+  border: 1px solid color-mix(in srgb, var(--text-primary) 20%, transparent);
+}
+
+.crate-editor__mod-season-tag {
+  margin-top: var(--space-xs);
+  font-size: var(--text-caption);
+  color: var(--info);
+}
+
+.crate-editor__mod-chance-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.crate-editor__mod-pct {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
 }
 </style>

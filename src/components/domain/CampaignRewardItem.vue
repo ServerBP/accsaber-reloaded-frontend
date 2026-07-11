@@ -63,7 +63,7 @@ const initial = computed(() => displayName.value.charAt(0).toUpperCase())
 .reward-item__art.rarity--common { --rarity-color: var(--text-tertiary); }
 .reward-item__art.rarity--uncommon { --rarity-color: var(--success); }
 .reward-item__art.rarity--rare { --rarity-color: var(--info); }
-.reward-item__art.rarity--epic { --rarity-color: var(--accent-overall); }
+.reward-item__art.rarity--epic { --rarity-color: var(--tier-apex); }
 .reward-item__art.rarity--legendary { --rarity-color: var(--tier-gold); }
 .reward-item__art.rarity--mythic { --rarity-color: var(--error); }
 

@@ -1,6 +1,6 @@
 import { applyThemeTokens, clearThemeTokens } from '@/utils/items'
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 export type BuiltinTheme = 'dark' | 'light'
 export type Theme = BuiltinTheme | string
@@ -30,9 +30,14 @@ export const useThemeStore = defineStore('theme', () => {
   const theme = ref<Theme>(getInitialTheme())
   const activeTokens = ref<Record<string, string> | null>(loadStoredTokens())
 
+  const resolvedBase = computed<BuiltinTheme>(() => {
+    if (activeTokens.value) return activeTokens.value.base === 'light' ? 'light' : 'dark'
+    return theme.value === 'light' ? 'light' : 'dark'
+  })
+
   let transitionTimer: ReturnType<typeof setTimeout> | null = null
 
-  function applyDataTheme(value: Theme, animated = true) {
+  function applyResolvedBase(animated = true) {
     const root = document.documentElement
     if (animated) {
       root.classList.add('theme-transitioning')
@@ -42,8 +47,7 @@ export const useThemeStore = defineStore('theme', () => {
         transitionTimer = null
       }, 220)
     }
-    root.setAttribute('data-theme', value)
-    localStorage.setItem('theme', value)
+    root.setAttribute('data-theme', resolvedBase.value)
   }
 
   function setTheme(value: Theme) {
@@ -61,22 +65,23 @@ export const useThemeStore = defineStore('theme', () => {
     localStorage.setItem(TOKENS_STORAGE_KEY, JSON.stringify(tokens))
     applyThemeTokens(tokens)
     theme.value = themeKey
-    document.documentElement.setAttribute('data-theme', themeKey)
-    localStorage.setItem('theme', themeKey)
   }
 
   function toggle() {
-    setTheme(theme.value === 'dark' ? 'light' : 'dark')
+    setTheme(resolvedBase.value === 'dark' ? 'light' : 'dark')
   }
 
-  watch(theme, (value, prev) => {
-    if (value === prev) return
-    applyDataTheme(value, prev !== undefined)
+  watch(theme, (value) => {
+    localStorage.setItem('theme', value)
+  }, { immediate: true })
+
+  watch(resolvedBase, (_, prev) => {
+    applyResolvedBase(prev !== undefined)
   }, { immediate: true })
 
   if (activeTokens.value) {
     applyThemeTokens(activeTokens.value)
   }
 
-  return { theme, activeTokens, toggle, setTheme, setThemeFromTokens }
+  return { theme, activeTokens, resolvedBase, toggle, setTheme, setThemeFromTokens }
 })

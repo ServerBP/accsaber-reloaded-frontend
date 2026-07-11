@@ -1,17 +1,27 @@
 <script setup lang="ts">
 import BaseButton from '@/components/common/BaseButton.vue'
 import CrateContentsList from '@/components/domain/CrateContentsList.vue'
+import CrateModifierList from '@/components/domain/CrateModifierList.vue'
+import FragmentedItem from '@/components/domain/FragmentedItem.vue'
 import ItemPreview from '@/components/domain/ItemPreview.vue'
+import ModifierChip from '@/components/domain/ModifierChip.vue'
 import ModifierCompositions from '@/components/domain/ModifierCompositions.vue'
 import { useModifierColor } from '@/composables/useModifierColor'
 import { useItemModifierStore } from '@/stores/itemModifiers'
 import { useItemTypeStore } from '@/stores/itemTypes'
-import type { CrateContentResponse, ItemModifierRef, UserItemResponse } from '@/types/api/items'
+import { useThemeStore } from '@/stores/theme'
+import type { CrateContentResponse, CrateModifierResponse, ItemModifierRef, ItemResponse, ItemVariant, UserItemResponse } from '@/types/api/items'
+import { formatEssence } from '@/utils/essence'
 import { formatRelativeDate } from '@/utils/formatters'
 import {
+  buildEffectLayers,
   displayItemName,
   isEquippableTypeKey,
   rarityClass,
+  readFragmentSpec,
+  readItemVariants,
+  readThemeValue,
+  resolveItemVariant,
   sortModifiersByKey,
   userItemTokenContext,
 } from '@/utils/items'
@@ -21,29 +31,81 @@ const props = defineProps<{
   userItem: UserItemResponse | null
   isOwnProfile: boolean
   equipped: boolean
+  equippedVariantKey?: string | null
   busy?: boolean
   locked?: boolean
   crateContents?: CrateContentResponse[]
   crateContentsLoading?: boolean
+  crateModifiers?: CrateModifierResponse[]
+  crateModifiersLoading?: boolean
+  ownedItemIds?: Set<string>
 }>()
 
 defineEmits<{
   equip: [linkId: string]
   unequip: [typeKey: string]
+  disintegrate: [linkId: string]
+  applyThemeMode: [linkId: string, alt: boolean]
+  selectVariant: [linkId: string, variantKey: string]
 }>()
 
 const itemTypeStore = useItemTypeStore()
 const modifierStore = useItemModifierStore()
+const themeStore = useThemeStore()
 
 const item = computed(() => props.userItem?.item ?? null)
 const isCrate = computed(() => item.value?.typeKey === 'crate')
+
+const themeValue = computed(() =>
+  item.value?.typeKey === 'theme' ? readThemeValue(item.value.value) : null,
+)
+const themeModes = computed(() => {
+  const tv = themeValue.value
+  if (!tv?.altTokens) return null
+  const label = (t: Record<string, string>) => (t.base === 'light' ? 'Light' : 'Dark')
+  return [
+    { alt: false, label: label(tv.tokens) },
+    { alt: true, label: label(tv.altTokens) },
+  ]
+})
+const activeThemeMode = computed<boolean | null>(() => {
+  const tv = themeValue.value
+  if (!tv?.altTokens || !props.equipped || !themeStore.activeTokens) return null
+  const active = JSON.stringify(themeStore.activeTokens)
+  if (active === JSON.stringify(tv.altTokens)) return true
+  if (active === JSON.stringify(tv.tokens)) return false
+  return null
+})
+const itemVariants = computed<ItemVariant[] | null>(() =>
+  item.value ? readItemVariants(item.value.value) : null,
+)
+const activeVariantKey = computed<string | null>(() => {
+  if (!itemVariants.value || !props.equipped) return null
+  return props.equippedVariantKey ?? itemVariants.value[0]?.key ?? null
+})
+const previewItem = computed<ItemResponse | null>(() => {
+  const it = item.value
+  if (!it || !itemVariants.value) return it
+  const key = activeVariantKey.value ?? itemVariants.value[0]?.key
+  if (!key) return it
+  return {
+    ...it,
+    value: resolveItemVariant(it.value as { variants?: ItemVariant[] }, key) as ItemResponse['value'],
+  }
+})
+
 const modifiers = computed<ItemModifierRef[]>(() =>
   sortModifiersByKey(props.userItem?.modifiers ?? []),
 )
+const unusualEffect = computed(() => props.userItem?.unusualEffect ?? null)
+const effectLayers = computed(() =>
+  buildEffectLayers(props.userItem?.modifiers, props.userItem?.unusualEffect),
+)
+const fragmentSpec = computed(() => readFragmentSpec(props.userItem?.unusualEffect))
 const tokenCtx = computed(() => props.userItem ? userItemTokenContext(props.userItem) : {})
 const quantity = computed(() => props.userItem?.quantity ?? 1)
 
-const { accent, resolve } = useModifierColor(modifiers)
+const { accent } = useModifierColor(modifiers)
 
 const itemNameStyle = computed(() => (accent.value ? { color: accent.value } : undefined))
 
@@ -53,16 +115,6 @@ const fullItemName = computed(() => {
   return displayItemName(u.modifiers, u.item.name)
 })
 
-function modifierChipStyle(m: ItemModifierRef) {
-  const c = resolve(m)
-  if (!c) return undefined
-  return {
-    color: c,
-    borderColor: `color-mix(in srgb, ${c} 50%, transparent)`,
-    background: `color-mix(in srgb, ${c} 10%, transparent)`,
-  }
-}
-
 const typeName = computed(() => {
   if (!item.value) return ''
   return itemTypeStore.byKey.get(item.value.typeKey)?.name ?? item.value.typeKey
@@ -70,6 +122,11 @@ const typeName = computed(() => {
 
 const equippable = computed(() => !!item.value && isEquippableTypeKey(item.value.typeKey))
 const showEquipActions = computed(() => !props.locked && props.isOwnProfile && equippable.value && item.value?.active && !item.value.deprecated)
+
+const essenceWorth = computed(() => item.value?.worth ?? 0)
+const showDisintegrate = computed(() => !props.locked && props.isOwnProfile && essenceWorth.value > 0)
+const disintegrateEssence = computed(() => essenceWorth.value * quantity.value)
+const showActions = computed(() => showEquipActions.value || showDisintegrate.value || !item.value?.tradeable)
 const hasMetaRows = computed(() => {
   if (!props.locked) return true
   return item.value?.unlockLevel != null || !!item.value?.requirement
@@ -95,13 +152,19 @@ onMounted(() => {
 
 <template>
   <div v-if="userItem && item" class="inv-detail">
-    <div class="inv-detail__art" :class="rarityClass(item.rarity)">
-      <ItemPreview :item="item" :selected="true" />
+    <div
+      class="inv-detail__art"
+      :class="[rarityClass(item.rarity), { 'inv-detail__art--title-fx': item.typeKey === 'title' }]"
+    >
+      <FragmentedItem v-if="fragmentSpec" :item="previewItem ?? item" :spec="fragmentSpec" :selected="true" />
+      <ItemPreview v-else :item="previewItem ?? item" :selected="true" />
       <ModifierCompositions
-        v-for="m in modifiers"
-        :key="m.id"
-        :modifier="m"
+        v-for="layer in effectLayers"
+        :key="layer.key"
+        :spec="layer.spec"
         :context="tokenCtx"
+        :type-key="item?.typeKey"
+        measure-selector=".title-renderer, .item-preview > *"
       />
     </div>
 
@@ -126,22 +189,62 @@ onMounted(() => {
       v-if="isCrate"
       :contents="crateContents ?? []"
       :loading="crateContentsLoading"
+      :owned-item-ids="ownedItemIds"
     />
+
+    <CrateModifierList
+      v-if="isCrate && item"
+      :modifiers="crateModifiers ?? []"
+      :crate-id="item.id"
+      :loading="crateModifiersLoading"
+    />
+
+    <div
+      v-if="!locked && itemVariants && showEquipActions"
+      class="inv-detail__theme-modes"
+      role="group"
+      aria-label="Variant"
+    >
+      <button
+        v-for="variant in itemVariants"
+        :key="variant.key"
+        type="button"
+        class="inv-detail__theme-mode"
+        :class="{ 'inv-detail__theme-mode--active': activeVariantKey === variant.key }"
+        :disabled="busy"
+        @click="$emit('selectVariant', userItem.linkId, variant.key)"
+      >
+        {{ variant.label }}
+      </button>
+    </div>
+
+    <div v-if="!locked && themeModes" class="inv-detail__theme-modes" role="group" aria-label="Theme mode">
+      <button
+        v-for="mode in themeModes"
+        :key="mode.label"
+        type="button"
+        class="inv-detail__theme-mode"
+        :class="{ 'inv-detail__theme-mode--active': activeThemeMode === mode.alt }"
+        :disabled="busy"
+        @click="$emit('applyThemeMode', userItem.linkId, mode.alt)"
+      >
+        {{ mode.label }}
+      </button>
+    </div>
 
     <dl v-if="hasMetaRows" class="inv-detail__meta">
       <div v-if="!locked" class="inv-detail__row">
         <dt>{{ modifiers.length > 1 ? 'Modifiers' : 'Modifier' }}</dt>
         <dd>
           <div v-if="modifiers.length" class="inv-detail__chips">
-            <span
-              v-for="m in modifiers"
-              :key="m.id"
-              class="inv-detail__chip"
-              :style="modifierChipStyle(m)"
-            >{{ m.name }}</span>
+            <ModifierChip v-for="m in modifiers" :key="m.id" :modifier="m" />
           </div>
           <span v-else>-</span>
         </dd>
+      </div>
+      <div v-if="!locked && unusualEffect" class="inv-detail__row">
+        <dt>Effect</dt>
+        <dd>{{ unusualEffect.name || unusualEffect.key }}</dd>
       </div>
       <div v-if="!locked && quantity > 1" class="inv-detail__row">
         <dt>Quantity</dt>
@@ -184,33 +287,45 @@ onMounted(() => {
 
     <div v-if="!locked && item.deprecated" class="inv-detail__notice">This item has been deprecated.</div>
 
-    <div v-if="showEquipActions || !item.tradeable" class="inv-detail__actions">
-      <BaseButton
-        v-if="showEquipActions && !equipped"
-        variant="primary"
-        size="md"
-        :loading="busy"
-        @click="$emit('equip', userItem.linkId)"
-      >
-        Equip
-      </BaseButton>
-      <BaseButton
-        v-else-if="showEquipActions"
-        size="md"
-        :loading="busy"
-        @click="$emit('unequip', item.typeKey)"
-      >
-        Unequip
-      </BaseButton>
+    <div v-if="showActions" class="inv-detail__actions">
+      <div class="inv-detail__actions-row">
+        <BaseButton
+          v-if="showEquipActions && !equipped"
+          variant="primary"
+          size="md"
+          :loading="busy"
+          @click="$emit('equip', userItem.linkId)"
+        >
+          Equip
+        </BaseButton>
+        <span v-else-if="showEquipActions" class="inv-detail__equipped">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          Equipped
+        </span>
 
-      <span v-if="!item.tradeable" class="inv-detail__no-trade" aria-label="Untradeable">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-          stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="12" cy="12" r="10" />
-          <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
-        </svg>
-        Untradeable
-      </span>
+        <BaseButton
+          v-if="showDisintegrate"
+          variant="destructive"
+          size="md"
+          :disabled="equipped || busy"
+          @click="$emit('disintegrate', userItem.linkId)"
+        >
+          Disintegrate
+          <span class="inv-detail__essence-yield">· +{{ formatEssence(disintegrateEssence) }}</span>
+        </BaseButton>
+
+        <span v-if="!item.tradeable" class="inv-detail__no-trade" aria-label="Untradeable">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+          </svg>
+          Untradeable
+        </span>
+      </div>
     </div>
   </div>
 
@@ -254,10 +369,15 @@ onMounted(() => {
   --rarity-color: var(--text-tertiary);
 }
 
+.inv-detail__art--title-fx :deep(.item-preview) {
+  position: relative;
+  z-index: 1;
+}
+
 .inv-detail__art.rarity--common { --rarity-color: var(--text-tertiary); }
 .inv-detail__art.rarity--uncommon { --rarity-color: var(--success); }
 .inv-detail__art.rarity--rare { --rarity-color: var(--info); }
-.inv-detail__art.rarity--epic { --rarity-color: var(--accent-overall); }
+.inv-detail__art.rarity--epic { --rarity-color: var(--tier-apex); }
 .inv-detail__art.rarity--legendary { --rarity-color: var(--tier-gold); }
 .inv-detail__art.rarity--mythic { --rarity-color: var(--error); }
 
@@ -297,7 +417,7 @@ onMounted(() => {
 
 .inv-detail__rarity.rarity--uncommon { color: var(--success); }
 .inv-detail__rarity.rarity--rare { color: var(--info); }
-.inv-detail__rarity.rarity--epic { color: var(--accent-overall); }
+.inv-detail__rarity.rarity--epic { color: var(--tier-apex); }
 .inv-detail__rarity.rarity--legendary { color: var(--tier-gold); }
 .inv-detail__rarity.rarity--mythic { color: var(--error); }
 
@@ -348,16 +468,34 @@ onMounted(() => {
   justify-content: flex-end;
 }
 
-.inv-detail__chip {
+.inv-detail__theme-modes {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.inv-detail__theme-mode {
+  flex: 1;
+  padding: var(--space-xs) var(--space-sm);
   font-family: var(--font-sans);
-  font-size: 0.6875rem;
+  font-size: var(--text-caption);
   font-weight: 600;
-  letter-spacing: 0.04em;
-  padding: 2px 8px;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--bg-overlay);
-  background: var(--bg-base);
   color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--bg-overlay);
+  border-radius: var(--radius-btn);
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+
+.inv-detail__theme-mode:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--text-tertiary);
+}
+
+.inv-detail__theme-mode--active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 .inv-detail__notice {
@@ -371,9 +509,35 @@ onMounted(() => {
 
 .inv-detail__actions {
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-sm);
+}
+
+.inv-detail__actions-row {
+  display: flex;
   align-items: center;
   gap: var(--space-sm);
   flex-wrap: wrap;
+}
+
+.inv-detail__essence-yield {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
+.inv-detail__equipped {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  font-weight: 600;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-btn);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 .inv-detail__name-lock {

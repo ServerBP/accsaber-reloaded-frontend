@@ -1,4 +1,4 @@
-import type { ItemModifierRef, ItemResponse } from '@/types/api/items'
+import type { ItemModifierRef, ItemResponse, UnusualEffectRef } from '@/types/api/items'
 import { nextTick, onUnmounted, ref, type Ref } from 'vue'
 
 export type CratePhase =
@@ -14,16 +14,19 @@ export interface CrateAnimationPoolEntry {
   item: ItemResponse
   weight: number
   modifiers?: ItemModifierRef[]
+  unusualEffect?: UnusualEffectRef | null
 }
 
 export interface CrateCarouselSlot {
   item: ItemResponse
   modifiers: ItemModifierRef[]
+  unusualEffect: UnusualEffectRef | null
 }
 
 interface UseCrateAnimationOptions {
   result: Ref<ItemResponse | null>
   resultModifiers: Ref<ItemModifierRef[]>
+  resultUnusualEffect: Ref<UnusualEffectRef | null>
   pool: Ref<CrateAnimationPoolEntry[]>
   cardWidth: Ref<number>
   cardGap: Ref<number>
@@ -65,7 +68,7 @@ function waitFrame(): Promise<void> {
 
 function toSlot(entry: CrateAnimationPoolEntry | null, fallback: CrateCarouselSlot): CrateCarouselSlot {
   if (!entry) return fallback
-  return { item: entry.item, modifiers: entry.modifiers ?? [] }
+  return { item: entry.item, modifiers: entry.modifiers ?? [], unusualEffect: entry.unusualEffect ?? null }
 }
 
 export function useCrateAnimation(opts: UseCrateAnimationOptions) {
@@ -128,6 +131,7 @@ export function useCrateAnimation(opts: UseCrateAnimationOptions) {
     const winner: CrateCarouselSlot = {
       item: result,
       modifiers: opts.resultModifiers.value,
+      unusualEffect: opts.resultUnusualEffect.value,
     }
 
     if (reduceMotion) {

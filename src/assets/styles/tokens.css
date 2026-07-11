@@ -111,6 +111,10 @@
 
   /* --- Layout --- */
   --navbar-height: 64px;
+  --navbar-bg: color-mix(in srgb, var(--bg-surface) 80%, transparent);
+  --navbar-bg-scrolled: color-mix(in srgb, var(--bg-surface) 92%, transparent);
+  --navbar-text: var(--text-secondary);
+  --navbar-text-strong: var(--text-primary);
 
   /* --- Typography --- */
   --font-sans: 'DM Sans', system-ui, -apple-system, sans-serif;
@@ -141,6 +145,9 @@
   --text-primary: #1a1726;
   --text-secondary: #6a6580;
   --text-tertiary: #9b96b0;
+
+  --fx-blend: normal;
+  --fx-ember-halo: rgba(40, 18, 4, 0.5);
 
   --chart-grid: rgba(0, 0, 0, 0.08);
   --chart-text: #6a6a82;

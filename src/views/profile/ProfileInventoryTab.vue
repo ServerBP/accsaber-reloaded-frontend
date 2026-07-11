@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BaseBanner from '@/components/common/BaseBanner.vue'
 import BaseButton from '@/components/common/BaseButton.vue'
 import BaseModal from '@/components/common/BaseModal.vue'
 import BaseSelect from '@/components/common/BaseSelect.vue'
@@ -6,20 +7,26 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import PaginationControls from '@/components/common/PaginationControls.vue'
 import SearchBox from '@/components/common/SearchBox.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
+import DisintegrateDialog from '@/components/domain/DisintegrateDialog.vue'
 import InventoryDetailPanel from '@/components/domain/InventoryDetailPanel.vue'
 import InventoryItemCell from '@/components/domain/InventoryItemCell.vue'
 import { useCrateContents } from '@/composables/useCrateContents'
+import { useCrateModifiers } from '@/composables/useCrateModifiers'
+import { useOwnedItemIds } from '@/composables/useOwnedItemIds'
 import { usePageableRoute } from '@/composables/usePageableRoute'
-import { getItems, getUserInventory, getUserItems } from '@/api/items'
+import { disintegrateItem, getItems, getUserInventory, getUserItems } from '@/api/items'
+import { parseApiError } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
+import { useEssenceStore } from '@/stores/essence'
 import { useInventoryStore } from '@/stores/inventory'
 import { useItemModifierStore } from '@/stores/itemModifiers'
 import { useItemTypeStore } from '@/stores/itemTypes'
 import { useThemeStore } from '@/stores/theme'
-import type { ItemRarity, ItemResponse, ItemTypeKey, UserItemResponse } from '@/types/api/items'
+import type { DisintegrationResponse, ItemRarity, ItemResponse, ItemTypeKey, UserItemResponse } from '@/types/api/items'
 import type { Page } from '@/types/pagination'
+import { ESSENCE_GLYPH, formatEssence, formatEssenceAmount } from '@/utils/essence'
 import { RARITY_ORDER, readThemeValue } from '@/utils/items'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 
 const props = defineProps<{
@@ -27,6 +34,7 @@ const props = defineProps<{
 }>()
 
 const authStore = useAuthStore()
+const essenceStore = useEssenceStore()
 const inventoryStore = useInventoryStore()
 const itemTypeStore = useItemTypeStore()
 const itemModifierStore = useItemModifierStore()
@@ -100,6 +108,9 @@ const loading = ref(false)
 const selectedLinkId = ref<string | null>(null)
 const actionBusy = ref(false)
 const mobileDetailOpen = ref(false)
+const disintegrateTarget = ref<UserItemResponse | null>(null)
+const feedback = ref<{ variant: 'success' | 'error'; message: string } | null>(null)
+let feedbackTimer: ReturnType<typeof setTimeout> | null = null
 
 const catalogAllItems = ref<ItemResponse[]>([])
 const catalogOwnedItems = ref<UserItemResponse[]>([])
@@ -114,6 +125,7 @@ function syntheticLockedEntry(it: ItemResponse): UserItemResponse {
     linkId: `locked:${it.id}`,
     item: it,
     modifiers: [],
+    unusualEffect: null,
     serialNumber: null,
     quantity: 0,
     source: 'manual',
@@ -207,22 +219,32 @@ const { contents: crateContents, loading: crateContentsLoading } = useCrateConte
   () => selectedItem.value?.item ?? null,
 )
 
+const { modifiers: crateModifiers, loading: crateModifiersLoading } = useCrateModifiers(
+  () => selectedItem.value?.item ?? null,
+)
+
+const isCrateSelected = computed(() => selectedItem.value?.item.typeKey === 'crate')
+const { ownedIds } = useOwnedItemIds(() => props.userId, isCrateSelected)
+
 const isSelectedLocked = computed(() => isLockedLink(selectedLinkId.value))
 
 const isSelectedEquipped = computed(() => {
-  if (!isOwnProfile.value) return false
-  if (isSelectedLocked.value) return false
+  const it = selectedItem.value
+  return !!it && isEquipped(it)
+})
+
+const selectedEquippedVariantKey = computed<string | null>(() => {
+  if (!isSelectedEquipped.value) return null
   const it = selectedItem.value?.item
-  if (!it) return false
-  const slot = inventoryStore.equipped[it.typeKey]
-  return !!slot && slot.item.id === it.id
+  if (!it) return null
+  return inventoryStore.equipped[it.typeKey]?.variantKey ?? null
 })
 
 function isEquipped(userItem: UserItemResponse): boolean {
   if (!isOwnProfile.value) return false
   if (isLockedLink(userItem.linkId)) return false
   const slot = inventoryStore.equipped[userItem.item.typeKey]
-  return !!slot && slot.item.id === userItem.item.id
+  return !!slot && slot.linkId === userItem.linkId
 }
 
 async function fetchInventory() {
@@ -297,12 +319,116 @@ async function handleEquip(linkId: string) {
   }
 }
 
+async function handleSelectVariant(linkId: string, variantKey: string) {
+  const target = items.value.find((u) => u.linkId === linkId)
+  if (!target) return
+  actionBusy.value = true
+  try {
+    await inventoryStore.equip(target.linkId, props.userId, variantKey)
+  } catch {
+  } finally {
+    actionBusy.value = false
+  }
+}
+
 async function handleUnequip(typeKeyArg: string) {
   actionBusy.value = true
   try {
     await inventoryStore.unequip(typeKeyArg as ItemTypeKey, props.userId)
   } catch {
   } finally {
+    actionBusy.value = false
+  }
+}
+
+async function handleApplyThemeMode(linkId: string, alt: boolean) {
+  if (isLockedLink(linkId)) return
+  const target = items.value.find((u) => u.linkId === linkId)
+  if (!target) return
+  const theme = readThemeValue(target.item.value)
+  const tokens = alt ? theme?.altTokens : theme?.tokens
+  if (!tokens) return
+  actionBusy.value = true
+  try {
+    if (!isEquipped(target)) {
+      await inventoryStore.equip(target.linkId, props.userId)
+    }
+    themeStore.setThemeFromTokens(`item:${target.item.id}`, tokens)
+  } catch {
+  } finally {
+    actionBusy.value = false
+  }
+}
+
+function showFeedback(variant: 'success' | 'error', message: string) {
+  feedback.value = { variant, message }
+  if (feedbackTimer) clearTimeout(feedbackTimer)
+  feedbackTimer = setTimeout(() => {
+    feedback.value = null
+  }, 4000)
+}
+
+function mutateLink(linkId: string, nextQuantity: number | null) {
+  const removed = nextQuantity === null
+  const apply = (list: UserItemResponse[]): UserItemResponse[] =>
+    nextQuantity === null
+      ? list.filter((u) => u.linkId !== linkId)
+      : list.map((u) => (u.linkId === linkId ? { ...u, quantity: nextQuantity } : u))
+
+  catalogOwnedItems.value = apply(catalogOwnedItems.value)
+
+  if (data.value) {
+    const inPage = data.value.content.some((u) => u.linkId === linkId)
+    data.value = {
+      ...data.value,
+      content: apply(data.value.content),
+      totalElements:
+        removed && inPage ? Math.max(0, data.value.totalElements - 1) : data.value.totalElements,
+    }
+  }
+
+  if (removed && selectedLinkId.value === linkId) {
+    selectedLinkId.value = items.value[0]?.linkId ?? null
+  }
+}
+
+function handleDisintegrateRequest(linkId: string) {
+  if (isLockedLink(linkId)) return
+  const target =
+    selectedItem.value?.linkId === linkId
+      ? selectedItem.value
+      : items.value.find((u) => u.linkId === linkId) ?? null
+  if (target) disintegrateTarget.value = target
+}
+
+function handleDisintegrateCancel() {
+  if (actionBusy.value) return
+  disintegrateTarget.value = null
+}
+
+function applyDisintegration(res: DisintegrationResponse) {
+  essenceStore.setBalance(res.balance)
+  mutateLink(res.linkId, res.remainingQuantity)
+  showFeedback('success', `+${formatEssence(res.essenceGained)} essence`)
+}
+
+async function handleDisintegrateConfirm(quantity: number) {
+  const target = disintegrateTarget.value
+  if (!target) return
+  const linkId = target.linkId
+  actionBusy.value = true
+  try {
+    applyDisintegration(await disintegrateItem(linkId, quantity))
+  } catch (err) {
+    const parsed = parseApiError(err, 'Could not disintegrate item.')
+    if (parsed.status === 404) {
+      mutateLink(linkId, null)
+    } else if (parsed.status === 409 && isOwnProfile.value && authStore.userId) {
+      await inventoryStore.fetchEquipped(authStore.userId, true)
+    }
+    showFeedback('error', parsed.fieldErrors[0]?.message ?? parsed.message)
+  } finally {
+    disintegrateTarget.value = null
     actionBusy.value = false
   }
 }
@@ -342,7 +468,10 @@ watch(
 )
 
 watch(() => props.userId, (id) => {
-  if (id && isOwnProfile.value) inventoryStore.fetchEquipped(id)
+  if (id && isOwnProfile.value) {
+    inventoryStore.fetchEquipped(id)
+    essenceStore.fetchBalance(true)
+  }
 }, { immediate: true })
 
 watch([totalPages, currentPage], () => {
@@ -357,10 +486,18 @@ onMounted(() => {
   itemModifierStore.fetchModifiers()
   if (showUnowned.value && catalogAllItems.value.length === 0) fetchCatalog()
 })
+
+onUnmounted(() => {
+  if (feedbackTimer) clearTimeout(feedbackTimer)
+})
 </script>
 
 <template>
   <div class="inv-tab">
+    <BaseBanner v-if="feedback" :variant="feedback.variant" role="status" @close="feedback = null">
+      {{ feedback.message }}
+    </BaseBanner>
+
     <div class="inv-tab__filters">
       <SearchBox v-model="search" placeholder="Search items..." class="inv-tab__search" />
       <BaseSelect v-model="typeKey" :options="typeOptions" placeholder="All types" />
@@ -385,6 +522,15 @@ onMounted(() => {
         </span>
         <span class="inv-tab__unowned-label">Unowned</span>
       </button>
+      <span
+        v-if="isOwnProfile && essenceStore.balance !== null"
+        class="inv-tab__wallet"
+        :aria-label="`Essence balance: ${formatEssenceAmount(essenceStore.balance)}`"
+        title="Item essence"
+      >
+        <span class="inv-tab__wallet-glyph" aria-hidden="true">{{ ESSENCE_GLYPH }}</span>
+        <span class="inv-tab__wallet-amount">{{ formatEssenceAmount(essenceStore.balance) }}</span>
+      </span>
       <RouterLink v-if="isOwnProfile" :to="{ name: 'trade-offers' }" custom v-slot="{ navigate, href }">
         <BaseButton variant="primary" :href="href" @click="(e: MouseEvent) => { e.preventDefault(); navigate() }">
           Trade Offers
@@ -435,12 +581,19 @@ onMounted(() => {
           :user-item="selectedItem"
           :is-own-profile="isOwnProfile"
           :equipped="isSelectedEquipped"
+          :equipped-variant-key="selectedEquippedVariantKey"
           :busy="actionBusy"
           :locked="isSelectedLocked"
           :crate-contents="crateContents"
           :crate-contents-loading="crateContentsLoading"
+          :crate-modifiers="crateModifiers"
+          :crate-modifiers-loading="crateModifiersLoading"
+          :owned-item-ids="ownedIds"
           @equip="handleEquip"
+          @apply-theme-mode="handleApplyThemeMode"
+          @select-variant="handleSelectVariant"
           @unequip="handleUnequip"
+          @disintegrate="handleDisintegrateRequest"
         />
       </aside>
     </div>
@@ -450,14 +603,29 @@ onMounted(() => {
         :user-item="selectedItem"
         :is-own-profile="isOwnProfile"
         :equipped="isSelectedEquipped"
+        :equipped-variant-key="selectedEquippedVariantKey"
         :busy="actionBusy"
         :locked="isSelectedLocked"
         :crate-contents="crateContents"
         :crate-contents-loading="crateContentsLoading"
+        :crate-modifiers="crateModifiers"
+        :crate-modifiers-loading="crateModifiersLoading"
+        :owned-item-ids="ownedIds"
         @equip="handleEquip"
+        @apply-theme-mode="handleApplyThemeMode"
+        @select-variant="handleSelectVariant"
         @unequip="handleUnequip"
+        @disintegrate="handleDisintegrateRequest"
       />
     </BaseModal>
+
+    <DisintegrateDialog
+      :open="disintegrateTarget !== null"
+      :user-item="disintegrateTarget"
+      :busy="actionBusy"
+      @confirm="handleDisintegrateConfirm"
+      @cancel="handleDisintegrateCancel"
+    />
   </div>
 </template>
 
@@ -533,6 +701,32 @@ onMounted(() => {
   font-size: var(--text-caption);
   color: var(--text-secondary);
   user-select: none;
+}
+
+.inv-tab__wallet {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--bg-overlay);
+  border-radius: var(--radius-btn);
+  background: var(--bg-surface);
+  white-space: nowrap;
+}
+
+.inv-tab__wallet-glyph {
+  color: var(--tier-gold);
+  font-size: var(--text-body);
+  line-height: 1;
+}
+
+.inv-tab__wallet-amount {
+  font-family: var(--font-mono);
+  font-size: var(--text-body);
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
 }
 
 .inv-tab__layout {

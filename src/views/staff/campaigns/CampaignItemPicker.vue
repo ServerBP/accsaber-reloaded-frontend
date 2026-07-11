@@ -7,6 +7,7 @@ import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import InventoryItemCell from '@/components/domain/InventoryItemCell.vue'
 import ItemPreview from '@/components/domain/ItemPreview.vue'
 import { useDebouncedRef } from '@/composables/useDebouncedRef'
+import { useItemTypeStore } from '@/stores/itemTypes'
 import type { ItemResponse, UserItemResponse } from '@/types/api/items'
 import { rarityClass } from '@/utils/items'
 import { computed, onMounted, ref, watch } from 'vue'
@@ -19,6 +20,8 @@ const emit = defineEmits<{
 }>()
 
 const PAGE_SIZE = 20
+
+const itemTypeStore = useItemTypeStore()
 
 const items = ref<ItemResponse[]>([])
 const fetching = ref(false)
@@ -40,17 +43,15 @@ const rarityRank: Record<string, number> = {
   mythic: 5,
 }
 
-const tradeableItems = computed(() =>
-  items.value.filter((i) => i.active && !i.deprecated && i.tradeable),
+const crateItems = computed(() =>
+  items.value.filter((i) => i.active && !i.deprecated && i.typeKey === 'crate'),
 )
 
 const filtered = computed(() => {
   const q = debounced.value.trim().toLowerCase()
   const matched = q
-    ? tradeableItems.value.filter(
-        (i) => i.name.toLowerCase().includes(q) || i.typeKey.toLowerCase().includes(q),
-      )
-    : tradeableItems.value
+    ? crateItems.value.filter((i) => i.name.toLowerCase().includes(q))
+    : crateItems.value
   return matched.slice().sort((a, b) => {
     const r = (rarityRank[a.rarity] ?? 0) - (rarityRank[b.rarity] ?? 0)
     if (r !== 0) return r
@@ -75,6 +76,7 @@ function wrapAsUserItem(item: ItemResponse): UserItemResponse {
     linkId: item.id,
     item,
     modifiers: [],
+    unusualEffect: null,
     serialNumber: null,
     quantity: 1,
     source: 'manual',
@@ -89,9 +91,11 @@ async function load() {
   fetching.value = true
   err.value = null
   try {
-    items.value = await getItems({ tradeable: true })
+    await itemTypeStore.fetchItemTypes()
+    const crateTypeId = itemTypeStore.byKey.get('crate')?.id ?? null
+    items.value = await getItems(crateTypeId ? { typeId: crateTypeId } : undefined)
   } catch (e) {
-    err.value = getApiErrorMessage(e, 'Failed to load items')
+    err.value = getApiErrorMessage(e, 'Failed to load crates')
   } finally {
     fetching.value = false
   }
@@ -127,7 +131,7 @@ function confirm() {
     <div class="item-picker">
       <template v-if="!selectedItem">
         <input class="item-picker__search" v-model="query" type="search" autofocus
-          placeholder="Search by name or type" />
+          placeholder="Search crates by name" />
 
         <p v-if="err" class="item-picker__error" role="alert">{{ err }}</p>
 
@@ -139,9 +143,9 @@ function confirm() {
 
         <p v-else-if="paged.length === 0" class="item-picker__empty">
           {{
-            tradeableItems.length === 0
-              ? 'Sorry, no tradeable items are currently active. Come back soon!'
-              : 'No items match that search.'
+            crateItems.length === 0
+              ? 'Sorry, no crates are currently available. Come back soon!'
+              : 'No crates match that search.'
           }}
         </p>
 
@@ -304,7 +308,7 @@ function confirm() {
 .item-picker__rarity.rarity--common { color: var(--text-tertiary); }
 .item-picker__rarity.rarity--uncommon { color: var(--success); }
 .item-picker__rarity.rarity--rare { color: var(--info); }
-.item-picker__rarity.rarity--epic { color: var(--accent-overall); }
+.item-picker__rarity.rarity--epic { color: var(--tier-apex); }
 .item-picker__rarity.rarity--legendary { color: var(--tier-gold); }
 .item-picker__rarity.rarity--mythic { color: var(--error); }
 
@@ -333,7 +337,7 @@ function confirm() {
 .item-picker__selected-art.rarity--common { --rarity-color: var(--text-tertiary); }
 .item-picker__selected-art.rarity--uncommon { --rarity-color: var(--success); }
 .item-picker__selected-art.rarity--rare { --rarity-color: var(--info); }
-.item-picker__selected-art.rarity--epic { --rarity-color: var(--accent-overall); }
+.item-picker__selected-art.rarity--epic { --rarity-color: var(--tier-apex); }
 .item-picker__selected-art.rarity--legendary { --rarity-color: var(--tier-gold); }
 .item-picker__selected-art.rarity--mythic { --rarity-color: var(--error); }
 

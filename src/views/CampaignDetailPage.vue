@@ -24,6 +24,8 @@ import { useCampaignDifficultyMeta } from '@/composables/useCampaignDifficultyMe
 import { useItemCatalog } from '@/composables/useItemCatalog'
 import { useAuthStore } from '@/stores/auth'
 import { useCategoryStore } from '@/stores/categories'
+import { useThemeStore } from '@/stores/theme'
+import { readBackdropConfig } from '@/utils/themeBackdrop'
 import type {
   BarrierProgressResponse,
   CampaignBarrierResponse,
@@ -52,7 +54,10 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const categoryStore = useCategoryStore()
+const themeStore = useThemeStore()
 const { itemsById: rewardItemsById, ensureLoaded: ensureRewardItems } = useItemCatalog()
+
+const themeBackdropActive = computed(() => readBackdropConfig(themeStore.activeTokens) !== null)
 
 const campaign = ref<CampaignDetailResponse | null>(null)
 const progress = ref<CampaignProgressResponse | null>(null)
@@ -469,7 +474,11 @@ function unpinTooltip() {
 </script>
 
 <template>
-  <div class="campaign-detail" :style="{ '--page-accent': accent }">
+  <div
+    class="campaign-detail"
+    :class="{ 'campaign-detail--backdrop': themeBackdropActive }"
+    :style="{ '--page-accent': accent }"
+  >
     <template v-if="loading">
       <div class="campaign-detail__loading">
         <SkeletonLoader variant="card" />
@@ -948,6 +957,10 @@ function unpinTooltip() {
   padding: 0;
   overflow: hidden;
   background: var(--bg-base);
+}
+
+.campaign-detail--backdrop {
+  background: transparent;
 }
 
 .campaign-detail__loading {

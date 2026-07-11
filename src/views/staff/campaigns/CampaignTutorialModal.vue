@@ -331,6 +331,7 @@ function handlePlaceBarrier(payload: { fromId: string; toId: string }) {
     positionY: Math.round((from.positionY + to.positionY) / 2),
     xp: 0,
     prerequisiteCampaignDifficultyIds: [payload.fromId],
+    prerequisiteMode: 'AND',
     affectedCampaignDifficultyIds: payload.fromId.startsWith('tutorial-barrier')
       ? []
       : [payload.fromId],

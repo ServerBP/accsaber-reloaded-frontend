@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useReducedMotion } from '@/composables/useReducedMotion'
 import { useTimeline } from '@/composables/useTimeline'
 import type {
   BorderColorValue,
@@ -18,9 +19,7 @@ const props = defineProps<{
   color: BorderColorValue | null
 }>()
 
-const reducedMotion = ref(false)
-let motionMedia: MediaQueryList | null = null
-let motionMediaHandler: (() => void) | null = null
+const reducedMotion = useReducedMotion()
 
 const visible = ref(true)
 const rootEl = ref<HTMLDivElement | null>(null)
@@ -29,14 +28,6 @@ let observer: IntersectionObserver | null = null
 let resizeObserver: ResizeObserver | null = null
 
 onMounted(() => {
-  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
-    motionMedia = window.matchMedia('(prefers-reduced-motion: reduce)')
-    reducedMotion.value = motionMedia.matches
-    motionMediaHandler = () => { reducedMotion.value = motionMedia!.matches }
-    if (typeof motionMedia.addEventListener === 'function') {
-      motionMedia.addEventListener('change', motionMediaHandler)
-    }
-  }
   if (!rootEl.value) return
   if (typeof IntersectionObserver !== 'undefined') {
     observer = new IntersectionObserver(
@@ -64,11 +55,6 @@ onUnmounted(() => {
   observer = null
   resizeObserver?.disconnect()
   resizeObserver = null
-  if (motionMedia && motionMediaHandler && typeof motionMedia.removeEventListener === 'function') {
-    motionMedia.removeEventListener('change', motionMediaHandler)
-  }
-  motionMedia = null
-  motionMediaHandler = null
 })
 
 interface MetalRamp {
@@ -151,6 +137,13 @@ const ramp = computed<MetalRamp | null>(() => {
   if (fill.type === 'solid') {
     const base = fill.hex
     return rampFromTriple(darken(base, 0.45), base, lighten(base, 0.45), derivation)
+  }
+  if (fill.type === 'cosmic') {
+    const base = fill.nebulas[0] ?? fill.accent
+    return rampFromTriple(fill.space, base, lighten(fill.star, 0.1), derivation)
+  }
+  if (fill.type === 'toon') {
+    return rampFromTriple(darken(fill.ink, 0.3), fill.ink, fill.line, derivation)
   }
   if (Array.isArray(fill.stops) && fill.stops.length > 0) {
     const sorted = [...fill.stops].sort((a, b) => luminance(a.hex) - luminance(b.hex))
@@ -353,6 +346,7 @@ function heartOpacity(p: Heart): number {
 
 function heartFillColors(p: Heart): { lit: string; shaded: string } {
   const r = ramp.value
+  if (!r) return { lit: 'currentColor', shaded: 'currentColor' }
   const stops = [r.deepShadow, r.shadow, r.midShadow, r.base, r.midHighlight, r.highlight, r.apexHighlight]
   const prog = 1 - heartYPct(p) / 100
   const idx = Math.min(stops.length - 2, Math.max(0, Math.floor(prog * (stops.length - 1))))

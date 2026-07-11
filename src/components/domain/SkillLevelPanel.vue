@@ -128,11 +128,6 @@ function formatRank(rank: number | null): string {
   return `#${rank.toLocaleString()}`
 }
 
-function formatAp(value: number): string {
-  if (value <= 0) return '0'
-  return `${value.toFixed(1)} AP`
-}
-
 function togglePin(i: number) {
   pinnedIndex.value = pinnedIndex.value === i ? null : i
 }
@@ -320,12 +315,6 @@ const tooltipStyle = computed(() => {
             <span>
               {{ formatRank(active.components.categoryRank) }}
               <span class="skill-panel__tooltip-of">of {{ active.components.activePlayers.toLocaleString() }}</span>
-            </span>
-            <span
-              v-if="active.components.rawApForOneGain > 0"
-              class="skill-panel__tooltip-chip"
-            >
-              +1 @ {{ formatAp(active.components.rawApForOneGain) }}
             </span>
           </div>
 
@@ -554,15 +543,6 @@ const tooltipStyle = computed(() => {
 
 .skill-panel__tooltip-of {
   color: var(--text-tertiary);
-}
-
-.skill-panel__tooltip-chip {
-  padding: 2px 6px;
-  border: 1px solid var(--bg-overlay);
-  border-radius: 3px;
-  background: var(--bg-base);
-  color: var(--card-accent);
-  white-space: nowrap;
 }
 
 .skill-panel__bars {

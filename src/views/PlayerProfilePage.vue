@@ -5,6 +5,7 @@ import BaseTabs from '@/components/common/BaseTabs.vue'
 import SearchBox from '@/components/common/SearchBox.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import StatBlock from '@/components/common/StatBlock.vue'
+import ApToNextTooltip from '@/components/domain/ApToNextTooltip.vue'
 import CategoryTabs from '@/components/domain/CategoryTabs.vue'
 import CountryFlag from '@/components/domain/CountryFlag.vue'
 import LevelBadge from '@/components/domain/LevelBadge.vue'
@@ -34,6 +35,8 @@ import {
   readBorderColorValue,
   readBorderShapeValue,
   readTitleValue,
+  resolveEquippedVariant,
+  unusualEffectLayers,
 } from '@/utils/items'
 import { getRankClass } from '@/utils/ranking'
 import { pickAvatarUrl } from '@/composables/useAvatarFallback'
@@ -98,8 +101,13 @@ const equipped = computed<EquippedItemsResponse>(() => {
 })
 
 const equippedTitleValue = computed(() => readTitleValue(equipped.value.title?.item.value))
-const equippedBorderColorValue = computed(() => readBorderColorValue(equipped.value.profile_border_color?.item.value))
+const equippedBorderColorValue = computed(() => resolveEquippedVariant(equipped.value.profile_border_color, readBorderColorValue))
 const equippedBorderShapeValue = computed(() => readBorderShapeValue(equipped.value.profile_border_shape?.item.value))
+const equippedTitleEffects = computed(() => unusualEffectLayers(equipped.value.title?.unusualEffect))
+const equippedBorderEffects = computed(() => [
+  ...unusualEffectLayers(equipped.value.profile_border_shape?.unusualEffect),
+  ...unusualEffectLayers(equipped.value.profile_border_color?.unusualEffect),
+])
 const equippedBackgroundValue = computed(() => readBackgroundValue(equipped.value.profile_background?.item.value))
 const equippedBackgroundUrl = computed(() => pickVideoOrAssetUrl(equippedBackgroundValue.value?.asset))
 const equippedBackgroundIsVideo = computed(() => !!equippedBackgroundValue.value?.asset.video)
@@ -488,7 +496,6 @@ watch(activeCategory, (newCategory) => {
           :style="{ ...equippedBackgroundStyle, backgroundImage: `url(${equippedBackgroundImageUrl})` }"
         />
         <div v-else class="profile-page__bg-image" :style="{ backgroundImage: `url(${userAvatarUrl})` }" />
-        <div class="profile-page__bg-fade" />
       </div>
 
       <div class="profile-hero">
@@ -498,7 +505,9 @@ watch(activeCategory, (newCategory) => {
             :fallback-title="level?.title"
             :equipped-title="equippedTitleValue"
             :equipped-border-shape="equippedBorderShapeValue"
-            :equipped-border-color="equippedBorderColorValue" />
+            :equipped-border-color="equippedBorderColorValue"
+            :title-effects="equippedTitleEffects"
+            :border-effects="equippedBorderEffects" />
           <ProfileXpTrend v-if="!user.banned" :stats-diff="statsDiff" />
         </div>
 
@@ -618,7 +627,11 @@ watch(activeCategory, (newCategory) => {
             </div>
 
             <div class="profile-hero__stats">
-              <StatBlock label="Total AP" :value="activeStats?.ap ?? 0" :trend="statsDiff?.apDiff" />
+              <StatBlock label="Total AP" :value="activeStats?.ap ?? 0" :trend="statsDiff?.apDiff">
+                <template #label-suffix>
+                  <ApToNextTooltip :user-id="userId" :category="activeCategory" />
+                </template>
+              </StatBlock>
               <div class="profile-hero__rank-block profile-hero__rank-block--clickable" role="button" tabindex="0"
                 aria-label="View on global leaderboard" @click="navigateToGlobalRank"
                 @keydown.enter="navigateToGlobalRank">
@@ -652,7 +665,7 @@ watch(activeCategory, (newCategory) => {
       <template v-if="!user.banned && !isBlockedByMe">
         <section v-if="editMode && isSelfProfile" class="profile-page__bio" aria-label="Edit bio">
           <h2 class="profile-page__bio-label">About</h2>
-          <ProfileBioEditor :initial-bio="user.bio ?? ''" :max-chars="bioCharLimit" @saved="onBioSaved" @cancel="exitEditMode" />
+          <ProfileBioEditor :initial-bio="user.bio ?? ''" :max-chars="bioCharLimit" :can-use-effects="isProfileOwnerSupporter" @saved="onBioSaved" @cancel="exitEditMode" />
         </section>
         <section v-else-if="user.bio" class="profile-page__bio" aria-label="About this player">
           <h2 class="profile-page__bio-label">About</h2>
@@ -708,6 +721,8 @@ watch(activeCategory, (newCategory) => {
   z-index: 0;
   overflow: hidden;
   pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, black 50%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 50%, transparent 100%);
 }
 
 .profile-page__bg-image {
@@ -752,14 +767,6 @@ watch(activeCategory, (newCategory) => {
   background-size: auto;
   background-position: center;
   object-fit: none;
-}
-
-.profile-page__bg-fade {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to bottom,
-      transparent 50%,
-      var(--bg-base) 100%);
 }
 
 @media (max-width: 767px) {

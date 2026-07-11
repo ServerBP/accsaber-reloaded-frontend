@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import BorderDecals from '@/components/domain/BorderDecals.vue'
+import BorderOverlay from '@/components/domain/BorderOverlay.vue'
+import FragmentedContent from '@/components/domain/FragmentedContent.vue'
+import LevelBadgeAvatar from '@/components/domain/LevelBadgeAvatar.vue'
+import ModifierCompositions from '@/components/domain/ModifierCompositions.vue'
 import ProfileBorderRenderer from '@/components/domain/ProfileBorderRenderer.vue'
 import TitleRenderer from '@/components/domain/TitleRenderer.vue'
 import type {
@@ -7,7 +11,12 @@ import type {
   BorderShapeValue,
   TitleValue,
 } from '@/types/api/items'
-import { fillToCss } from '@/utils/items'
+import {
+  annotateEffectLayerStacks,
+  fillToCss,
+  readFragmentFromLayers,
+  type EffectLayer,
+} from '@/utils/items'
 import { computed, ref, watch } from 'vue'
 
 const props = defineProps<{
@@ -21,6 +30,8 @@ const props = defineProps<{
   equippedTitle?: TitleValue | null
   equippedBorderShape?: BorderShapeValue | null
   equippedBorderColor?: BorderColorValue | null
+  titleEffects?: EffectLayer[]
+  borderEffects?: EffectLayer[]
 }>()
 
 const progressPercent = computed(() => {
@@ -35,9 +46,19 @@ const progressBackground = computed(() => {
   return 'var(--accent-overall)'
 })
 
+const borderFragment = computed(() => readFragmentFromLayers(props.borderEffects))
+const titleFragment = computed(() => readFragmentFromLayers(props.titleEffects))
+
+const borderFxLayers = computed(() => annotateEffectLayerStacks(props.borderEffects))
+const titleFxLayers = computed(() => annotateEffectLayerStacks(props.titleEffects))
+
 const hasShapeOverride = computed(() => !!props.equippedBorderShape)
 
 const decals = computed(() => props.equippedBorderShape?.decals ?? [])
+
+const overlay = computed(() =>
+  props.equippedBorderShape?.overlay?.enabled ? props.equippedBorderShape.overlay : null,
+)
 
 const DEFAULT_AVATAR_MASK
   = 'M14,0 L86,0 Q100,0 100,14 L100,86 Q100,100 86,100 L14,100 Q0,100 0,86 L0,14 Q0,0 14,0 Z'
@@ -155,46 +176,80 @@ const fallbackTitleStyle = computed(() => {
 <template>
   <div class="level-badge">
     <div class="level-badge__stack" :class="{ 'level-badge__stack--shaped': hasShapeOverride }">
-      <ProfileBorderRenderer
-        :shape="equippedBorderShape ?? null"
+      <FragmentedContent
+        v-if="borderFragment"
+        :spec="borderFragment.spec"
+        :stack="borderFragment.count"
+        :seed="borderFragment.seed"
+      >
+        <ProfileBorderRenderer
+          :shape="equippedBorderShape ?? null"
+          :color="equippedBorderColor ?? null"
+        />
+        <LevelBadgeAvatar
+          v-if="avatarUrl"
+          :avatar-url="avatarUrl"
+          :clip-id="avatarClipId"
+          :mask-path="avatarMaskPath"
+          :image-box="avatarImageBox"
+        />
+      </FragmentedContent>
+      <template v-else>
+        <ProfileBorderRenderer
+          :shape="equippedBorderShape ?? null"
+          :color="equippedBorderColor ?? null"
+        />
+        <LevelBadgeAvatar
+          v-if="avatarUrl"
+          :avatar-url="avatarUrl"
+          :clip-id="avatarClipId"
+          :mask-path="avatarMaskPath"
+          :image-box="avatarImageBox"
+        />
+      </template>
+      <BorderDecals v-if="decals.length" class="level-badge__decals" :decals="decals" />
+      <BorderOverlay
+        v-if="overlay"
+        class="level-badge__overlay"
+        :overlay="overlay"
+        :avatar-url="avatarUrl"
         :color="equippedBorderColor ?? null"
       />
-      <svg
-        v-if="avatarUrl"
-        class="level-badge__avatar-wrap"
-        viewBox="0 0 100 100"
-        preserveAspectRatio="xMidYMid meet"
-        aria-label="Avatar"
-      >
-        <defs>
-          <clipPath :id="avatarClipId" clipPathUnits="userSpaceOnUse">
-            <path :d="avatarMaskPath" />
-          </clipPath>
-        </defs>
-        <g :clip-path="`url(#${avatarClipId})`">
-          <rect x="0" y="0" width="100" height="100" class="level-badge__avatar-bg" />
-          <foreignObject
-            :x="avatarImageBox.x"
-            :y="avatarImageBox.y"
-            :width="avatarImageBox.size"
-            :height="avatarImageBox.size"
-          >
-            <img
-              :src="avatarUrl"
-              alt=""
-              class="level-badge__avatar-img"
-              decoding="async"
-            />
-          </foreignObject>
-        </g>
-      </svg>
-      <BorderDecals v-if="decals.length" class="level-badge__decals" :decals="decals" />
+      <ModifierCompositions
+        v-for="layer in borderFxLayers"
+        :key="layer.key"
+        class="level-badge__border-fx"
+        :spec="layer.spec"
+        :stack-index="layer.stackIndex"
+      />
     </div>
 
     <div class="level-badge__below">
       <span class="level-badge__title-line">
         <span class="level-badge__level">Lv. {{ level }}</span>
-        <TitleRenderer v-if="equippedTitle" :value="equippedTitle" />
+        <span v-if="equippedTitle" class="level-badge__title-fx">
+          <ModifierCompositions
+            v-for="layer in titleFxLayers"
+            :key="layer.key"
+            class="level-badge__title-fx-layer"
+            :spec="layer.spec"
+            type-key="title"
+            :stack-index="layer.stackIndex"
+          />
+          <span class="level-badge__title-fx-text">
+            <FragmentedContent
+              v-if="titleFragment"
+              :fill="false"
+              subtle
+              :spec="titleFragment.spec"
+              :stack="titleFragment.count"
+              :seed="titleFragment.seed"
+            >
+              <TitleRenderer :value="equippedTitle" />
+            </FragmentedContent>
+            <TitleRenderer v-else :value="equippedTitle" />
+          </span>
+        </span>
         <span
           v-else-if="fallbackTitle"
           class="level-badge__fallback-title"
@@ -230,31 +285,12 @@ const fallbackTitleStyle = computed(() => {
   height: 140px;
 }
 
-.level-badge__avatar-wrap {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 124px;
-  height: 124px;
-  z-index: 2;
-  display: block;
-  overflow: visible;
-}
-
 .level-badge__decals {
   z-index: 3;
 }
 
-.level-badge__avatar-bg {
-  fill: var(--bg-base);
-}
-
-.level-badge__avatar-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
+.level-badge__overlay {
+  z-index: 3;
 }
 
 .level-badge__below {
@@ -270,6 +306,26 @@ const fallbackTitleStyle = computed(() => {
   align-items: baseline;
   gap: var(--space-xs);
   white-space: nowrap;
+}
+
+.level-badge__border-fx {
+  z-index: 4;
+}
+
+.level-badge__title-fx {
+  position: relative;
+  display: inline-block;
+  padding: 0.45em 0.4em;
+  margin: -0.45em -0.4em;
+}
+
+.level-badge__title-fx-layer {
+  z-index: 0;
+}
+
+.level-badge__title-fx-text {
+  position: relative;
+  z-index: 1;
 }
 
 .level-badge__level {

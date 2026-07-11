@@ -22,19 +22,24 @@
         if (!t) {
           t = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
         }
-        root.setAttribute('data-theme', t)
+        var tokens = null
         var raw = localStorage.getItem('theme:tokens')
         if (raw) {
           try {
-            var tokens = JSON.parse(raw)
-            if (tokens && typeof tokens === 'object') {
-              for (var k in tokens) {
-                if (Object.prototype.hasOwnProperty.call(tokens, k) && typeof tokens[k] === 'string') {
-                  root.style.setProperty('--' + k.replace(/\./g, '-'), tokens[k])
-                }
-              }
-            }
+            var parsed = JSON.parse(raw)
+            if (parsed && typeof parsed === 'object') tokens = parsed
           } catch (_) { /* ignore malformed token cache */ }
+        }
+        var base = tokens
+          ? (tokens.base === 'light' ? 'light' : 'dark')
+          : (t === 'light' ? 'light' : 'dark')
+        root.setAttribute('data-theme', base)
+        if (tokens) {
+          for (var k in tokens) {
+            if (Object.prototype.hasOwnProperty.call(tokens, k) && typeof tokens[k] === 'string') {
+              root.style.setProperty('--' + k.replace(/\./g, '-'), tokens[k])
+            }
+          }
         }
       })()
     </script>

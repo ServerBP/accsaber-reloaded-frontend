@@ -64,7 +64,7 @@ const handleMapCoverError = (e: Event) => {
 const resolvedAccent = computed(() => {
   const raw = dominantColor.value
   if (!raw) return categoryAccent.value
-  return themeStore.theme === 'dark' ? brightenRgb(raw, 60) : raw
+  return themeStore.resolvedBase === 'dark' ? brightenRgb(raw, 60) : raw
 })
 
 const rankedDifficulties = computed<PublicMapDifficultyResponse[]>(() => {
@@ -285,7 +285,6 @@ function sameQuery(a: Record<string, string>, b: Record<string, unknown>): boole
 
       <div class="map-detail__bg">
         <div class="map-detail__bg-image" :style="{ backgroundImage: `url(${coverUrl})` }" />
-        <div class="map-detail__bg-fade" />
       </div>
 
       <div class="map-detail__hero">
@@ -416,6 +415,8 @@ function sameQuery(a: Record<string, string>, b: Record<string, unknown>): boole
   z-index: 0;
   overflow: hidden;
   pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, black 50%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 50%, transparent 100%);
 }
 
 .map-detail__bg-image {
@@ -426,12 +427,6 @@ function sameQuery(a: Record<string, string>, b: Record<string, unknown>): boole
   background-repeat: no-repeat;
   filter: blur(40px);
   opacity: 0.3;
-}
-
-.map-detail__bg-fade {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to bottom, transparent 50%, var(--bg-base) 100%);
 }
 
 .map-detail__breadcrumbs {

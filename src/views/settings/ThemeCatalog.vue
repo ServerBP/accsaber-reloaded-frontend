@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { equipItem, getItems, getUserItems } from '@/api/items'
+import ThemeBackdropPreview from '@/components/layout/ThemeBackdropPreview.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useItemTypeStore } from '@/stores/itemTypes'
 import { useThemeStore } from '@/stores/theme'
@@ -17,6 +18,7 @@ interface ThemeCard {
   owned: boolean
   itemId: string | null
   tokens: Record<string, string> | null
+  altTokens: Record<string, string> | null
 }
 
 const authStore = useAuthStore()
@@ -24,8 +26,8 @@ const themeStore = useThemeStore()
 const itemTypeStore = useItemTypeStore()
 
 const BUILTIN_THEMES: ThemeCard[] = [
-  { id: 'builtin-dark', themeKey: 'dark', name: 'Dark', description: 'Default dark mode.', requirement: null, builtin: true, owned: true, itemId: null, tokens: null },
-  { id: 'builtin-light', themeKey: 'light', name: 'Light', description: 'Default light mode.', requirement: null, builtin: true, owned: true, itemId: null, tokens: null },
+  { id: 'builtin-dark', themeKey: 'dark', name: 'Dark', description: 'Default dark mode.', requirement: null, builtin: true, owned: true, itemId: null, tokens: null, altTokens: null },
+  { id: 'builtin-light', themeKey: 'light', name: 'Light', description: 'Default light mode.', requirement: null, builtin: true, owned: true, itemId: null, tokens: null, altTokens: null },
 ]
 
 const BUILTIN_PREVIEW_TOKENS: Record<string, Record<string, string>> = {
@@ -61,6 +63,7 @@ const inventoryThemeCards = computed<ThemeCard[]>(() =>
         owned: ownedThemeItemIds.value.has(i.id),
         itemId: i.id,
         tokens: themeValue?.tokens ?? null,
+        altTokens: themeValue?.altTokens ?? null,
       }
     })
     .filter((c) => c.tokens != null),
@@ -81,8 +84,7 @@ const themeCards = computed<ThemeCard[]>(() => {
   return [...builtins, ...extras]
 })
 
-function previewVars(card: ThemeCard): Record<string, string> {
-  const tokens = card.builtin ? BUILTIN_PREVIEW_TOKENS[card.themeKey] : (card.tokens ? filterThemableTokens(card.tokens) : {})
+function tokensToPreviewVars(tokens: Record<string, string>): Record<string, string> {
   const out: Record<string, string> = {}
   if (tokens['bg-base']) out['--preview-base'] = tokens['bg-base']
   if (tokens['bg-surface']) out['--preview-surface'] = tokens['bg-surface']
@@ -90,6 +92,22 @@ function previewVars(card: ThemeCard): Record<string, string> {
   const accent = tokens['accent'] ?? tokens['accent-overall']
   if (accent) out['--preview-accent'] = accent
   return out
+}
+
+function previewVars(card: ThemeCard): Record<string, string> {
+  const tokens = card.builtin ? BUILTIN_PREVIEW_TOKENS[card.themeKey] : (card.tokens ? filterThemableTokens(card.tokens) : {})
+  return tokensToPreviewVars(tokens)
+}
+
+function variantLabel(tokens: Record<string, string>): string {
+  return tokens.base === 'light' ? 'Light' : 'Dark'
+}
+
+function isVariantActive(card: ThemeCard, alt: boolean): boolean {
+  if (themeStore.theme !== card.themeKey || !themeStore.activeTokens) return false
+  const variant = alt ? card.altTokens : card.tokens
+  if (!variant) return false
+  return JSON.stringify(themeStore.activeTokens) === JSON.stringify(variant)
 }
 
 function lockedHint(card: ThemeCard): string {
@@ -120,7 +138,7 @@ async function loadThemes() {
   }
 }
 
-async function pickTheme(card: ThemeCard) {
+async function pickTheme(card: ThemeCard, alt = false) {
   if (!card.owned || themeBusy.value) return
   themeBusy.value = card.id
   try {
@@ -129,10 +147,11 @@ async function pickTheme(card: ThemeCard) {
       if (!linkId) return
       await equipItem({ linkId })
     }
+    const tokens = alt ? card.altTokens : card.tokens
     if (card.builtin) {
       themeStore.setTheme(card.themeKey)
-    } else if (card.tokens) {
-      themeStore.setThemeFromTokens(card.themeKey, card.tokens)
+    } else if (tokens) {
+      themeStore.setThemeFromTokens(card.themeKey, tokens)
     }
   } catch {
   } finally {
@@ -146,7 +165,37 @@ watch(() => authStore.userId, loadThemes)
 
 <template>
   <div class="theme-grid" role="radiogroup" aria-label="Theme">
-    <button v-for="card in themeCards" :key="card.id" type="button" class="theme-card" :class="{
+    <template v-for="card in themeCards" :key="card.id">
+    <div
+      v-if="card.altTokens && card.tokens && card.owned"
+      class="theme-card theme-card--dual"
+      :class="{ 'theme-card--active': themeStore.theme === card.themeKey }"
+    >
+      <button
+        v-for="alt in [false, true]"
+        :key="String(alt)"
+        type="button"
+        class="theme-card__half"
+        :class="{ 'theme-card__half--active': isVariantActive(card, alt) }"
+        role="radio"
+        :aria-checked="isVariantActive(card, alt)"
+        :disabled="themeBusy === card.id"
+        @click="pickTheme(card, alt)"
+      >
+        <div class="theme-card__preview" :style="tokensToPreviewVars((alt ? card.altTokens : card.tokens)!)">
+          <ThemeBackdropPreview :tokens="(alt ? card.altTokens : card.tokens)!" />
+          <span class="theme-card__swatch theme-card__swatch--bg" />
+          <span class="theme-card__swatch theme-card__swatch--surface" />
+          <span class="theme-card__swatch theme-card__swatch--accent" />
+        </div>
+        <div class="theme-card__body">
+          <span class="theme-card__name">{{ card.name }}</span>
+          <span class="theme-card__hint">{{ variantLabel((alt ? card.altTokens : card.tokens)!) }}</span>
+        </div>
+        <span v-if="isVariantActive(card, alt)" class="theme-card__active-tag">Active</span>
+      </button>
+    </div>
+    <button v-else type="button" class="theme-card" :class="{
       'theme-card--active': themeStore.theme === card.themeKey,
       'theme-card--locked': !card.owned,
       'theme-card--builtin': card.builtin,
@@ -154,6 +203,7 @@ watch(() => authStore.userId, loadThemes)
       :disabled="!card.owned || themeBusy === card.id" :title="!card.owned ? lockedHint(card) : undefined"
       @click="pickTheme(card)">
       <div class="theme-card__preview" :style="previewVars(card)">
+        <ThemeBackdropPreview :tokens="card.tokens" />
         <span class="theme-card__swatch theme-card__swatch--bg" />
         <span class="theme-card__swatch theme-card__swatch--surface" />
         <span class="theme-card__swatch theme-card__swatch--accent" />
@@ -175,6 +225,7 @@ watch(() => authStore.userId, loadThemes)
         </svg>
       </span>
     </button>
+    </template>
   </div>
 </template>
 
@@ -215,7 +266,44 @@ watch(() => authStore.userId, loadThemes)
   opacity: 0.55;
 }
 
+.theme-card--dual {
+  padding: 0;
+  overflow: hidden;
+  align-items: stretch;
+  gap: 0;
+}
+
+.theme-card__half {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+  padding: var(--space-md) var(--space-sm);
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.theme-card__half + .theme-card__half {
+  border-left: 1px solid var(--bg-overlay);
+}
+
+.theme-card__half:hover:not(:disabled) {
+  background: var(--bg-elevated);
+}
+
+.theme-card__half--active {
+  background: color-mix(in srgb, var(--page-accent) 8%, transparent);
+}
+
 .theme-card__preview {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -226,9 +314,12 @@ watch(() => authStore.userId, loadThemes)
   border-radius: var(--radius-btn);
   border: 1px solid color-mix(in srgb, var(--preview-surface, var(--bg-overlay)) 60%, transparent);
   background: var(--preview-base, var(--bg-base));
+  overflow: hidden;
 }
 
 .theme-card__swatch {
+  position: relative;
+  z-index: 1;
   display: block;
   height: 6px;
   border-radius: 2px;

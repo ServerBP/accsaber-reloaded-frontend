@@ -70,7 +70,14 @@ export interface ItemModifierRef {
   key: string
   name: string
   colorHex: string
-  effectSpec: ModifierEffectSpec
+  effectSpec: ModifierEffectSpec | null
+}
+
+export interface UnusualEffectRef {
+  id: string
+  key: string
+  name: string
+  effectSpec: ModifierEffectSpec | null
 }
 
 export interface ItemModifierResponse {
@@ -79,7 +86,10 @@ export interface ItemModifierResponse {
   name: string
   description: string | null
   colorHex: string
-  effectSpec: ModifierEffectSpec
+  effectSpec: ModifierEffectSpec | null
+  globalDropChance: number | null
+  seasonStart: string | null
+  seasonEnd: string | null
   active: boolean
   createdAt: string
 }
@@ -107,6 +117,8 @@ export interface TitleStateValue {
   atMs: number
   color?: string
   gradient?: Gradient
+  lightColor?: string
+  lightGradient?: Gradient
   fontWeight?: 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900
   fontStyle?: 'normal' | 'italic'
   letterSpacingPx?: number
@@ -116,10 +128,44 @@ export interface TitleStateValue {
 
 export type TitleFont = 'pixel_8bit' | (string & {})
 
+export interface TitleFlashSpec {
+  enabled: boolean
+  color?: string
+  lightColor?: string
+  minIntervalMs?: number
+  maxIntervalMs?: number
+  durationMs?: number
+}
+
+export type TitleSparkleShape = 'star' | 'paw'
+
+export interface TitleSparkleSpec {
+  enabled: boolean
+  color?: string
+  lightColor?: string
+  perSecond?: number
+  sizePx?: number
+  fadeMs?: number
+  shape?: TitleSparkleShape
+  spreadPct?: number
+}
+
+export type TitleOrnamentIcon = 'yarn_ball' | (string & {})
+
+export interface TitleOrnamentSpec {
+  icon: TitleOrnamentIcon
+  color?: string
+  lightColor?: string
+  sizeEm?: number
+}
+
 export interface TitleValue {
   text: string
   font?: TitleFont
   states: TitleStateValue[]
+  ornament?: TitleOrnamentSpec
+  flashes?: TitleFlashSpec
+  sparkles?: TitleSparkleSpec
   durationMs?: number
   loop?: Loop
   easing?: Easing
@@ -131,11 +177,12 @@ export interface BorderShapePathValue {
   strokeWidth?: number
   fill?: string
   strokeLinecap?: 'butt' | 'round' | 'square'
-  strokeLinejoin?: 'miter' | 'round' | 'bevel' | 'arcs'
+  strokeLinejoin?: 'miter' | 'round' | 'bevel'
   strokeDasharray?: string
   strokeOpacity?: number
   fillOpacity?: number
   transform?: string
+  twinkle?: boolean
 }
 
 export interface BorderShapeStateValue {
@@ -227,13 +274,79 @@ export interface BorderDecal {
   sizePct: number
   rotateDeg?: number
   opacity?: number
+  pulse?: { periodMs?: number; scaleAmp?: number }
 }
+
+export interface BorderRainOverlaySpec {
+  type: 'rain'
+  enabled: boolean
+  color?: string
+  drops?: number
+  splash?: boolean
+  puddle?: boolean
+}
+
+export interface BorderBlackHoleOverlaySpec {
+  type: 'blackhole'
+  enabled: boolean
+  glow?: string
+  suction?: {
+    fillType: 'cosmic'
+  }
+  vortex?: {
+    maxLuminance: number
+    color?: string
+    arms?: number
+  }
+}
+
+export interface BorderArcadeOverlaySpec {
+  type: 'arcade'
+  enabled: boolean
+  invader?: string
+  ship?: string
+  bullet?: string
+  burst?: string
+  hp?: string
+  mp?: string
+  symbols?: string[]
+  hudBg?: string
+  hudEdge?: string
+  hudGloss?: string
+  barBg?: string
+  hpLabel?: string
+  hpEmpty?: string
+  mpLabel?: string
+  mpEmpty?: string
+}
+
+export type ThermalPalette = 'ironbow' | 'whitehot' | 'nightvision'
+
+export interface BorderThermalOverlaySpec {
+  type: 'thermal'
+  enabled: boolean
+  intervalMs?: number
+  holdMs?: number
+  palette?: ThermalPalette
+  led?: string
+  hud?: string
+  window?: { x: number; y: number; w: number; h: number }
+}
+
+export type BorderOverlaySpec =
+  | BorderRainOverlaySpec
+  | BorderBlackHoleOverlaySpec
+  | BorderArcadeOverlaySpec
+  | BorderThermalOverlaySpec
+
+export type BorderOverlayType = BorderOverlaySpec['type']
 
 export interface BorderShapeValue {
   viewBox?: string
   avatarMask?: string
   avatarFit?: AvatarFit
   decals?: BorderDecal[]
+  overlay?: BorderOverlaySpec
   renderMode?: BorderShapeRenderMode
   pixelSize?: number
   motif?: BorderShapeMotif
@@ -254,10 +367,34 @@ export interface PixelMetalFill {
   shadow: string
 }
 
+export interface CosmicFill {
+  type: 'cosmic'
+  space: string
+  star: string
+  nebulas: string[]
+  accent: string
+  planets?: boolean
+  blackHoles?: boolean
+  comets?: boolean
+  shooting?: boolean
+  speed?: number
+}
+
+export interface ToonFill {
+  type: 'toon'
+  ink: string
+  line: string
+  staticFps?: number
+  staticCell?: number
+  staticAlpha?: number
+}
+
 export type BorderColorFill =
   | { type: 'solid'; hex: string }
   | Gradient
   | PixelMetalFill
+  | CosmicFill
+  | ToonFill
 
 export interface BorderColorStateValue {
   atMs: number
@@ -265,8 +402,15 @@ export interface BorderColorStateValue {
   filters?: VisualEffect[]
 }
 
+export interface ItemVariant {
+  key: string
+  label: string
+  [override: string]: unknown
+}
+
 export interface BorderColorValue {
   states: BorderColorStateValue[]
+  variants?: ItemVariant[]
   durationMs?: number
   loop?: Loop
   easing?: Easing
@@ -303,6 +447,7 @@ export interface ProfileThumbnailBackgroundValue {
 
 export interface ThemeValue {
   tokens: Record<string, string>
+  altTokens?: Record<string, string>
 }
 
 export interface StatisticValue {
@@ -361,10 +506,35 @@ export interface CrateContentResponse {
   dropChance: number
 }
 
+export interface CrateModifierResponse {
+  modifier: ItemModifierRef
+  dropChance: number
+}
+
+export interface UnusualEffectResponse extends UnusualEffectRef {
+  description: string | null
+  active: boolean
+  createdAt: string
+}
+
+export interface CreateUnusualEffectRequest {
+  key: string
+  name: string
+  description?: string | null
+  effectSpec: ModifierEffectSpec
+}
+
+export interface UpdateUnusualEffectRequest {
+  name?: string | null
+  description?: string | null
+  effectSpec?: ModifierEffectSpec | null
+}
+
 export interface UserItemResponse {
   linkId: string
   item: ItemResponse
   modifiers: ItemModifierRef[]
+  unusualEffect: UnusualEffectRef | null
   serialNumber: number | null
   quantity: number
   source: ItemSource
@@ -372,9 +542,23 @@ export interface UserItemResponse {
   awardedByStaffId: string | null
   reason: string | null
   awardedAt: string
+  variantKey?: string | null
 }
 
 export type EquippedItemsResponse = Partial<Record<ItemTypeKey, UserItemResponse | null>>
+
+export interface DisintegrationResponse {
+  linkId: string
+  itemId: string
+  quantityDisintegrated: number
+  remainingQuantity: number | null
+  essenceGained: number
+  balance: number
+}
+
+export interface EssenceBalance {
+  balance: number
+}
 
 export interface ItemListParams {
   typeId?: string
@@ -454,9 +638,21 @@ export interface AwardItemRequest {
   itemId: string
   reason?: string
   modifierKeys?: string[]
+  unusualEffectId?: string
   quantity?: number
 }
 
 export interface EquipItemRequest {
   linkId: string
+  variantKey?: string
+}
+
+export interface PatchItemModifierRequest {
+  globalDropChance: number | null
+  seasonStart: string | null
+  seasonEnd: string | null
+}
+
+export interface PutCrateModifierRequest {
+  dropChance: number
 }

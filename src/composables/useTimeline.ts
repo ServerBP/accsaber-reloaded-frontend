@@ -1,4 +1,5 @@
 import { onUnmounted, ref, watchEffect, type Ref } from 'vue'
+import { useReducedMotion } from '@/composables/useReducedMotion'
 
 export interface UseTimelineOptions {
   active: () => boolean
@@ -8,11 +9,8 @@ export interface UseTimelineOptions {
 export function useTimeline(options: UseTimelineOptions): { tMs: Ref<number> } {
   const tMs = ref(0)
 
-  const reducedMotion =
-    options.reducedMotion
-    ?? (typeof window !== 'undefined'
-      && typeof window.matchMedia === 'function'
-      && window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+  const reducedRef = useReducedMotion()
+  const reduced = () => options.reducedMotion ?? reducedRef.value
 
   let rafId: number | null = null
   let baseTime = 0
@@ -44,7 +42,7 @@ export function useTimeline(options: UseTimelineOptions): { tMs: Ref<number> } {
   }
 
   watchEffect(() => {
-    if (reducedMotion) {
+    if (reduced()) {
       stop()
       return
     }

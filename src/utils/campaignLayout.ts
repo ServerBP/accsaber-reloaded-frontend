@@ -11,10 +11,8 @@ export function resolveShape(raw: string | null | undefined): CampaignNodeShape 
   return (SHAPE_VALUES as readonly string[]).includes(v) ? (v as CampaignNodeShape) : 'hex'
 }
 
-export function parseNumericSize(raw: string | null | undefined, fallback: number): number {
-  if (!raw) return fallback
-  const n = Number(raw)
-  return Number.isFinite(n) && n > 0 ? n : fallback
+export function resolveSize(raw: number | null | undefined, fallback: number): number {
+  return raw != null && raw > 0 ? raw : fallback
 }
 
 export function hexCorners(cx: number, cy: number, size: number): string {

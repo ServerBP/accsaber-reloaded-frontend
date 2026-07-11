@@ -6,7 +6,7 @@ import type {
 } from '@/types/api/campaigns'
 import { pickCoverUrl } from '@/composables/useAvatarFallback'
 import {
-  parseNumericSize,
+  resolveSize,
   resolveShape,
   shapeCorners,
   type LabelPlacement,
@@ -35,7 +35,7 @@ const state = computed<'locked' | 'available' | 'cleared' | 'current'>(() => {
   return 'available'
 })
 
-const effectiveSize = computed(() => parseNumericSize(props.difficulty.size, props.size))
+const effectiveSize = computed(() => resolveSize(props.difficulty.size, props.size))
 
 const effectiveShape = computed(() => resolveShape(props.difficulty.borderShape))
 

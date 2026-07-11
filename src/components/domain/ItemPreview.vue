@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import BorderDecals from '@/components/domain/BorderDecals.vue'
+import BorderOverlay from '@/components/domain/BorderOverlay.vue'
 import ProfileBorderRenderer from '@/components/domain/ProfileBorderRenderer.vue'
 import TitleRenderer from '@/components/domain/TitleRenderer.vue'
+import ThemeBackdropPreview from '@/components/layout/ThemeBackdropPreview.vue'
 import type {
   BorderColorValue,
   BorderShapeValue,
@@ -41,13 +43,15 @@ const borderColorBackground = computed<string | null>(() => {
   const fill = borderColorValue.value?.states?.[0]?.fill
   return fill ? fillToCss(fill) : null
 })
+const borderColorIsCosmic = computed(() => {
+  const type = borderColorValue.value?.states?.[0]?.fill?.type
+  return type === 'cosmic' || type === 'toon'
+})
 
 const borderShapeValue = computed<BorderShapeValue | null>(() =>
   typeKey.value === 'profile_border_shape' ? readBorderShapeValue(props.item.value) : null,
 )
 
-// Pixel-mode shapes need a paired color to render. When previewed standalone (no equipped
-// color), synthesize a representative palette so the preview still shows the frame.
 const shapePreviewColor = computed<BorderColorValue | null>(() => {
   const shape = borderShapeValue.value
   if (!shape || shape.renderMode !== 'pixel') return null
@@ -64,6 +68,13 @@ const shapePreviewColor = computed<BorderColorValue | null>(() => {
     }],
   }
 })
+
+const DEFAULT_AVATAR_MASK
+  = 'M14,0 L86,0 Q100,0 100,14 L100,86 Q100,100 86,100 L14,100 Q0,100 0,86 L0,14 Q0,0 14,0 Z'
+
+const shapeAvatarMask = computed(() => borderShapeValue.value?.avatarMask ?? DEFAULT_AVATAR_MASK)
+
+const shapeAvatarClipId = `ip-avatar-clip-${Math.random().toString(36).slice(2, 9)}`
 
 const badgeValue = computed(() =>
   typeKey.value === 'badge' ? readBadgeValue(props.item.value) : null,
@@ -128,6 +139,13 @@ const fallbackInitial = computed(() => props.item.name.charAt(0).toUpperCase())
     </span>
 
     <span
+      v-else-if="typeKey === 'profile_border_color' && borderColorIsCosmic"
+      class="item-preview__shape-wrap"
+    >
+      <ProfileBorderRenderer :shape="null" :color="borderColorValue" />
+    </span>
+
+    <span
       v-else-if="typeKey === 'profile_border_color' && borderColorBackground"
       class="item-preview__color-swatch"
       :style="{ background: borderColorBackground }"
@@ -139,7 +157,32 @@ const fallbackInitial = computed(() => props.item.name.charAt(0).toUpperCase())
       aria-hidden="true"
     >
       <ProfileBorderRenderer :shape="borderShapeValue" :color="shapePreviewColor" />
+      <svg
+        class="item-preview__shape-avatar"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="xMidYMid meet"
+        aria-hidden="true"
+      >
+        <defs>
+          <clipPath :id="shapeAvatarClipId">
+            <path :d="shapeAvatarMask" />
+          </clipPath>
+        </defs>
+        <rect
+          x="0"
+          y="0"
+          width="100"
+          height="100"
+          :clip-path="`url(#${shapeAvatarClipId})`"
+          class="item-preview__shape-avatar-fill"
+        />
+      </svg>
       <BorderDecals v-if="borderShapeValue.decals?.length" :decals="borderShapeValue.decals" />
+      <BorderOverlay
+        v-if="borderShapeValue.overlay?.enabled"
+        :overlay="borderShapeValue.overlay"
+        :color="shapePreviewColor"
+      />
     </span>
 
     <span
@@ -147,12 +190,12 @@ const fallbackInitial = computed(() => props.item.name.charAt(0).toUpperCase())
       class="item-preview__theme"
       :style="themeStyleVars"
     >
+      <ThemeBackdropPreview :tokens="themeValue.tokens" />
       <span class="item-preview__theme-bg" />
       <span class="item-preview__theme-surface" />
       <span class="item-preview__theme-accent" />
     </span>
 
-    <!-- Pushpin + amount in a single SVG so both scale together. -->
     <svg
       v-else-if="typeKey === 'perk' && isPinnedPerk && perkAmount"
       class="item-preview__pin"
@@ -251,6 +294,7 @@ const fallbackInitial = computed(() => props.item.name.charAt(0).toUpperCase())
   height: 100%;
   color: var(--text-primary);
   overflow: hidden;
+  --cell-accent: initial;
 }
 
 .item-preview__img {
@@ -284,17 +328,19 @@ const fallbackInitial = computed(() => props.item.name.charAt(0).toUpperCase())
   padding: 0 var(--space-sm);
   color: var(--text-primary);
   text-align: center;
-  overflow: hidden;
 }
 
-/* Container-relative sizing: when the inventory cell scales, the title scales with it.
-   At a 100px cell the title text is ~10px; at 160px it's ~14.4px; clamped at the ends so
-   tiny cells stay legible and huge cells don't blow the text up beyond the tile. */
 .item-preview__title :deep(.title-renderer) {
   font-size: clamp(0.7rem, 9cqi, 1.05rem);
   max-width: 100%;
+}
+
+.item-preview__title :deep(.title-renderer__text) {
+  display: inline-block;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
+  vertical-align: bottom;
 }
 
 .item-preview__color-swatch {
@@ -310,10 +356,26 @@ const fallbackInitial = computed(() => props.item.name.charAt(0).toUpperCase())
   display: block;
   width: 65%;
   aspect-ratio: 1 / 1;
-  color: var(--cell-accent, var(--text-primary));
+  color: var(--text-primary);
+}
+
+.item-preview__shape-avatar {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 88.6%;
+  height: 88.6%;
+  display: block;
+  overflow: visible;
+}
+
+.item-preview__shape-avatar-fill {
+  fill: var(--bg-overlay);
 }
 
 .item-preview__theme {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -324,11 +386,14 @@ const fallbackInitial = computed(() => props.item.name.charAt(0).toUpperCase())
   background: var(--color-bg, var(--bg-base));
   border: 1px solid color-mix(in srgb, var(--text-primary) 10%, transparent);
   justify-content: center;
+  overflow: hidden;
 }
 
 .item-preview__theme-bg,
 .item-preview__theme-surface,
 .item-preview__theme-accent {
+  position: relative;
+  z-index: 1;
   display: block;
   height: 5px;
   border-radius: 2px;

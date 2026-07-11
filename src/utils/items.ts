@@ -1,16 +1,22 @@
 import type {
   AssetSet,
   BadgeValue,
+  BorderColorFill,
   BorderColorStateValue,
   BorderColorValue,
   BorderShapeStateValue,
   BorderShapeValue,
   Composition,
+  CrateContentResponse,
   Gradient,
   GradientStop,
+  ItemModifierRef,
   ItemRarity,
+  ItemResponse,
   ItemTypeKey,
+  ItemVariant,
   Loop,
+  ModifierEffectSpec,
   PerkValue,
   ProfileBackgroundValue,
   ProfileThumbnailBackgroundValue,
@@ -18,6 +24,7 @@ import type {
   ThemeValue,
   TitleStateValue,
   TitleValue,
+  UnusualEffectRef,
   UserItemResponse,
 } from '@/types/api/items'
 
@@ -50,6 +57,30 @@ export function rarityClass(rarity: ItemRarity): string {
   return `rarity--${rarity}`
 }
 
+export interface CrateRarityGroup {
+  rarity: ItemRarity
+  items: CrateContentResponse[]
+  chance: number
+}
+
+export function groupCrateContentsByRarity(contents: CrateContentResponse[]): CrateRarityGroup[] {
+  const totalWeight = contents.reduce((sum, c) => sum + c.dropWeight, 0)
+  const byRarity = new Map<ItemRarity, CrateContentResponse[]>()
+  for (const c of contents) {
+    const list = byRarity.get(c.rewardItem.rarity)
+    if (list) list.push(c)
+    else byRarity.set(c.rewardItem.rarity, [c])
+  }
+  return [...RARITY_ORDER]
+    .reverse()
+    .filter((r) => byRarity.has(r))
+    .map((rarity) => {
+      const items = byRarity.get(rarity) as CrateContentResponse[]
+      const weight = items.reduce((sum, c) => sum + c.dropWeight, 0)
+      return { rarity, items, chance: totalWeight > 0 ? weight / totalWeight : 0 }
+    })
+}
+
 const SUBTLE_MODIFIER_KEYS = new Set<string>(['normal', 'unique', 'standard'])
 
 function isSubtleModifierKey(key: string | null | undefined): boolean {
@@ -77,6 +108,87 @@ export function primaryModifier<T extends { key: string }>(modifiers: T[]): T | 
   const visible = visibleModifiers(modifiers)
   if (visible.length > 0) return sortModifiersByKey(visible)[0]
   return modifiers[0] ?? null
+}
+
+export interface EffectLayer {
+  key: string
+  spec: ModifierEffectSpec
+}
+
+export function buildEffectLayers(
+  modifiers: ItemModifierRef[] | null | undefined,
+  unusualEffect?: UnusualEffectRef | null,
+): EffectLayer[] {
+  const layers: EffectLayer[] = []
+  for (const m of sortModifiersByKey(modifiers ?? [])) {
+    if (m.effectSpec) layers.push({ key: `m:${m.id}`, spec: m.effectSpec })
+  }
+  if (unusualEffect?.effectSpec) {
+    layers.push({ key: `u:${unusualEffect.id}`, spec: unusualEffect.effectSpec })
+  }
+  return layers
+}
+
+export function unusualEffectLayers(unusualEffect?: UnusualEffectRef | null): EffectLayer[] {
+  return buildEffectLayers(null, unusualEffect)
+}
+
+export interface StackedEffectLayer extends EffectLayer {
+  stackIndex: number
+}
+
+export function annotateEffectLayerStacks(
+  layers: EffectLayer[] | null | undefined,
+): StackedEffectLayer[] {
+  const seen = new Map<string, number>()
+  return (layers ?? []).map((layer) => {
+    const n = seen.get(layer.key) ?? 0
+    seen.set(layer.key, n + 1)
+    return { key: n > 0 ? `${layer.key}#${n}` : layer.key, spec: layer.spec, stackIndex: n }
+  })
+}
+
+export interface FragmentSpec {
+  radiusPct: number
+  cols: number
+  black: string
+  red: string
+}
+
+function parseFragment(c: Composition): FragmentSpec {
+  const num = (v: unknown, d: number) => (typeof v === 'number' ? v : d)
+  const stx = (v: unknown, d: string) => (typeof v === 'string' ? v : d)
+  return {
+    radiusPct: Math.max(20, Math.min(100, num(c.radiusPct, 40))),
+    cols: Math.max(3, Math.min(9, Math.round(num(c.cols, 6)))),
+    black: stx(c.black, '#0c0a0a'),
+    red: stx(c.red, '#d8241c'),
+  }
+}
+
+export function readFragmentSpec(unusualEffect?: UnusualEffectRef | null): FragmentSpec | null {
+  const c = unusualEffect?.effectSpec?.compositions?.find((comp) => comp.type === 'fragment')
+  return c ? parseFragment(c) : null
+}
+
+export function readFragmentFromLayers(
+  layers: EffectLayer[] | null | undefined,
+): { spec: FragmentSpec; count: number; seed: string } | null {
+  if (!layers) return null
+  let spec: FragmentSpec | null = null
+  let seed = ''
+  let count = 0
+  for (const layer of layers) {
+    const c = layer.spec.compositions.find((comp) => comp.type === 'fragment')
+    if (c) {
+      count++
+      if (!spec) {
+        spec = parseFragment(c)
+        seed = layer.key
+      }
+    }
+  }
+  return spec ? { spec, count, seed } : null
 }
 
 export function displayItemName(
@@ -142,6 +254,19 @@ function isPixelMetalFill(v: unknown): boolean {
   return isString(v.base) && isString(v.highlight) && isString(v.shadow)
 }
 
+function isCosmicFill(v: unknown): boolean {
+  if (!isObj(v)) return false
+  if (v.type !== 'cosmic') return false
+  return isString(v.space) && isString(v.star) && isString(v.accent)
+    && Array.isArray(v.nebulas) && v.nebulas.every(isString)
+}
+
+function isToonFill(v: unknown): boolean {
+  if (!isObj(v)) return false
+  if (v.type !== 'toon') return false
+  return isString(v.ink) && isString(v.line)
+}
+
 export function readBorderColorValue(value: unknown): BorderColorValue | null {
   if (!isObj(value)) return null
   if (!Array.isArray(value.states) || value.states.length === 0) return null
@@ -151,6 +276,8 @@ export function readBorderColorValue(value: unknown): BorderColorValue | null {
     if (!isObj(fill)) return false
     if (fill.type === 'solid') return isString(fill.hex)
     if (fill.type === 'pixel_metal') return isPixelMetalFill(fill)
+    if (fill.type === 'cosmic') return isCosmicFill(fill)
+    if (fill.type === 'toon') return isToonFill(fill)
     return isGradient(fill)
   })
   if (validStates.length === 0) return null
@@ -179,6 +306,80 @@ export function readThumbnailBackgroundValue(value: unknown): ProfileThumbnailBa
 export function readThemeValue(value: unknown): ThemeValue | null {
   if (!isObj(value) || !isObj(value.tokens)) return null
   return value as unknown as ThemeValue
+}
+
+export function readItemVariants(value: unknown): ItemVariant[] | null {
+  if (!isObj(value) || !Array.isArray(value.variants)) return null
+  const variants = value.variants.filter(
+    (v): v is ItemVariant => isObj(v) && isString(v.key) && isString(v.label),
+  )
+  return variants.length > 0 ? variants : null
+}
+
+export function resolveItemVariant<T extends { variants?: ItemVariant[] }>(
+  value: T,
+  variantKey: string | null | undefined,
+): T {
+  if (!variantKey || !value.variants) return value
+  const variant = value.variants.find((v) => v.key === variantKey)
+  if (!variant) return value
+  const overrides = Object.fromEntries(
+    Object.entries(variant).filter(([k]) => k !== 'key' && k !== 'label'),
+  )
+  return { ...value, ...overrides }
+}
+
+export function resolveEquippedVariant<T extends { variants?: ItemVariant[] }>(
+  slot: UserItemResponse | null | undefined,
+  read: (value: unknown) => T | null,
+): T | null {
+  if (!slot) return null
+  const value = read(slot.item.value)
+  return value ? resolveItemVariant(value, slot.variantKey) : null
+}
+
+export interface ItemVariantPreview {
+  key: string
+  label: string
+  item: ItemResponse
+}
+
+function themeModeLabel(tokens: Record<string, string>): string {
+  return tokens.base === 'light' ? 'Light' : 'Dark'
+}
+
+export function itemVariantPreviews(item: ItemResponse): ItemVariantPreview[] | null {
+  const variants = readItemVariants(item.value)
+  if (variants && variants.length > 1) {
+    return variants.map((v) => ({
+      key: v.key,
+      label: v.label,
+      item: {
+        ...item,
+        value: resolveItemVariant(
+          item.value as { variants?: ItemVariant[] },
+          v.key,
+        ) as ItemResponse['value'],
+      },
+    }))
+  }
+  if (item.typeKey === 'theme') {
+    const theme = readThemeValue(item.value)
+    if (theme?.altTokens) {
+      return [
+        { key: 'default', label: themeModeLabel(theme.tokens), item },
+        {
+          key: 'alt',
+          label: themeModeLabel(theme.altTokens),
+          item: {
+            ...item,
+            value: { ...theme, tokens: theme.altTokens } as unknown as ItemResponse['value'],
+          },
+        },
+      ]
+    }
+  }
+  return null
 }
 
 export function readStatisticValue(value: unknown): StatisticValue | null {
@@ -280,25 +481,6 @@ export function userItemTokenContext(userItem: Pick<UserItemResponse, 'serialNum
   return { serial: userItem.serialNumber }
 }
 
-export type CompositionRenderer = (composition: Composition, ctx: TokenContext) => unknown
-
-const compositionRegistry = new Map<string, CompositionRenderer>()
-
-export function registerComposition(type: string, renderer: CompositionRenderer): void {
-  compositionRegistry.set(type, renderer)
-}
-
-export function renderComposition(composition: Composition, ctx: TokenContext): unknown {
-  const renderer = compositionRegistry.get(composition.type)
-  if (!renderer) {
-    if (typeof console !== 'undefined') {
-      console.warn(`[items] unknown composition type: ${composition.type}`)
-    }
-    return null
-  }
-  return renderer(composition, ctx)
-}
-
 export function gradientToCss(g: Gradient): string {
   const stops = g.stops
     .slice()
@@ -317,12 +499,17 @@ export function gradientToCss(g: Gradient): string {
   return `conic-gradient(from ${angle}deg at ${cx}% ${cy}%, ${stops})`
 }
 
-export function fillToCss(
-  fill: { type: 'solid'; hex: string } | Gradient | { type: 'pixel_metal'; base: string; highlight: string; shadow: string },
-): string {
+export function fillToCss(fill: BorderColorFill): string {
   if (fill.type === 'solid') return fill.hex
   if (fill.type === 'pixel_metal') {
     return `linear-gradient(135deg, ${fill.highlight} 0%, ${fill.base} 50%, ${fill.shadow} 100%)`
+  }
+  if (fill.type === 'cosmic') {
+    const nebula = fill.nebulas[0] ?? fill.accent
+    return `radial-gradient(circle at 30% 30%, ${nebula} 0%, ${fill.space} 60%)`
+  }
+  if (fill.type === 'toon') {
+    return `repeating-linear-gradient(135deg, ${fill.ink} 0px, ${fill.ink} 7px, ${fill.line} 7px, ${fill.line} 9px)`
   }
   return gradientToCss(fill)
 }
@@ -406,12 +593,10 @@ export function interpolateGradient(a: Gradient, b: Gradient, t: number): Gradie
   return t < 0.5 ? a : b
 }
 
-type Fill =
-  | { type: 'solid'; hex: string }
-  | Gradient
-  | { type: 'pixel_metal'; base: string; highlight: string; shadow: string }
-
-export function interpolateFill(a: Fill, b: Fill, t: number): Fill {
+export function interpolateFill(a: BorderColorFill, b: BorderColorFill, t: number): BorderColorFill {
+  if (a.type === 'cosmic' || b.type === 'cosmic' || a.type === 'toon' || b.type === 'toon') {
+    return t < 0.5 ? a : b
+  }
   if (a.type === 'solid' && b.type === 'solid') {
     return { type: 'solid', hex: lerpColor(a.hex, b.hex, t) }
   }
@@ -506,65 +691,6 @@ export function pickInterpolatedState<S extends { atMs: number }>(
 export function isAnimated(value: { states: Array<unknown>; durationMs?: number } | null | undefined): boolean {
   if (!value) return false
   return value.states.length > 1
-}
-
-export interface ActiveStateLayer<S> {
-  state: S
-  weight: number
-}
-
-export function pickStateWeights<S extends { atMs: number }>(
-  options: { states: S[]; durationMs?: number; loop?: Loop },
-  tNow: number,
-): ActiveStateLayer<S>[] {
-  const { states } = options
-  if (states.length === 0) return []
-  if (states.length === 1) return [{ state: states[0], weight: 1 }]
-
-  const sorted = [...states].sort((a, b) => a.atMs - b.atMs)
-  const lastAt = sorted[sorted.length - 1].atMs
-  const total = options.durationMs ?? lastAt
-  if (total <= 0) return [{ state: sorted[0], weight: 1 }]
-
-  const loop: Loop = options.loop ?? 'loop'
-  let t: number
-  if (loop === 'once') {
-    t = Math.min(Math.max(tNow, 0), total)
-  } else if (loop === 'pingpong') {
-    const cycles = Math.floor(tNow / total)
-    const inCycle = tNow - cycles * total
-    t = cycles % 2 === 0 ? inCycle : total - inCycle
-  } else {
-    t = ((tNow % total) + total) % total
-  }
-
-  if (loop === 'loop' && t > lastAt) {
-    const start = lastAt
-    const range = total - start
-    if (range <= 0) return [{ state: sorted[sorted.length - 1], weight: 1 }]
-    const local = (t - start) / range
-    const eased = easeInOut(local)
-    return [
-      { state: sorted[sorted.length - 1], weight: 1 - eased },
-      { state: sorted[0], weight: eased },
-    ]
-  }
-
-  for (let i = 0; i < sorted.length - 1; i++) {
-    if (t >= sorted[i].atMs && t <= sorted[i + 1].atMs) {
-      const range = sorted[i + 1].atMs - sorted[i].atMs
-      if (range <= 0) return [{ state: sorted[i], weight: 1 }]
-      const local = (t - sorted[i].atMs) / range
-      const eased = easeInOut(local)
-      return [
-        { state: sorted[i], weight: 1 - eased },
-        { state: sorted[i + 1], weight: eased },
-      ]
-    }
-  }
-
-  if (t <= sorted[0].atMs) return [{ state: sorted[0], weight: 1 }]
-  return [{ state: sorted[sorted.length - 1], weight: 1 }]
 }
 
 export function samplePath(pathEl: SVGPathElement, samples: number): [number, number][] {
@@ -719,6 +845,7 @@ export const THEMABLE_TOKENS = new Set<string>([
   'role-head-ranking', 'role-ranking',
   'chart-grid', 'chart-text',
   'skeleton-base', 'skeleton-highlight',
+  'navbar-bg', 'navbar-bg-scrolled', 'navbar-text', 'navbar-text-strong',
 ])
 
 export function filterThemableTokens(tokens: Record<string, string>): Record<string, string> {
@@ -727,7 +854,7 @@ export function filterThemableTokens(tokens: Record<string, string>): Record<str
     const normalized = tokenize(key)
     if (THEMABLE_TOKENS.has(normalized)) {
       out[normalized] = val
-    } else if (import.meta.env.DEV) {
+    } else if (import.meta.env.DEV && !normalized.startsWith('fx-') && normalized !== 'base') {
       console.warn(`[theme] ignoring non-themable token "${key}"`)
     }
   }

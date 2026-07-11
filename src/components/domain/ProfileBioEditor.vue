@@ -11,8 +11,9 @@ const props = withDefaults(
   defineProps<{
     initialBio: string
     maxChars?: number
+    canUseEffects?: boolean
   }>(),
-  { maxChars: BIO_MAX_STANDARD },
+  { maxChars: BIO_MAX_STANDARD, canUseEffects: true },
 )
 
 const BIO_MAX = computed(() => props.maxChars)
@@ -31,6 +32,12 @@ let savedClearTimer: ReturnType<typeof setTimeout> | null = null
 
 const charCount = computed(() => bioHtml.value.length)
 const overLimit = computed(() => charCount.value > BIO_MAX.value)
+
+const hintText = computed(() =>
+  props.canUseEffects
+    ? 'Server strips disallowed tags on save.'
+    : 'Colors, fonts & effects are a supporter perk. Server strips disallowed tags on save.',
+)
 
 onBeforeUnmount(() => {
   if (savedClearTimer) clearTimeout(savedClearTimer)
@@ -67,7 +74,7 @@ async function onSave() {
 
 <template>
   <div class="bio-editor">
-    <RichTextEditor v-model="bioHtml" aria-label="Bio editor" autofocus />
+    <RichTextEditor v-model="bioHtml" aria-label="Bio editor" :allow-rich-effects="canUseEffects" autofocus />
 
     <div class="bio-editor__footer">
       <div class="bio-editor__footer-info">
@@ -80,7 +87,7 @@ async function onSave() {
           </svg>
           Saved
         </span>
-        <span v-else class="bio-editor__hint">Server strips disallowed tags on save.</span>
+        <span v-else class="bio-editor__hint">{{ hintText }}</span>
         <span class="bio-editor__counter-row">
           <span class="bio-editor__counter" :class="{ 'bio-editor__counter--over': overLimit }">
             {{ charCount.toLocaleString() }} / {{ BIO_MAX.toLocaleString() }}
