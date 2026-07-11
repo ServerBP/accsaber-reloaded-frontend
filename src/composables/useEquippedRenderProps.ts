@@ -1,6 +1,7 @@
 import { usePreviewStore } from '@/stores/preview'
 import type { EquippedItemsResponse } from '@/types/api/items'
 import {
+  buildEffectLayers,
   pickAssetUrl,
   pickVideoOrAssetUrl,
   readBackgroundValue,
@@ -8,7 +9,6 @@ import {
   readBorderShapeValue,
   readTitleValue,
   resolveEquippedVariant,
-  unusualEffectLayers,
 } from '@/utils/items'
 import { isCreativesSubdomain } from '@/utils/subdomain'
 import { computed, toValue, type MaybeRefOrGetter } from 'vue'
@@ -36,10 +36,18 @@ export function useEquippedRenderProps(
   const borderColorValue = computed(() =>
     resolveEquippedVariant(equipped.value.profile_border_color, readBorderColorValue),
   )
-  const titleEffects = computed(() => unusualEffectLayers(equipped.value.title?.unusualEffect))
+  const titleEffects = computed(() =>
+    buildEffectLayers(equipped.value.title?.modifiers, equipped.value.title?.unusualEffect),
+  )
   const borderEffects = computed(() => [
-    ...unusualEffectLayers(equipped.value.profile_border_shape?.unusualEffect),
-    ...unusualEffectLayers(equipped.value.profile_border_color?.unusualEffect),
+    ...buildEffectLayers(
+      equipped.value.profile_border_shape?.modifiers,
+      equipped.value.profile_border_shape?.unusualEffect,
+    ),
+    ...buildEffectLayers(
+      equipped.value.profile_border_color?.modifiers,
+      equipped.value.profile_border_color?.unusualEffect,
+    ),
   ])
 
   const backgroundValue = computed(() =>

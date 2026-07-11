@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import LevelBadge from '@/components/domain/LevelBadge.vue'
+import PreviewModifierPicker from '@/components/domain/PreviewModifierPicker.vue'
 import PreviewPicker from '@/components/domain/PreviewPicker.vue'
 import PreviewVariantRow from '@/components/domain/PreviewVariantRow.vue'
 import { useEquippedRenderProps } from '@/composables/useEquippedRenderProps'
 import { usePreviewTheme } from '@/composables/usePreviewTheme'
 import { useAuthStore } from '@/stores/auth'
+import { useItemModifierStore } from '@/stores/itemModifiers'
 import { usePreviewStore } from '@/stores/preview'
 import type { ItemResponse, UnusualEffectResponse } from '@/types/api/items'
 import { readItemVariants } from '@/utils/items'
@@ -13,6 +15,7 @@ import { computed, ref, watch } from 'vue'
 
 const preview = usePreviewStore()
 const authStore = useAuthStore()
+const modifierStore = useItemModifierStore()
 
 usePreviewTheme()
 
@@ -32,6 +35,7 @@ async function loadCatalog() {
     const [itemList, effectList] = await Promise.all([
       getStaffItems({ includeInactive: true }),
       getStaffUnusualEffects(true),
+      modifierStore.fetchModifiers(),
     ])
     items.value = itemList
     effects.value = effectList
@@ -99,6 +103,10 @@ const borderShapeVariants = computed(() => variantsOf(preview.borderShape))
 const borderColorVariants = computed(() => variantsOf(preview.borderColor))
 const titleVariants = computed(() => variantsOf(preview.title))
 
+const availableModifiers = computed(() =>
+  modifierStore.modifiers.filter((m) => m.key !== 'unusual'),
+)
+
 const { titleValue, borderShapeValue, borderColorValue, titleEffects, borderEffects } =
   useEquippedRenderProps(() => preview.overrides)
 
@@ -112,6 +120,13 @@ const chips = computed(() => {
   if (preview.theme) list.push(preview.theme.name || 'Theme')
   for (const e of [preview.borderShapeEffect, preview.borderColorEffect, preview.titleEffect]) {
     if (e) list.push(e.name || e.key)
+  }
+  for (const m of [
+    ...preview.borderShapeModifiers,
+    ...preview.borderColorModifiers,
+    ...preview.titleModifiers,
+  ]) {
+    list.push(m.name)
   }
   return list
 })
@@ -158,6 +173,7 @@ const chips = computed(() => {
           <PreviewPicker v-model="borderShapeId" :items="borderShapes" placeholder="None" />
           <PreviewVariantRow :variants="borderShapeVariants" v-model="preview.borderShapeVariant" />
           <PreviewPicker v-model="borderShapeEffectId" :effects="effects" placeholder="No effect" />
+          <PreviewModifierPicker v-model="preview.borderShapeModifiers" :modifiers="availableModifiers" />
         </div>
 
         <div class="preview-dock__group">
@@ -165,6 +181,7 @@ const chips = computed(() => {
           <PreviewPicker v-model="borderColorId" :items="borderColors" placeholder="None" />
           <PreviewVariantRow :variants="borderColorVariants" v-model="preview.borderColorVariant" />
           <PreviewPicker v-model="borderColorEffectId" :effects="effects" placeholder="No effect" />
+          <PreviewModifierPicker v-model="preview.borderColorModifiers" :modifiers="availableModifiers" />
         </div>
 
         <div class="preview-dock__group">
@@ -172,6 +189,7 @@ const chips = computed(() => {
           <PreviewPicker v-model="titleId" :items="titles" placeholder="None" />
           <PreviewVariantRow :variants="titleVariants" v-model="preview.titleVariant" />
           <PreviewPicker v-model="titleEffectId" :effects="effects" placeholder="No effect" />
+          <PreviewModifierPicker v-model="preview.titleModifiers" :modifiers="availableModifiers" />
         </div>
 
         <div class="preview-dock__group">

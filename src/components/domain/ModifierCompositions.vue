@@ -27,6 +27,7 @@ const measure = computed<EffectMeasure>(() => ({
   overlayBox: overlayBox.value,
   box: box.value,
   stack: stack.value,
+  typeKey: props.typeKey,
 }))
 
 interface EffectLayer {

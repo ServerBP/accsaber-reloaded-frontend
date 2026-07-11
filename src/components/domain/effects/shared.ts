@@ -1,3 +1,5 @@
+import type { ItemTypeKey } from '@/types/api/items'
+
 export { hash01 } from '@/utils/random'
 
 export interface OverlayBox {
@@ -16,6 +18,7 @@ export interface EffectMeasure {
   overlayBox: OverlayBox
   box: ContentBox
   stack: number
+  typeKey?: ItemTypeKey
 }
 
 export function asString(v: unknown): string | undefined {

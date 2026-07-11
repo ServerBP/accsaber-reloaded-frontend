@@ -60,13 +60,14 @@ const entities = computed<EntityRender[]>(() => {
     h = Math.min(h, headroom * 1.05)
     w = h / 0.55
   }
+  const hover = props.measure.typeKey === 'title' ? 0.55 : 0.97
   const body = `color-mix(in srgb, ${cfg.bodyColor} ${Math.round(cfg.intensity * 100)}%, transparent)`
   const bodySoft = `color-mix(in srgb, ${cfg.bodyColor} ${Math.round(cfg.intensity * 60)}%, transparent)`
   const bodyBg = `radial-gradient(ellipse 34% 42% at 24% 58%, ${body} 0 52%, transparent 74%), radial-gradient(ellipse 40% 52% at 50% 48%, ${body} 0 56%, transparent 76%), radial-gradient(ellipse 34% 44% at 76% 56%, ${body} 0 52%, transparent 74%), radial-gradient(ellipse 26% 34% at 38% 30%, ${bodySoft} 0 46%, transparent 70%), radial-gradient(ellipse 24% 30% at 64% 32%, ${bodySoft} 0 42%, transparent 68%)`
   const mistBg = `radial-gradient(ellipse 50% 45% at 50% 40%, color-mix(in srgb, ${cfg.mistColor} 26%, transparent) 0%, color-mix(in srgb, ${cfg.mistColor} 10%, transparent) 50%, transparent 74%)`
   return [{
     x: box.x + box.w * (cfg.xPct / 100) - w / 2,
-    y: box.y - h * 0.97,
+    y: box.y - h * hover,
     w,
     h,
     bodyBg,
