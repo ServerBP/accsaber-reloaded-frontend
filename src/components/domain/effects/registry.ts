@@ -8,10 +8,8 @@ import FireworksEffect from './FireworksEffect.vue'
 import GlowEffect from './GlowEffect.vue'
 import LabelOverlayEffect from './LabelOverlayEffect.vue'
 import NightSkyEffect from './NightSkyEffect.vue'
-import ParticleEffect from './ParticleEffect.vue'
 import ParticleFieldEffect from './ParticleFieldEffect.vue'
 import RaysEffect from './RaysEffect.vue'
-import ShaderOverlayEffect from './ShaderOverlayEffect.vue'
 import SnowfallEffect from './SnowfallEffect.vue'
 
 export const EFFECT_REGISTRY: Record<string, Component> = {
@@ -19,8 +17,6 @@ export const EFFECT_REGISTRY: Record<string, Component> = {
   label_overlay: LabelOverlayEffect,
   stat_counter: LabelOverlayEffect,
   filter: FilterEffect,
-  shader_overlay: ShaderOverlayEffect,
-  particle: ParticleEffect,
   glow: GlowEffect,
   particles: ParticleFieldEffect,
   rays: RaysEffect,
