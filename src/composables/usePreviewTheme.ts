@@ -1,8 +1,17 @@
 import { usePreviewStore } from '@/stores/preview'
 import { useThemeStore } from '@/stores/theme'
-import { readThemeValue } from '@/utils/items'
+import type { ItemResponse } from '@/types/api/items'
+import { itemVariantPreviews, readThemeValue } from '@/utils/items'
 import { isCreativesSubdomain } from '@/utils/subdomain'
 import { watch } from 'vue'
+
+function resolveThemeTokens(item: ItemResponse, variantKey: string | null): Record<string, string> | null {
+  if (variantKey) {
+    const match = itemVariantPreviews(item)?.find((p) => p.key === variantKey)
+    if (match) return readThemeValue(match.item.value)?.tokens ?? null
+  }
+  return readThemeValue(item.value)?.tokens ?? null
+}
 
 export function usePreviewTheme() {
   const preview = usePreviewStore()
@@ -27,10 +36,10 @@ export function usePreviewTheme() {
   }
 
   watch(
-    () => preview.theme,
-    (themeItem) => {
+    () => [preview.theme, preview.themeVariant] as const,
+    ([themeItem, variantKey]) => {
       if (!isCreativesSubdomain) return
-      const tokens = themeItem ? readThemeValue(themeItem.value)?.tokens ?? null : null
+      const tokens = themeItem ? resolveThemeTokens(themeItem, variantKey) : null
       if (tokens) apply(tokens)
       else revert()
     },

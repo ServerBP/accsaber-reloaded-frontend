@@ -9,7 +9,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useItemModifierStore } from '@/stores/itemModifiers'
 import { usePreviewStore } from '@/stores/preview'
 import type { ItemResponse, UnusualEffectResponse } from '@/types/api/items'
-import { readItemVariants } from '@/utils/items'
+import { itemVariantPreviews, readItemVariants } from '@/utils/items'
 import { isCreativesSubdomain } from '@/utils/subdomain'
 import { computed, ref, watch } from 'vue'
 
@@ -20,7 +20,7 @@ const modifierStore = useItemModifierStore()
 usePreviewTheme()
 
 const visible = computed(() => isCreativesSubdomain)
-const expanded = ref(true)
+const expanded = ref(false)
 
 const loaded = ref(false)
 const loading = ref(false)
@@ -92,8 +92,12 @@ const titleEffectId = computed({
 })
 const themeId = computed({
   get: () => preview.theme?.id ?? '',
-  set: (id: string) => { preview.theme = findItem(id) },
+  set: (id: string) => { preview.theme = findItem(id); preview.themeVariant = null },
 })
+
+const themeVariants = computed(() =>
+  preview.theme ? itemVariantPreviews(preview.theme) ?? [] : [],
+)
 
 function variantsOf(item: ItemResponse | null) {
   return item ? readItemVariants(item.value) ?? [] : []
@@ -195,6 +199,7 @@ const chips = computed(() => {
         <div class="preview-dock__group">
           <span class="preview-dock__group-title">Theme</span>
           <PreviewPicker v-model="themeId" :items="themes" placeholder="None" />
+          <PreviewVariantRow :variants="themeVariants" v-model="preview.themeVariant" />
         </div>
         </div>
         </div>

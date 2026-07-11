@@ -1,7 +1,5 @@
 <script setup lang="ts">
-import type { ItemVariant } from '@/types/api/items'
-
-defineProps<{ variants: ItemVariant[]; modelValue: string | null }>()
+defineProps<{ variants: { key: string; label: string }[]; modelValue: string | null }>()
 defineEmits<{ 'update:modelValue': [value: string] }>()
 </script>
 

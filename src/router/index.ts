@@ -270,7 +270,9 @@ router.beforeEach(async (to) => {
   const auth = useAuthStore()
 
   if (isCreativesSubdomain) {
-    if (to.name === 'creatives-login') return
+    if (to.name === 'creatives-login' || to.name === 'auth-callback' || to.name === 'login-finish') {
+      return
+    }
     if (auth.staffToken && auth.isTokenExpiringSoon) {
       try {
         await auth.refreshStaffToken()
