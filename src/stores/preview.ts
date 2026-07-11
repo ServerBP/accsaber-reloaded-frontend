@@ -4,8 +4,35 @@ import type {
   UnusualEffectRef,
   UserItemResponse,
 } from '@/types/api/items'
+import { isCreativesSubdomain } from '@/utils/subdomain'
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+
+const STORAGE_KEY = 'creatives:preview'
+
+interface PreviewSnapshot {
+  active: boolean
+  borderShape: ItemResponse | null
+  borderShapeVariant: string | null
+  borderShapeEffect: UnusualEffectRef | null
+  borderColor: ItemResponse | null
+  borderColorVariant: string | null
+  borderColorEffect: UnusualEffectRef | null
+  title: ItemResponse | null
+  titleVariant: string | null
+  titleEffect: UnusualEffectRef | null
+  theme: ItemResponse | null
+}
+
+function loadSnapshot(): Partial<PreviewSnapshot> {
+  if (!isCreativesSubdomain) return {}
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY)
+    return raw ? (JSON.parse(raw) as Partial<PreviewSnapshot>) : {}
+  } catch {
+    return {}
+  }
+}
 
 function placeholderItem(typeKey: string): ItemResponse {
   return {
@@ -52,21 +79,23 @@ function syntheticEntry(
 }
 
 export const usePreviewStore = defineStore('creativesPreview', () => {
-  const active = ref(false)
+  const saved = loadSnapshot()
 
-  const borderShape = ref<ItemResponse | null>(null)
-  const borderShapeVariant = ref<string | null>(null)
-  const borderShapeEffect = ref<UnusualEffectRef | null>(null)
+  const active = ref(saved.active ?? false)
 
-  const borderColor = ref<ItemResponse | null>(null)
-  const borderColorVariant = ref<string | null>(null)
-  const borderColorEffect = ref<UnusualEffectRef | null>(null)
+  const borderShape = ref<ItemResponse | null>(saved.borderShape ?? null)
+  const borderShapeVariant = ref<string | null>(saved.borderShapeVariant ?? null)
+  const borderShapeEffect = ref<UnusualEffectRef | null>(saved.borderShapeEffect ?? null)
 
-  const title = ref<ItemResponse | null>(null)
-  const titleVariant = ref<string | null>(null)
-  const titleEffect = ref<UnusualEffectRef | null>(null)
+  const borderColor = ref<ItemResponse | null>(saved.borderColor ?? null)
+  const borderColorVariant = ref<string | null>(saved.borderColorVariant ?? null)
+  const borderColorEffect = ref<UnusualEffectRef | null>(saved.borderColorEffect ?? null)
 
-  const theme = ref<ItemResponse | null>(null)
+  const title = ref<ItemResponse | null>(saved.title ?? null)
+  const titleVariant = ref<string | null>(saved.titleVariant ?? null)
+  const titleEffect = ref<UnusualEffectRef | null>(saved.titleEffect ?? null)
+
+  const theme = ref<ItemResponse | null>(saved.theme ?? null)
 
   const overrides = computed<EquippedItemsResponse>(() => {
     const result: EquippedItemsResponse = {}
@@ -91,6 +120,48 @@ export const usePreviewStore = defineStore('creativesPreview', () => {
     }
     return result
   })
+
+  if (isCreativesSubdomain) {
+    let canPersist = true
+    watch(
+      [
+        active,
+        borderShape,
+        borderShapeVariant,
+        borderShapeEffect,
+        borderColor,
+        borderColorVariant,
+        borderColorEffect,
+        title,
+        titleVariant,
+        titleEffect,
+        theme,
+      ],
+      () => {
+        if (!canPersist) return
+        try {
+          sessionStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify({
+              active: active.value,
+              borderShape: borderShape.value,
+              borderShapeVariant: borderShapeVariant.value,
+              borderShapeEffect: borderShapeEffect.value,
+              borderColor: borderColor.value,
+              borderColorVariant: borderColorVariant.value,
+              borderColorEffect: borderColorEffect.value,
+              title: title.value,
+              titleVariant: titleVariant.value,
+              titleEffect: titleEffect.value,
+              theme: theme.value,
+            } satisfies PreviewSnapshot),
+          )
+        } catch {
+          canPersist = false
+        }
+      },
+    )
+  }
 
   return {
     active,
