@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import BaseButton from '@/components/common/BaseButton.vue'
+import BorderCompositionPreview from '@/components/domain/BorderCompositionPreview.vue'
 import CrateContentsList from '@/components/domain/CrateContentsList.vue'
 import CrateModifierList from '@/components/domain/CrateModifierList.vue'
 import FragmentedItem from '@/components/domain/FragmentedItem.vue'
@@ -10,7 +11,7 @@ import { useModifierColor } from '@/composables/useModifierColor'
 import { useItemModifierStore } from '@/stores/itemModifiers'
 import { useItemTypeStore } from '@/stores/itemTypes'
 import { useThemeStore } from '@/stores/theme'
-import type { CrateContentResponse, CrateModifierResponse, ItemModifierRef, ItemResponse, ItemVariant, UserItemResponse } from '@/types/api/items'
+import type { BorderColorValue, BorderShapeValue, CrateContentResponse, CrateModifierResponse, ItemModifierRef, ItemResponse, ItemVariant, UserItemResponse } from '@/types/api/items'
 import { formatEssence } from '@/utils/essence'
 import { formatRelativeDate } from '@/utils/formatters'
 import {
@@ -18,6 +19,8 @@ import {
   displayItemName,
   isEquippableTypeKey,
   rarityClass,
+  readBorderColorValue,
+  readBorderShapeValue,
   readFragmentSpec,
   readItemVariants,
   readThemeValue,
@@ -39,6 +42,9 @@ const props = defineProps<{
   crateModifiers?: CrateModifierResponse[]
   crateModifiersLoading?: boolean
   ownedItemIds?: Set<string>
+  equippedBorderShape?: BorderShapeValue | null
+  equippedBorderColor?: BorderColorValue | null
+  avatarUrl?: string | null
 }>()
 
 defineEmits<{
@@ -93,6 +99,27 @@ const previewItem = computed<ItemResponse | null>(() => {
     value: resolveItemVariant(it.value as { variants?: ItemVariant[] }, key) as ItemResponse['value'],
   }
 })
+
+const isBorderShapeItem = computed(() => item.value?.typeKey === 'profile_border_shape')
+const isBorderColorItem = computed(() => item.value?.typeKey === 'profile_border_color')
+
+const selectedShapeValue = computed<BorderShapeValue | null>(() =>
+  isBorderShapeItem.value && previewItem.value ? readBorderShapeValue(previewItem.value.value) : null,
+)
+const selectedColorValue = computed<BorderColorValue | null>(() =>
+  isBorderColorItem.value && previewItem.value ? readBorderColorValue(previewItem.value.value) : null,
+)
+
+const compositionShape = computed<BorderShapeValue | null>(() =>
+  isBorderShapeItem.value ? selectedShapeValue.value : (props.equippedBorderShape ?? null),
+)
+const compositionColor = computed<BorderColorValue | null>(() =>
+  isBorderColorItem.value ? selectedColorValue.value : (props.equippedBorderColor ?? null),
+)
+
+const showComposition = computed(() =>
+  props.isOwnProfile && (isBorderShapeItem.value || isBorderColorItem.value),
+)
 
 const modifiers = computed<ItemModifierRef[]>(() =>
   sortModifiersByKey(props.userItem?.modifiers ?? []),
@@ -156,7 +183,13 @@ onMounted(() => {
       class="inv-detail__art"
       :class="[rarityClass(item.rarity), { 'inv-detail__art--title-fx': item.typeKey === 'title' }]"
     >
-      <FragmentedItem v-if="fragmentSpec" :item="previewItem ?? item" :spec="fragmentSpec" :selected="true" />
+      <BorderCompositionPreview
+        v-if="showComposition"
+        :shape="compositionShape"
+        :color="compositionColor"
+        :avatar-url="avatarUrl"
+      />
+      <FragmentedItem v-else-if="fragmentSpec" :item="previewItem ?? item" :spec="fragmentSpec" :selected="true" />
       <ItemPreview v-else :item="previewItem ?? item" :selected="true" />
       <ModifierCompositions
         v-for="layer in effectLayers"
@@ -164,7 +197,7 @@ onMounted(() => {
         :spec="layer.spec"
         :context="tokenCtx"
         :type-key="item?.typeKey"
-        measure-selector=".title-renderer, .item-preview > *"
+        measure-selector=".border-composition, .title-renderer, .item-preview > *"
       />
     </div>
 

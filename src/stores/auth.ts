@@ -19,6 +19,7 @@ const ROLE_HIERARCHY: Record<StaffRole, number> = {
   RANKING: 2,
   RANKING_HEAD: 3,
   CAMPAIGN_CURATOR: 3,
+  CREATIVE: 1,
   ADMIN: 5,
   DEVELOPER: 4,
   MODERATOR: 1,
@@ -123,6 +124,10 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isStaffAuthorized = computed(
     () => staffToken.value !== null || oauthStaffRole.value !== null,
+  )
+
+  const hasCreativeAccess = computed(
+    () => currentStaffRole.value === 'CREATIVE' || currentStaffRole.value === 'ADMIN',
   )
 
   function persistSession(session: {
@@ -328,6 +333,7 @@ export const useAuthStore = defineStore('auth', () => {
     currentStaffRole,
     isStaffAuthenticated,
     isStaffAuthorized,
+    hasCreativeAccess,
     isAdmin,
     isTokenExpiringSoon,
 

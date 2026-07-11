@@ -14,7 +14,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 usePageMeta({
-  title: 'Trade Offers | AccSaber Reloaded',
+  title: 'Market Hub | AccSaber Reloaded',
   description: 'Trade items with other AccSaber players.',
 })
 
@@ -72,7 +72,7 @@ const breadcrumbs = computed<Crumb[]>(() => {
   if (myUserId.value) {
     out.push({ label: 'Profile', to: { name: 'player-profile', params: { userId: myUserId.value } } })
   }
-  out.push({ label: 'Trade Offers' })
+  out.push({ label: 'Market Hub' })
   return out
 })
 
@@ -144,7 +144,7 @@ const incomingPendingLabel = computed(() => `(${tradeStore.pendingIncomingCount}
   <div class="trades-page" :style="{ '--page-accent': 'var(--accent-overall)' }">
     <Breadcrumbs class="trades-page__breadcrumbs" :crumbs="breadcrumbs" />
 
-    <PageHeaderBleed title="Trade Offers" subtitle="Items you can trade with other AccSaber players" />
+    <PageHeaderBleed title="Market Hub" subtitle="Items you can trade with other AccSaber players" />
 
     <div v-if="!isLoggedIn" class="trades-page__gate">
       <EmptyState message="Sign in to view your trade offers." />

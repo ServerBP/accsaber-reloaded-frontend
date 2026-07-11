@@ -44,7 +44,7 @@ const linkError = ref('')
 const passwordLoading = ref(false)
 const passwordError = ref('')
 
-const ROLES: StaffRole[] = ['MODERATOR', 'RANKING', 'RANKING_HEAD', 'DEVELOPER', 'ADMIN']
+const ROLES: StaffRole[] = ['MODERATOR', 'RANKING', 'RANKING_HEAD', 'CREATIVE', 'DEVELOPER', 'ADMIN']
 const roleOptions = ROLES.map((r) => ({ value: r, label: r.replace('_', ' ') }))
 
 async function fetchUsers() {
@@ -342,6 +342,7 @@ async function removeUser(user: StaffUserResponse) {
 .role-badge--ranking { color: var(--accent-true-acc); border-color: color-mix(in srgb, var(--accent-true-acc) 30%, transparent); background: color-mix(in srgb, var(--accent-true-acc) 8%, transparent); }
 .role-badge--head-ranking { color: var(--accent-low-mid); border-color: color-mix(in srgb, var(--accent-low-mid) 30%, transparent); background: color-mix(in srgb, var(--accent-low-mid) 8%, transparent); }
 .role-badge--admin { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 30%, transparent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.role-badge--creative { color: var(--info); border-color: color-mix(in srgb, var(--info) 30%, transparent); background: color-mix(in srgb, var(--info) 8%, transparent); }
 
 .request-status {
   font-size: var(--text-caption);

@@ -23,6 +23,7 @@ import {
   readTitleValue,
   tokenize,
 } from '@/utils/items'
+import { DEFAULT_AVATAR_MASK } from '@/utils/avatarBox'
 import { computed } from 'vue'
 
 const props = defineProps<{
@@ -68,9 +69,6 @@ const shapePreviewColor = computed<BorderColorValue | null>(() => {
     }],
   }
 })
-
-const DEFAULT_AVATAR_MASK
-  = 'M14,0 L86,0 Q100,0 100,14 L100,86 Q100,100 86,100 L14,100 Q0,100 0,86 L0,14 Q0,0 14,0 Z'
 
 const shapeAvatarMask = computed(() => borderShapeValue.value?.avatarMask ?? DEFAULT_AVATAR_MASK)
 
@@ -356,7 +354,7 @@ const fallbackInitial = computed(() => props.item.name.charAt(0).toUpperCase())
   display: block;
   width: 65%;
   aspect-ratio: 1 / 1;
-  color: var(--text-primary);
+  color: var(--text-secondary);
 }
 
 .item-preview__shape-avatar {

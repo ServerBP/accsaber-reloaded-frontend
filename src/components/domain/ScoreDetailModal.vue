@@ -12,10 +12,7 @@ import { useColorExtract } from '@/composables/useColorExtract'
 import { useSettingsStore } from '@/stores/settings'
 import { useThemeStore } from '@/stores/theme'
 import type {
-  BorderColorValue,
-  BorderShapeValue,
   EquippedItemsResponse,
-  TitleValue,
 } from '@/types/api/items'
 import type {
   LevelResponse,
@@ -27,13 +24,7 @@ import type { MetricType, ScoreDisplay, TimeRange, TimeSeriesPoint } from '@/typ
 import { brightenRgb } from '@/utils/color'
 import { SCORE_DETAIL_METRICS, TIME_RANGE_PARAMS } from '@/utils/constants'
 import { formatRelativeDate } from '@/utils/formatters'
-import {
-  readBorderColorValue,
-  readBorderShapeValue,
-  readTitleValue,
-  resolveEquippedVariant,
-  unusualEffectLayers,
-} from '@/utils/items'
+import { useEquippedRenderProps } from '@/composables/useEquippedRenderProps'
 import { buildMapRoute } from '@/utils/mapRoute'
 import { scoreSaberReplayUrl } from '@/utils/replay'
 import { computed, ref, watch } from 'vue'
@@ -85,37 +76,17 @@ const mapDifficulty = ref<PublicMapDifficultyResponse | null>(null)
 let lastFetchedUserId: string | null = null
 let lastFetchedDifficultyId: string | null = null
 
-const equippedTitle = computed<TitleValue | null>(() =>
-  readTitleValue(equipped.value.title?.item.value),
-)
-const equippedBorderShape = computed<BorderShapeValue | null>(() =>
-  readBorderShapeValue(equipped.value.profile_border_shape?.item.value),
-)
-const equippedBorderColor = computed<BorderColorValue | null>(() =>
-  resolveEquippedVariant(equipped.value.profile_border_color, readBorderColorValue),
-)
-const equippedTitleEffects = computed(() => unusualEffectLayers(equipped.value.title?.unusualEffect))
-const equippedBorderEffects = computed(() => [
-  ...unusualEffectLayers(equipped.value.profile_border_shape?.unusualEffect),
-  ...unusualEffectLayers(equipped.value.profile_border_color?.unusualEffect),
-])
+const {
+  titleValue: equippedTitle,
+  borderShapeValue: equippedBorderShape,
+  borderColorValue: equippedBorderColor,
+  titleEffects: equippedTitleEffects,
+  borderEffects: equippedBorderEffects,
+} = useEquippedRenderProps(equipped)
 
 const playerName = computed(() => player.value?.name ?? props.score?.userName ?? '')
 const playerCountry = computed(() => player.value?.country ?? '')
 const playerAvatar = computed(() => player.value?.cdnAvatarUrl ?? player.value?.avatarUrl ?? '')
-const playerAvatarFallback = computed(() => {
-  const p = player.value
-  if (!p) return null
-  return p.cdnAvatarUrl && p.avatarUrl && p.cdnAvatarUrl !== p.avatarUrl ? p.avatarUrl : null
-})
-const handlePlayerAvatarError = (e: Event) => {
-  const img = e.currentTarget as HTMLImageElement
-  const fb = playerAvatarFallback.value
-  if (fb && img.src !== fb && img.dataset.fellBack !== '1') {
-    img.dataset.fellBack = '1'
-    img.src = fb
-  }
-}
 const handleScoreCoverError = (e: Event) => {
   const img = e.currentTarget as HTMLImageElement
   const fb = props.score?.coverFallbackUrl

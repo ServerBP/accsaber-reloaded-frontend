@@ -29,13 +29,7 @@ import type {
 import type { ScoreDisplay } from '@/types/display'
 import type { Page } from '@/types/pagination'
 import { brightenRgb } from '@/utils/color'
-import {
-  readBorderColorValue,
-  readBorderShapeValue,
-  readTitleValue,
-  resolveEquippedVariant,
-  unusualEffectLayers,
-} from '@/utils/items'
+import { useEquippedRenderProps } from '@/composables/useEquippedRenderProps'
 import { toScoreDisplay } from '@/utils/mappers'
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -128,22 +122,21 @@ const sniperLevel = ref<LevelResponse | null>(null)
 const sniperEquipped = ref<EquippedItemsResponse>({})
 const targetEquipped = ref<EquippedItemsResponse>({})
 
-const sniperTitle = computed(() => readTitleValue(sniperEquipped.value.title?.item.value))
-const sniperBorderShape = computed(() => readBorderShapeValue(sniperEquipped.value.profile_border_shape?.item.value))
-const sniperBorderColor = computed(() => resolveEquippedVariant(sniperEquipped.value.profile_border_color, readBorderColorValue))
-const sniperTitleEffects = computed(() => unusualEffectLayers(sniperEquipped.value.title?.unusualEffect))
-const sniperBorderEffects = computed(() => [
-  ...unusualEffectLayers(sniperEquipped.value.profile_border_shape?.unusualEffect),
-  ...unusualEffectLayers(sniperEquipped.value.profile_border_color?.unusualEffect),
-])
-const targetTitle = computed(() => readTitleValue(targetEquipped.value.title?.item.value))
-const targetBorderShape = computed(() => readBorderShapeValue(targetEquipped.value.profile_border_shape?.item.value))
-const targetBorderColor = computed(() => resolveEquippedVariant(targetEquipped.value.profile_border_color, readBorderColorValue))
-const targetTitleEffects = computed(() => unusualEffectLayers(targetEquipped.value.title?.unusualEffect))
-const targetBorderEffects = computed(() => [
-  ...unusualEffectLayers(targetEquipped.value.profile_border_shape?.unusualEffect),
-  ...unusualEffectLayers(targetEquipped.value.profile_border_color?.unusualEffect),
-])
+const {
+  titleValue: sniperTitle,
+  borderShapeValue: sniperBorderShape,
+  borderColorValue: sniperBorderColor,
+  titleEffects: sniperTitleEffects,
+  borderEffects: sniperBorderEffects,
+} = useEquippedRenderProps(sniperEquipped)
+
+const {
+  titleValue: targetTitle,
+  borderShapeValue: targetBorderShape,
+  borderColorValue: targetBorderColor,
+  titleEffects: targetTitleEffects,
+  borderEffects: targetBorderEffects,
+} = useEquippedRenderProps(targetEquipped)
 const data = ref<Page<SnipeComparisonResponse> | null>(null)
 const loading = ref(false)
 

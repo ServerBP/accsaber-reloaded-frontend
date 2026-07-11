@@ -7,7 +7,12 @@ import { useAuthStore } from '@/stores/auth'
 import { useEssenceStore } from '@/stores/essence'
 import { useRelationsStore } from '@/stores/relations'
 import { useSettingsStore } from '@/stores/settings'
-import { computed, watch } from 'vue'
+import { isCreativesSubdomain } from '@/utils/subdomain'
+import { computed, defineAsyncComponent, watch } from 'vue'
+
+const PreviewControlBar = isCreativesSubdomain
+  ? defineAsyncComponent(() => import('@/components/layout/PreviewControlBar.vue'))
+  : null
 
 const authStore = useAuthStore()
 const essenceStore = useEssenceStore()
@@ -63,6 +68,7 @@ watch(
       </transition>
     </router-view>
   </main>
+  <component :is="PreviewControlBar" v-if="PreviewControlBar" />
 </template>
 
 <style scoped>

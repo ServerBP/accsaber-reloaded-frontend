@@ -12,6 +12,7 @@ import InventoryDetailPanel from '@/components/domain/InventoryDetailPanel.vue'
 import InventoryItemCell from '@/components/domain/InventoryItemCell.vue'
 import { useCrateContents } from '@/composables/useCrateContents'
 import { useCrateModifiers } from '@/composables/useCrateModifiers'
+import { useEquippedRenderProps } from '@/composables/useEquippedRenderProps'
 import { useOwnedItemIds } from '@/composables/useOwnedItemIds'
 import { usePageableRoute } from '@/composables/usePageableRoute'
 import { disintegrateItem, getItems, getUserInventory, getUserItems } from '@/api/items'
@@ -31,6 +32,7 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 
 const props = defineProps<{
   userId: string
+  avatarUrl?: string | null
 }>()
 
 const authStore = useAuthStore()
@@ -86,21 +88,30 @@ const sortOptions = [
   { value: 'quantity', label: 'Quantity' },
 ]
 
-const typeOptions = computed(() => [
-  { value: '', label: 'All types' },
-  ...itemTypeStore.itemTypes
-    .filter((t) => t.active && !t.parentTypeId)
-    .map((t) => ({ value: t.key, label: t.name })),
-])
+const typeOptions = computed(() => {
+  const active = itemTypeStore.itemTypes.filter((t) => t.active)
+  const parentIds = new Set(active.map((t) => t.parentTypeId).filter(Boolean))
+  const leaves = active
+    .filter((t) => !parentIds.has(t.id))
+    .sort((a, b) => a.name.localeCompare(b.name))
+  return [
+    { value: '', label: 'All types' },
+    ...leaves.map((t) => ({ value: t.key, label: t.name })),
+  ]
+})
 
 const rarityOptions = computed(() => [
   { value: '', label: 'All rarities' },
   ...RARITY_ORDER.map((r) => ({ value: r, label: r.charAt(0).toUpperCase() + r.slice(1) })),
 ])
 
+const HIDDEN_MODIFIER_KEYS = new Set(['decorated'])
+
 const modifierOptions = computed(() => [
   { value: '', label: 'All modifiers' },
-  ...itemModifierStore.modifiers.filter((m) => m.active).map((m) => ({ value: m.key, label: m.name })),
+  ...itemModifierStore.modifiers
+    .filter((m) => m.active && !HIDDEN_MODIFIER_KEYS.has(m.key))
+    .map((m) => ({ value: m.key, label: m.name })),
 ])
 
 const data = ref<Page<UserItemResponse> | null>(null)
@@ -239,6 +250,9 @@ const selectedEquippedVariantKey = computed<string | null>(() => {
   if (!it) return null
   return inventoryStore.equipped[it.typeKey]?.variantKey ?? null
 })
+
+const { borderShapeValue: equippedBorderShape, borderColorValue: equippedBorderColor }
+  = useEquippedRenderProps(() => inventoryStore.equipped)
 
 function isEquipped(userItem: UserItemResponse): boolean {
   if (!isOwnProfile.value) return false
@@ -498,54 +512,62 @@ onUnmounted(() => {
       {{ feedback.message }}
     </BaseBanner>
 
-    <div class="inv-tab__filters">
-      <SearchBox v-model="search" placeholder="Search items..." class="inv-tab__search" />
-      <BaseSelect v-model="typeKey" :options="typeOptions" placeholder="All types" />
-      <BaseSelect v-model="rarity" :options="rarityOptions" placeholder="All rarities" />
-      <BaseSelect v-model="modifierKey" :options="modifierOptions" placeholder="All modifiers" />
-      <BaseSelect
-        :model-value="sortState.key"
-        :options="sortOptions"
-        placeholder="Sort"
-        @update:model-value="setSort"
-      />
-      <button
-        type="button"
-        class="inv-tab__unowned-toggle"
-        :class="{ 'inv-tab__unowned-toggle--active': showUnowned }"
-        :aria-pressed="showUnowned"
-        aria-label="Show unowned items"
-        @click="toggleShowUnowned"
-      >
-        <span class="inv-tab__unowned-track">
-          <span class="inv-tab__unowned-thumb" />
-        </span>
-        <span class="inv-tab__unowned-label">Unowned</span>
-      </button>
-      <span
-        v-if="isOwnProfile && essenceStore.balance !== null"
-        class="inv-tab__wallet"
-        :aria-label="`Essence balance: ${formatEssenceAmount(essenceStore.balance)}`"
-        title="Item essence"
-      >
-        <span class="inv-tab__wallet-glyph" aria-hidden="true">{{ ESSENCE_GLYPH }}</span>
-        <span class="inv-tab__wallet-amount">{{ formatEssenceAmount(essenceStore.balance) }}</span>
-      </span>
-      <RouterLink v-if="isOwnProfile" :to="{ name: 'trade-offers' }" custom v-slot="{ navigate, href }">
-        <BaseButton variant="primary" :href="href" @click="(e: MouseEvent) => { e.preventDefault(); navigate() }">
-          Trade Offers
-        </BaseButton>
-      </RouterLink>
-      <RouterLink
-        v-else-if="canOfferTrade"
-        :to="{ name: 'trade-new', query: { to: userId } }"
-        custom
-        v-slot="{ navigate, href }"
-      >
-        <BaseButton variant="primary" :href="href" @click="(e: MouseEvent) => { e.preventDefault(); navigate() }">
-          Offer Trade
-        </BaseButton>
-      </RouterLink>
+    <div class="inv-tab__controls">
+      <div class="inv-tab__filters">
+        <SearchBox v-model="search" placeholder="Search items..." class="inv-tab__search" />
+        <BaseSelect v-model="typeKey" :options="typeOptions" placeholder="All types" />
+        <BaseSelect v-model="rarity" :options="rarityOptions" placeholder="All rarities" />
+        <BaseSelect v-model="modifierKey" :options="modifierOptions" placeholder="All modifiers" />
+        <BaseSelect
+          :model-value="sortState.key"
+          :options="sortOptions"
+          placeholder="Sort"
+          @update:model-value="setSort"
+        />
+      </div>
+
+      <div class="inv-tab__actions-bar">
+        <button
+          type="button"
+          class="inv-tab__unowned-toggle"
+          :class="{ 'inv-tab__unowned-toggle--active': showUnowned }"
+          :aria-pressed="showUnowned"
+          aria-label="Show unowned items"
+          @click="toggleShowUnowned"
+        >
+          <span class="inv-tab__unowned-track">
+            <span class="inv-tab__unowned-thumb" />
+          </span>
+          <span class="inv-tab__unowned-label">Unowned</span>
+        </button>
+
+        <div class="inv-tab__actions-right">
+          <span
+            v-if="isOwnProfile && essenceStore.balance !== null"
+            class="inv-tab__wallet"
+            :aria-label="`Essence balance: ${formatEssenceAmount(essenceStore.balance)}`"
+            title="Item essence"
+          >
+            <span class="inv-tab__wallet-glyph" aria-hidden="true">{{ ESSENCE_GLYPH }}</span>
+            <span class="inv-tab__wallet-amount">{{ formatEssenceAmount(essenceStore.balance) }}</span>
+          </span>
+          <RouterLink v-if="isOwnProfile" :to="{ name: 'trade-offers' }" custom v-slot="{ navigate, href }">
+            <BaseButton variant="primary" :href="href" @click="(e: MouseEvent) => { e.preventDefault(); navigate() }">
+              Market Hub
+            </BaseButton>
+          </RouterLink>
+          <RouterLink
+            v-else-if="canOfferTrade"
+            :to="{ name: 'trade-new', query: { to: userId } }"
+            custom
+            v-slot="{ navigate, href }"
+          >
+            <BaseButton variant="primary" :href="href" @click="(e: MouseEvent) => { e.preventDefault(); navigate() }">
+              Offer Trade
+            </BaseButton>
+          </RouterLink>
+        </div>
+      </div>
     </div>
 
     <div class="inv-tab__layout">
@@ -582,6 +604,9 @@ onUnmounted(() => {
           :is-own-profile="isOwnProfile"
           :equipped="isSelectedEquipped"
           :equipped-variant-key="selectedEquippedVariantKey"
+          :equipped-border-shape="equippedBorderShape"
+          :equipped-border-color="equippedBorderColor"
+          :avatar-url="avatarUrl"
           :busy="actionBusy"
           :locked="isSelectedLocked"
           :crate-contents="crateContents"
@@ -604,6 +629,9 @@ onUnmounted(() => {
         :is-own-profile="isOwnProfile"
         :equipped="isSelectedEquipped"
         :equipped-variant-key="selectedEquippedVariantKey"
+        :equipped-border-shape="equippedBorderShape"
+        :equipped-border-color="equippedBorderColor"
+        :avatar-url="avatarUrl"
         :busy="actionBusy"
         :locked="isSelectedLocked"
         :crate-contents="crateContents"
@@ -636,6 +664,12 @@ onUnmounted(() => {
   gap: var(--space-lg);
 }
 
+.inv-tab__controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
 .inv-tab__filters {
   display: flex;
   flex-wrap: wrap;
@@ -643,14 +677,41 @@ onUnmounted(() => {
   align-items: center;
 }
 
+.inv-tab__filters :deep(.base-select) {
+  flex: 1 1 0;
+  min-width: 120px;
+}
+
 .inv-tab__filters :deep(.base-select__trigger) {
+  width: 100%;
   min-width: 0;
   padding: var(--space-xs) var(--space-sm);
 }
 
+.inv-tab__filters :deep(.base-select__value) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .inv-tab__search {
-  flex: 1 1 160px;
+  flex: 0 1 190px;
   min-width: 140px;
+}
+
+.inv-tab__actions-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.inv-tab__actions-right {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
 }
 
 .inv-tab__unowned-toggle {

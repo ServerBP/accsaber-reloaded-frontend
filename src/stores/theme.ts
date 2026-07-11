@@ -67,6 +67,12 @@ export const useThemeStore = defineStore('theme', () => {
     theme.value = themeKey
   }
 
+  function previewThemeTokens(tokens: Record<string, string> | null) {
+    if (activeTokens.value) clearThemeTokens(activeTokens.value)
+    activeTokens.value = tokens
+    if (tokens) applyThemeTokens(tokens)
+  }
+
   function toggle() {
     setTheme(resolvedBase.value === 'dark' ? 'light' : 'dark')
   }
@@ -83,5 +89,5 @@ export const useThemeStore = defineStore('theme', () => {
     applyThemeTokens(activeTokens.value)
   }
 
-  return { theme, activeTokens, resolvedBase, toggle, setTheme, setThemeFromTokens }
+  return { theme, activeTokens, resolvedBase, toggle, setTheme, setThemeFromTokens, previewThemeTokens }
 })

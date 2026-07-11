@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TitleAura from '@/components/domain/TitleAura.vue'
 import { useTimeline } from '@/composables/useTimeline'
 import { useThemeStore } from '@/stores/theme'
 import type { TitleStateValue, TitleValue } from '@/types/api/items'
@@ -166,6 +167,15 @@ const ornament = computed(() => {
   return { ...icon, color, sizeEm: spec.sizeEm ?? 1 }
 })
 
+const aura = computed(() => {
+  const spec = props.value.aura
+  return spec?.enabled ? spec : null
+})
+
+const auraKey = computed(() =>
+  aura.value ? `${isLightBase.value ? 'l' : 'd'}:${JSON.stringify(aura.value)}` : '',
+)
+
 let fxId = 0
 let nextFlashAt = -1
 let nextSparkleAt = -1
@@ -277,6 +287,7 @@ function sparkleStyle(sp: SparkleInstance): Record<string, string> {
     :class="{ 'title-renderer--pixel': isPixelFont }"
     :style="textStyle"
   >
+    <TitleAura v-if="aura" :key="auraKey" :aura="aura" :light="isLightBase" />
     <span
       v-for="fl in activeFlashes"
       :key="fl.id"

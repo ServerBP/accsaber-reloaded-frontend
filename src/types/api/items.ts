@@ -159,6 +159,39 @@ export interface TitleOrnamentSpec {
   sizeEm?: number
 }
 
+export interface TitleFlameAuraSpec {
+  type: 'flame'
+  enabled: boolean
+  inner?: string
+  outer?: string
+  spark?: string
+  lightInner?: string
+  lightOuter?: string
+  lightSpark?: string
+}
+
+export interface TitleHazeAuraSpec {
+  type: 'haze'
+  enabled: boolean
+  color?: string
+  glow?: string
+  lightColor?: string
+  lightGlow?: string
+}
+
+export interface TitleSmokeAuraSpec {
+  type: 'smoke'
+  enabled: boolean
+  smoke?: string
+  ember?: string
+  lightSmoke?: string
+  lightEmber?: string
+}
+
+export type TitleAuraSpec = TitleFlameAuraSpec | TitleHazeAuraSpec | TitleSmokeAuraSpec
+
+export type TitleAuraType = TitleAuraSpec['type']
+
 export interface TitleValue {
   text: string
   font?: TitleFont
@@ -166,6 +199,8 @@ export interface TitleValue {
   ornament?: TitleOrnamentSpec
   flashes?: TitleFlashSpec
   sparkles?: TitleSparkleSpec
+  aura?: TitleAuraSpec
+  variants?: ItemVariant[]
   durationMs?: number
   loop?: Loop
   easing?: Easing
@@ -355,6 +390,7 @@ export interface BorderShapeValue {
   sparkles?: ShapeSparkleSpec
   glisten?: ShapeGlistenSpec
   states: BorderShapeStateValue[]
+  variants?: ItemVariant[]
   durationMs?: number
   loop?: Loop
   easing?: Easing

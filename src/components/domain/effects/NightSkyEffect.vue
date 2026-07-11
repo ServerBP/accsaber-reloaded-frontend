@@ -51,11 +51,16 @@ const skyStyle = computed((): Record<string, string> => {
   const box = props.measure.box
   if (!box.w || !box.h) return { display: 'none' }
   const c = cfg.value
+  const overlay = props.measure.overlayBox
+  const clipW = overlay.w || box.x + box.w
+  const clipH = overlay.h || box.y + box.h
+  const left = Math.max(box.x - box.w * 0.04, 0)
+  const top = Math.max(box.y - box.h * 0.03, 0)
   return {
-    left: `${box.x - box.w * 0.04}px`,
-    top: `${box.y - box.h * 0.03}px`,
-    width: `${box.w * 1.08}px`,
-    height: `${box.h * (c.sizePct / 100)}px`,
+    left: `${left}px`,
+    top: `${top}px`,
+    width: `${Math.min(box.w * 1.08, clipW - left)}px`,
+    height: `${Math.min(box.h * (c.sizePct / 100), clipH - top)}px`,
     '--ndrift': `${c.driftMs / 1000}s`,
     '--nstar': c.starColor,
     '--nmoon': c.moonColor,

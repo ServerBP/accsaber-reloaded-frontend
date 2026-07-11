@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { useFloatingPanel } from '@/composables/useFloatingPanel'
+import { computed, nextTick, ref } from 'vue';
 
 interface SelectOption {
   value: string
@@ -20,14 +21,11 @@ const emit = defineEmits<{
   'update:modelValue': [value: string]
 }>()
 
-const isOpen = ref(false)
-const search = ref('')
-const containerRef = ref<HTMLElement | null>(null)
-const triggerRef = ref<HTMLElement | null>(null)
-const panelRef = ref<HTMLElement | null>(null)
-const searchRef = ref<HTMLInputElement | null>(null)
+const { isOpen, containerRef, triggerRef, panelRef, panelStyle, toggle: togglePanel, close } =
+  useFloatingPanel()
 
-const panelStyle = ref<Record<string, string>>({})
+const search = ref('')
+const searchRef = ref<HTMLInputElement | null>(null)
 
 const selectedLabel = computed(() => {
   const opt = props.options.find((o) => o.value === props.modelValue)
@@ -44,61 +42,18 @@ const filteredOptions = computed(() => {
   )
 })
 
-function updatePanelPosition() {
-  const trigger = triggerRef.value
-  if (!trigger) return
-  const rect = trigger.getBoundingClientRect()
-  panelStyle.value = {
-    position: 'fixed',
-    top: `${rect.bottom}px`,
-    left: `${rect.left}px`,
-    width: `${rect.width}px`,
-    minWidth: `${rect.width}px`,
-  }
-}
-
 function toggle() {
-  isOpen.value = !isOpen.value
+  togglePanel()
   if (isOpen.value) {
     search.value = ''
-    updatePanelPosition()
     nextTick(() => searchRef.value?.focus())
   }
 }
 
 function select(value: string) {
   emit('update:modelValue', value)
-  isOpen.value = false
+  close()
 }
-
-function onClickOutside(e: MouseEvent) {
-  const target = e.target as Node
-  if (containerRef.value?.contains(target)) return
-  if (panelRef.value?.contains(target)) return
-  isOpen.value = false
-}
-
-function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape') isOpen.value = false
-}
-
-function onReposition() {
-  if (isOpen.value) updatePanelPosition()
-}
-
-onMounted(() => {
-  document.addEventListener('click', onClickOutside)
-  document.addEventListener('keydown', onKeydown)
-  window.addEventListener('scroll', onReposition, true)
-  window.addEventListener('resize', onReposition)
-})
-
-onUnmounted(() => {
-  document.removeEventListener('click', onClickOutside)
-  document.removeEventListener('keydown', onKeydown)
-  window.removeEventListener('scroll', onReposition, true)
-  window.removeEventListener('resize', onReposition)
-})
 </script>
 
 <template>

@@ -7,7 +7,7 @@ import PseudoLoginModal from '@/components/domain/PseudoLoginModal.vue'
 import { useAuthStore } from '@/stores/auth'
 import { onAvatarError } from '@/composables/useAvatarFallback'
 import { useBrandLogo } from '@/composables/useBrandLogo'
-import { isAdminSubdomain, isRankingSubdomain, isStaffSubdomain, playerProfileHref } from '@/utils/subdomain'
+import { isAdminSubdomain, isCreativesSubdomain, isRankingSubdomain, isStaffSubdomain, playerProfileHref } from '@/utils/subdomain'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -52,7 +52,6 @@ const publicNavItems: NavItem[] = [
   { to: '/milestones', label: 'Milestones', mobileIcon: 'milestone' },
   { to: '/stats', label: 'Stats' },
   { to: '/ranked-queue', label: 'Ranking Queue' },
-  { to: '/score-feed', label: 'Score Feed' },
 ]
 
 const adminNavItems: NavItem[] = [
@@ -93,24 +92,37 @@ const rankingNavItems = computed<NavItem[]>(() => {
   return items
 })
 
+const creativesBase = isCreativesSubdomain ? '/manage' : '/staff/creatives'
+const creativesNavItems: NavItem[] = [
+  ...publicNavItems,
+  { to: `${creativesBase}?tab=crates`, label: 'Crates' },
+  { to: `${creativesBase}?tab=preview`, label: 'Live Preview' },
+]
+
 const isRankingContext = computed(() =>
   isRankingSubdomain || route.path.startsWith('/staff/ranking')
 )
 
+const isCreativesContext = computed(() =>
+  isCreativesSubdomain || route.path.startsWith('/staff/creatives')
+)
+
 const showNewsAction = computed(() =>
-  !isAdminSubdomain && !(isRankingContext.value && authStore.isStaffAuthorized),
+  !isAdminSubdomain && !isCreativesSubdomain && !(isRankingContext.value && authStore.isStaffAuthorized),
 )
 
 const showMissionsAction = computed(() =>
-  authStore.isLoggedIn && !isAdminSubdomain && !isRankingSubdomain,
+  authStore.isLoggedIn && !isAdminSubdomain && !isRankingSubdomain && !isCreativesSubdomain,
 )
 
 const navItems = computed(() => {
   if (isRankingContext.value && authStore.isStaffAuthorized) {
     return rankingNavItems.value
   }
+  if (isCreativesContext.value && authStore.hasCreativeAccess) return creativesNavItems
   if (isAdminSubdomain) return adminNavItems
   if (isRankingSubdomain) return rankingNavItems.value
+  if (isCreativesSubdomain) return creativesNavItems
   return publicNavItems
 })
 const mobileQuickItems = computed(() =>

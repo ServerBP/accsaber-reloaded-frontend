@@ -28,16 +28,7 @@ import { useRelationsStore } from '@/stores/relations'
 import type { EquippedItemsResponse, UserItemResponse } from '@/types/api/items'
 import type { LevelResponse, PinnedScoreResponse, StatsDiffResponse, UserAllStatisticsResponse, UserCategoryStatisticsResponse, UserResponse } from '@/types/api/users'
 import type { CategoryCode } from '@/types/display'
-import {
-  pickAssetUrl,
-  pickVideoOrAssetUrl,
-  readBackgroundValue,
-  readBorderColorValue,
-  readBorderShapeValue,
-  readTitleValue,
-  resolveEquippedVariant,
-  unusualEffectLayers,
-} from '@/utils/items'
+import { useEquippedRenderProps } from '@/composables/useEquippedRenderProps'
 import { getRankClass } from '@/utils/ranking'
 import { pickAvatarUrl } from '@/composables/useAvatarFallback'
 import { computed, ref, watch } from 'vue'
@@ -100,26 +91,19 @@ const equipped = computed<EquippedItemsResponse>(() => {
   return localEquipped.value
 })
 
-const equippedTitleValue = computed(() => readTitleValue(equipped.value.title?.item.value))
-const equippedBorderColorValue = computed(() => resolveEquippedVariant(equipped.value.profile_border_color, readBorderColorValue))
-const equippedBorderShapeValue = computed(() => readBorderShapeValue(equipped.value.profile_border_shape?.item.value))
-const equippedTitleEffects = computed(() => unusualEffectLayers(equipped.value.title?.unusualEffect))
-const equippedBorderEffects = computed(() => [
-  ...unusualEffectLayers(equipped.value.profile_border_shape?.unusualEffect),
-  ...unusualEffectLayers(equipped.value.profile_border_color?.unusualEffect),
-])
-const equippedBackgroundValue = computed(() => readBackgroundValue(equipped.value.profile_background?.item.value))
-const equippedBackgroundUrl = computed(() => pickVideoOrAssetUrl(equippedBackgroundValue.value?.asset))
-const equippedBackgroundIsVideo = computed(() => !!equippedBackgroundValue.value?.asset.video)
-const equippedBackgroundImageUrl = computed(() => pickAssetUrl(equippedBackgroundValue.value?.asset))
-const equippedBackgroundStyle = computed(() => {
-  const bg = equippedBackgroundValue.value
-  if (!bg) return undefined
-  const style: Record<string, string> = {}
-  if (bg.opacity != null) style.opacity = String(bg.opacity)
-  if (bg.blendMode) style.mixBlendMode = bg.blendMode
-  return style
-})
+const {
+  titleValue: equippedTitleValue,
+  borderShapeValue: equippedBorderShapeValue,
+  borderColorValue: equippedBorderColorValue,
+  titleEffects: equippedTitleEffects,
+  borderEffects: equippedBorderEffects,
+  backgroundValue: equippedBackgroundValue,
+  backgroundUrl: equippedBackgroundUrl,
+  backgroundIsVideo: equippedBackgroundIsVideo,
+  backgroundImageUrl: equippedBackgroundImageUrl,
+  backgroundStyle: equippedBackgroundStyle,
+} = useEquippedRenderProps(equipped, { previewable: true })
+
 const equippedBackgroundFitClass = computed(() =>
   equippedBackgroundValue.value?.fit ? `profile-page__bg-equipped--${equippedBackgroundValue.value.fit}` : '',
 )
@@ -688,7 +672,7 @@ watch(activeCategory, (newCategory) => {
           <ProfileStatisticsTab v-if="activeTab === 'statistics'" :user-id="userId" :category="activeCategory"
             :xp-stats="xpStats" />
           <ProfileMilestonesTab v-if="activeTab === 'milestones'" :user-id="userId" />
-          <ProfileInventoryTab v-if="activeTab === 'inventory'" :user-id="userId" />
+          <ProfileInventoryTab v-if="activeTab === 'inventory'" :user-id="userId" :avatar-url="userAvatarUrl" />
         </div>
       </template>
     </template>

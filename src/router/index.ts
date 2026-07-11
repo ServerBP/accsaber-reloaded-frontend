@@ -1,12 +1,13 @@
 import { useAuthStore } from '@/stores/auth'
 import type { StaffRole } from '@/types/enums'
-import { isAdminSubdomain, isRankingSubdomain } from '@/utils/subdomain'
+import { isAdminSubdomain, isCreativesSubdomain, isRankingSubdomain } from '@/utils/subdomain'
 import { createRouter, createWebHistory } from 'vue-router'
 
 declare module 'vue-router' {
   interface RouteMeta {
     requiresStaff?: boolean
     requiresAdmin?: boolean
+    requiresCreative?: boolean
     requiredRole?: StaffRole
   }
 }
@@ -149,6 +150,17 @@ const router = createRouter({
       name: 'ranking-login',
       component: () => import('@/views/staff/ranking/RankingLoginPage.vue'),
     },
+    {
+      path: isCreativesSubdomain ? '/login' : '/staff/creatives/login',
+      name: 'creatives-login',
+      component: () => import('@/views/staff/creatives/CreativesLoginPage.vue'),
+    },
+    {
+      path: isCreativesSubdomain ? '/manage' : '/staff/creatives',
+      name: 'staff-creatives',
+      component: () => import('@/views/staff/creatives/CreativesDashboardPage.vue'),
+      meta: { requiresStaff: true, requiresCreative: true },
+    },
     ...(!isRankingSubdomain ? [
       {
         path: '/staff/ranking',
@@ -241,9 +253,11 @@ const router = createRouter({
   ],
 })
 
-export { isRankingSubdomain, isAdminSubdomain }
+export { isRankingSubdomain, isAdminSubdomain, isCreativesSubdomain }
 
 export const rankingDashboardRoute = isRankingSubdomain ? 'home' : 'staff-ranking'
+
+export const creativesDashboardRoute = 'staff-creatives'
 
 function getLoginRoute(requiredRole?: StaffRole): string {
   if (isRankingSubdomain || requiredRole === 'RANKING' || requiredRole === 'RANKING_HEAD') {
@@ -253,9 +267,24 @@ function getLoginRoute(requiredRole?: StaffRole): string {
 }
 
 router.beforeEach(async (to) => {
-  if (!to.meta.requiresStaff) return
-
   const auth = useAuthStore()
+
+  if (isCreativesSubdomain) {
+    if (to.name === 'creatives-login') return
+    if (auth.staffToken && auth.isTokenExpiringSoon) {
+      try {
+        await auth.refreshStaffToken()
+      } catch {
+        auth.clearStaffAuth()
+      }
+    }
+    if (!auth.hasCreativeAccess) {
+      return { name: 'creatives-login', query: { redirect: to.fullPath } }
+    }
+    return
+  }
+
+  if (!to.meta.requiresStaff) return
 
   if (isAdminSubdomain) {
     if (auth.staffToken && !auth.isAdmin) auth.clearStaffAuth()
@@ -269,6 +298,20 @@ router.beforeEach(async (to) => {
         auth.clearStaffAuth()
         return { name: 'staff-login', query: { redirect: to.fullPath } }
       }
+    }
+    return
+  }
+
+  if (to.meta.requiresCreative) {
+    if (auth.staffToken && auth.isTokenExpiringSoon) {
+      try {
+        await auth.refreshStaffToken()
+      } catch {
+        auth.clearStaffAuth()
+      }
+    }
+    if (!auth.hasCreativeAccess) {
+      return { name: 'creatives-login', query: { redirect: to.fullPath } }
     }
     return
   }

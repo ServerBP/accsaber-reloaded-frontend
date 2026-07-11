@@ -1,4 +1,5 @@
 import { useAuthStore } from '@/stores/auth'
+import { currentRealm } from '@/utils/subdomain'
 
 export class ApiError extends Error {
   constructor(
@@ -152,6 +153,7 @@ async function executeFetch<T>(
     'Content-Type': 'application/json',
   }
   if (authHeader) headers['Authorization'] = `Bearer ${authHeader}`
+  if (currentRealm) headers['X-AccSaber-Realm'] = currentRealm
 
   const res = await fetch(url, {
     method,
@@ -241,6 +243,7 @@ export async function postMultipart<T>(path: string, formData: FormData): Promis
   const authHeader = await resolveAuthHeader(path)
   const headers: Record<string, string> = {}
   if (authHeader) headers['Authorization'] = `Bearer ${authHeader}`
+  if (currentRealm) headers['X-AccSaber-Realm'] = currentRealm
   const res = await fetch(url, { method: 'POST', headers, body: formData })
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText)

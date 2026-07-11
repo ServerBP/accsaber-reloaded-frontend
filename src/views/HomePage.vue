@@ -263,6 +263,8 @@ onUnmounted(() => {
           GitHub
         </a>
         <span class="home-footer__sep" aria-hidden="true">·</span>
+        <RouterLink to="/score-feed" class="home-footer__link">Score Feed</RouterLink>
+        <span class="home-footer__sep" aria-hidden="true">·</span>
         <RouterLink to="/credits" class="home-footer__link">Credits</RouterLink>
       </nav>
     </footer>

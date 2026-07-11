@@ -4,6 +4,7 @@ export type StaffRole =
   | 'RANKING'
   | 'RANKING_HEAD'
   | 'CAMPAIGN_CURATOR'
+  | 'CREATIVE'
   | 'ADMIN'
   | 'DEVELOPER'
   | 'MODERATOR'
