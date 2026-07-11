@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import CratePreviewModal from '@/components/domain/CratePreviewModal.vue'
-import { useCrateContents } from '@/composables/useCrateContents'
-import { useCrateModifiers } from '@/composables/useCrateModifiers'
-import { useCrateUnusualEffects } from '@/composables/useCrateUnusualEffects'
-import type { ItemResponse } from '@/types/api/items'
-import { watch } from 'vue'
+import type {
+  CrateContentResponse,
+  CrateModifierResponse,
+  ItemResponse,
+  UnusualEffectResponse,
+} from '@/types/api/items'
+import { ref, watch } from 'vue'
 
 const props = defineProps<{
   open: boolean
@@ -14,18 +16,42 @@ const props = defineProps<{
 
 defineEmits<{ close: [] }>()
 
-const { contents, loading: contentsLoading } = useCrateContents(() => props.crate)
-const { modifiers, loading: modifiersLoading } = useCrateModifiers(() => props.crate)
-const {
-  effects,
-  loading: effectsLoading,
-  load: loadEffects,
-} = useCrateUnusualEffects(() => props.crate?.id ?? null)
+const contents = ref<CrateContentResponse[]>([])
+const modifiers = ref<CrateModifierResponse[]>([])
+const effects = ref<UnusualEffectResponse[]>([])
+const loading = ref(false)
+
+let requestId = 0
+
+async function load(crateId: string) {
+  const token = ++requestId
+  loading.value = true
+  try {
+    const { getStaffCrateContents, getStaffCrateModifiers, getStaffCrateUnusualEffects } =
+      await import('@/api/staff/crates')
+    const [contentList, modifierList, effectList] = await Promise.all([
+      getStaffCrateContents(crateId),
+      getStaffCrateModifiers(crateId),
+      getStaffCrateUnusualEffects(crateId),
+    ])
+    if (token !== requestId) return
+    contents.value = contentList
+    modifiers.value = modifierList
+    effects.value = effectList
+  } catch {
+    if (token !== requestId) return
+    contents.value = []
+    modifiers.value = []
+    effects.value = []
+  } finally {
+    if (token === requestId) loading.value = false
+  }
+}
 
 watch(
-  () => props.open && props.crate?.id,
-  (ready) => {
-    if (ready) loadEffects()
+  () => (props.open ? (props.crate?.id ?? null) : null),
+  (crateId) => {
+    if (crateId) load(crateId)
   },
   { immediate: true },
 )
@@ -36,11 +62,11 @@ watch(
     :open="open"
     :crate="crate"
     :contents="contents"
-    :contents-loading="contentsLoading"
+    :contents-loading="loading"
     :modifiers="modifiers"
-    :modifiers-loading="modifiersLoading"
+    :modifiers-loading="loading"
     :effects="effects"
-    :effects-loading="effectsLoading"
+    :effects-loading="loading"
     :owned-item-ids="ownedItemIds"
     @close="$emit('close')"
   />
