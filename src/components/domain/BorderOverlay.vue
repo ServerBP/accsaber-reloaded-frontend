@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import BorderArcadeOverlay from '@/components/domain/BorderArcadeOverlay.vue'
 import BorderBlackHoleOverlay from '@/components/domain/BorderBlackHoleOverlay.vue'
+import BorderBlueprintOverlay from '@/components/domain/BorderBlueprintOverlay.vue'
 import BorderRainOverlay from '@/components/domain/BorderRainOverlay.vue'
 import BorderThermalOverlay from '@/components/domain/BorderThermalOverlay.vue'
 import type { BorderColorValue, BorderOverlaySpec, BorderOverlayType } from '@/types/api/items'
@@ -11,6 +12,7 @@ const OVERLAY_RENDERERS: Record<BorderOverlayType, Component> = {
   blackhole: BorderBlackHoleOverlay,
   arcade: BorderArcadeOverlay,
   thermal: BorderThermalOverlay,
+  blueprint: BorderBlueprintOverlay,
 }
 
 defineProps<{

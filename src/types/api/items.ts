@@ -150,7 +150,7 @@ export interface TitleSparkleSpec {
   spreadPct?: number
 }
 
-export type TitleOrnamentIcon = 'yarn_ball' | (string & {})
+export type TitleOrnamentIcon = 'yarn_ball' | 'alpha' | (string & {})
 
 export interface TitleOrnamentSpec {
   icon: TitleOrnamentIcon
@@ -368,11 +368,26 @@ export interface BorderThermalOverlaySpec {
   window?: { x: number; y: number; w: number; h: number }
 }
 
+export interface BorderBlueprintOverlaySpec {
+  type: 'blueprint'
+  enabled: boolean
+  draft?: string
+  draftDim?: string
+  pivot?: { x: number; y: number }
+  mirror?: boolean
+  radius?: number
+  sweepFromDeg?: number
+  sweepToDeg?: number
+  periodMs?: number
+  dim?: { x1: number; y1: number; x2: number; y2: number }
+}
+
 export type BorderOverlaySpec =
   | BorderRainOverlaySpec
   | BorderBlackHoleOverlaySpec
   | BorderArcadeOverlaySpec
   | BorderThermalOverlaySpec
+  | BorderBlueprintOverlaySpec
 
 export type BorderOverlayType = BorderOverlaySpec['type']
 

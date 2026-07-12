@@ -12,6 +12,7 @@ const props = defineProps<{
   typeKey?: ItemTypeKey
   stackIndex?: number
   measureSelector?: string
+  contentMask?: string | null
 }>()
 
 const compositions = computed<Composition[]>(() => props.spec?.compositions ?? [])
@@ -45,6 +46,29 @@ const layers = computed<EffectLayer[]>(() => {
   return out
 })
 
+const maskedLayers = computed(() =>
+  props.contentMask ? layers.value.filter((l) => !BLEED_TYPES.has(l.composition.type)) : layers.value,
+)
+const unmaskedLayers = computed(() =>
+  props.contentMask ? layers.value.filter((l) => BLEED_TYPES.has(l.composition.type)) : [],
+)
+
+const maskStyle = computed<Record<string, string> | undefined>(() => {
+  if (!props.contentMask) return undefined
+  const b = box.value
+  if (!b.w || !b.h) return undefined
+  return {
+    maskImage: props.contentMask,
+    webkitMaskImage: props.contentMask,
+    maskSize: `${b.w}px ${b.h}px`,
+    webkitMaskSize: `${b.w}px ${b.h}px`,
+    maskPosition: `${b.x}px ${b.y}px`,
+    webkitMaskPosition: `${b.x}px ${b.y}px`,
+    maskRepeat: 'no-repeat',
+    webkitMaskRepeat: 'no-repeat',
+  }
+})
+
 if (import.meta.env.DEV) {
   watchEffect(() => {
     for (const c of compositions.value) {
@@ -62,9 +86,19 @@ if (import.meta.env.DEV) {
     :class="{ 'modifier-overlay--bleed': bleeds }"
     aria-hidden="true"
   >
+    <div v-if="maskedLayers.length" class="modifier-overlay__clip" :style="maskStyle">
+      <component
+        :is="layer.renderer"
+        v-for="layer in maskedLayers"
+        :key="layer.index"
+        :composition="layer.composition"
+        :ctx="ctx"
+        :measure="measure"
+      />
+    </div>
     <component
       :is="layer.renderer"
-      v-for="layer in layers"
+      v-for="layer in unmaskedLayers"
       :key="layer.index"
       :composition="layer.composition"
       :ctx="ctx"
@@ -84,5 +118,11 @@ if (import.meta.env.DEV) {
 
 .modifier-overlay--bleed {
   overflow: visible;
+}
+
+.modifier-overlay__clip {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
 </style>

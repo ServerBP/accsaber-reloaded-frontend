@@ -8,7 +8,10 @@ export type MissionType =
   | 'PB_SPECIFIC_MAP'
   | 'PB_ABOVE_THRESHOLD'
   | 'SNIPE_PLAYER_ON_MAP'
+  | 'STREAK_ON_MAP'
   | 'STREAK_N_IN_CATEGORY'
+  | 'COMEBACK_PB'
+  | 'SCORES_N'
 
 export type MissionPool = 'daily' | 'weekly' | 'event'
 

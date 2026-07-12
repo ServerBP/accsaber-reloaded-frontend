@@ -60,6 +60,22 @@ export const NEWS_TYPE_ORDER: NewsType[] = [
 
 export const STANDALONE_NEWS_TYPES: NewsType[] = ['GENERAL', 'ITEMS', 'PLUGIN']
 
+import type { EventState } from '@/types/api/events'
+
+export const EVENT_STATE_LABELS: Record<EventState, string> = {
+  live: 'Live',
+  upcoming: 'Upcoming',
+  past: 'Past',
+}
+
+export const EVENT_STATE_ORDER: EventState[] = ['live', 'upcoming', 'past']
+
+export const EVENT_STATE_ACCENT: Record<EventState, string> = {
+  live: 'var(--success)',
+  upcoming: 'var(--accent-overall)',
+  past: 'var(--text-tertiary)',
+}
+
 export const CATEGORY_ORDER = ['true_acc', 'standard_acc', 'tech_acc', 'low_mid', 'overall'] as const
 
 export const ROLE_ORDER: Record<string, number> = {

@@ -64,6 +64,7 @@ const adminNavItems: NavItem[] = [
   { to: '/?tab=items', label: 'Items' },
   { to: '/?tab=curves', label: 'Curves' },
   { to: '/?tab=news', label: 'News' },
+  { to: '/?tab=events', label: 'Events' },
   { to: '/?tab=operations', label: 'Operations' },
   { to: '/?tab=duplicates', label: 'Duplicates' },
 ]

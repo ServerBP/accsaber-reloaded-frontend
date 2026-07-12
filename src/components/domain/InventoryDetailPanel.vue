@@ -14,6 +14,7 @@ import { useThemeStore } from '@/stores/theme'
 import type { BorderColorValue, BorderShapeValue, CrateContentResponse, CrateModifierResponse, ItemModifierRef, ItemResponse, ItemVariant, UserItemResponse } from '@/types/api/items'
 import { formatEssence } from '@/utils/essence'
 import { formatRelativeDate } from '@/utils/formatters'
+import { shapeSilhouetteMask } from '@/utils/shapeSilhouette'
 import {
   buildEffectLayers,
   displayItemName,
@@ -121,6 +122,11 @@ const showComposition = computed(() =>
   props.isOwnProfile && (isBorderShapeItem.value || isBorderColorItem.value),
 )
 
+const effectMask = computed(() => {
+  if (showComposition.value) return shapeSilhouetteMask(compositionShape.value)
+  return isBorderShapeItem.value ? shapeSilhouetteMask(selectedShapeValue.value) : null
+})
+
 const modifiers = computed<ItemModifierRef[]>(() =>
   sortModifiersByKey(props.userItem?.modifiers ?? []),
 )
@@ -198,6 +204,7 @@ onMounted(() => {
         :context="tokenCtx"
         :type-key="item?.typeKey"
         measure-selector=".border-composition, .title-renderer, .item-preview > *"
+        :content-mask="effectMask"
       />
     </div>
 

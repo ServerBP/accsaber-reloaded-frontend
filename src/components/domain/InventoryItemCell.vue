@@ -9,10 +9,12 @@ import {
   buildEffectLayers,
   displayItemName,
   rarityClass,
+  readBorderShapeValue,
   readFragmentSpec,
   sortModifiersByKey,
   userItemTokenContext,
 } from '@/utils/items'
+import { shapeSilhouetteMask } from '@/utils/shapeSilhouette'
 import { computed, onMounted } from 'vue'
 
 const props = defineProps<{
@@ -35,6 +37,11 @@ const effectLayers = computed(() =>
 )
 const fragmentSpec = computed(() => readFragmentSpec(props.userItem.unusualEffect))
 const tokenCtx = computed(() => userItemTokenContext(props.userItem))
+const shapeMask = computed(() =>
+  item.value.typeKey === 'profile_border_shape'
+    ? shapeSilhouetteMask(readBorderShapeValue(item.value.value))
+    : null,
+)
 const quantity = computed(() => props.userItem.quantity ?? 1)
 
 const { accent } = useModifierColor(modifiers)
@@ -80,6 +87,7 @@ onMounted(() => {
         :context="tokenCtx"
         :type-key="item.typeKey"
         measure-selector=".title-renderer, .item-preview > *"
+        :content-mask="shapeMask"
       />
 
       <span v-if="equipped && !locked" class="inventory-cell__equipped" aria-hidden="true">EQUIPPED</span>

@@ -112,7 +112,7 @@ const router = createRouter({
       {
         path: '/news',
         name: 'news',
-        component: () => import('@/views/NewsPage.vue'),
+        component: () => import('@/views/NewsEventsPage.vue'),
       },
       {
         path: '/news/:slug',
@@ -232,6 +232,12 @@ const router = createRouter({
       path: '/campaigns/:campaignId/edit',
       name: 'campaign-editor',
       component: () => import('@/views/staff/campaigns/CampaignEditorPage.vue'),
+    },
+    {
+      path: '/admin/events/:eventId',
+      name: 'admin-event-editor',
+      component: () => import('@/views/staff/admin/events/EventEditorPage.vue'),
+      meta: { requiresStaff: true, requiredRole: 'ADMIN' },
     },
     {
       path: '/admin/items/crates',

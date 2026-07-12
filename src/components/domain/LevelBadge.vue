@@ -18,6 +18,7 @@ import {
   type EffectLayer,
 } from '@/utils/items'
 import { DEFAULT_AVATAR_MASK, resolveAvatarImageBox } from '@/utils/avatarBox'
+import { shapeSilhouetteMask } from '@/utils/shapeSilhouette'
 import { computed, ref, watch } from 'vue'
 
 const props = defineProps<{
@@ -52,6 +53,7 @@ const titleFragment = computed(() => readFragmentFromLayers(props.titleEffects))
 
 const borderFxLayers = computed(() => annotateEffectLayerStacks(props.borderEffects))
 const titleFxLayers = computed(() => annotateEffectLayerStacks(props.titleEffects))
+const borderFxMask = computed(() => shapeSilhouetteMask(props.equippedBorderShape))
 
 const hasShapeOverride = computed(() => !!props.equippedBorderShape)
 
@@ -132,6 +134,7 @@ const fallbackTitleStyle = computed(() => {
         class="level-badge__border-fx"
         :spec="layer.spec"
         :stack-index="layer.stackIndex"
+        :content-mask="borderFxMask"
       />
     </div>
 
