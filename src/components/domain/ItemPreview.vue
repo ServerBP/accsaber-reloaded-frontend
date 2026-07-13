@@ -292,6 +292,7 @@ const fallbackInitial = computed(() => props.item.name.charAt(0).toUpperCase())
   height: 100%;
   color: var(--text-primary);
   overflow: hidden;
+  container-type: inline-size;
   --cell-accent: initial;
 }
 
@@ -323,7 +324,7 @@ const fallbackInitial = computed(() => props.item.name.charAt(0).toUpperCase())
   justify-content: center;
   width: 100%;
   max-width: 100%;
-  padding: 0 var(--space-sm);
+  padding: 0 var(--space-xs);
   color: var(--text-primary);
   text-align: center;
 }

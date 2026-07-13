@@ -127,9 +127,12 @@ watch(
 defineExpose({ skip })
 
 const cards = computed(() =>
-  carousel.value.map((slot) => ({
+  carousel.value.map((slot, i) => ({
     slot,
-    layers: annotateEffectLayerStacks(buildEffectLayers(slot.modifiers, slot.unusualEffect)),
+    layers:
+      i === landingIndex.value
+        ? annotateEffectLayerStacks(buildEffectLayers(slot.modifiers, slot.unusualEffect))
+        : [],
   })),
 )
 
@@ -248,13 +251,15 @@ const scoreTier = computed<'perfect' | 'great' | 'good' | 'ok'>(() => {
               :modifiers="card.slot.modifiers"
               :arrow="i === landingIndex && phase === 'landed'"
             />
-            <ModifierCompositions
-              v-for="layer in card.layers"
-              :key="layer.key"
-              :spec="layer.spec"
-              :type-key="card.slot.item.typeKey"
-              measure-selector=".bloq"
-            />
+            <template v-if="i === landingIndex">
+              <ModifierCompositions
+                v-for="layer in card.layers"
+                :key="layer.key"
+                :spec="layer.spec"
+                :type-key="card.slot.item.typeKey"
+                measure-selector=".bloq"
+              />
+            </template>
           </div>
         </div>
       </div>

@@ -6,6 +6,7 @@ import FilterEffect from './FilterEffect.vue'
 import FirefliesEffect from './FirefliesEffect.vue'
 import FireworksEffect from './FireworksEffect.vue'
 import GlowEffect from './GlowEffect.vue'
+import HolographicEffect from './HolographicEffect.vue'
 import LabelOverlayEffect from './LabelOverlayEffect.vue'
 import NightSkyEffect from './NightSkyEffect.vue'
 import ParticleFieldEffect from './ParticleFieldEffect.vue'
@@ -18,6 +19,7 @@ export const EFFECT_REGISTRY: Record<string, Component> = {
   stat_counter: LabelOverlayEffect,
   filter: FilterEffect,
   glow: GlowEffect,
+  holographic: HolographicEffect,
   particles: ParticleFieldEffect,
   rays: RaysEffect,
   aurora: AuroraEffect,
