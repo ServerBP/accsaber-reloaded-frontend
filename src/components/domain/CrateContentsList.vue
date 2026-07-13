@@ -4,13 +4,15 @@ import ItemPreview from '@/components/domain/ItemPreview.vue'
 import type { CrateContentResponse } from '@/types/api/items'
 import { groupCrateContentsByRarity, rarityClass } from '@/utils/items'
 import { formatChancePercent } from '@/utils/modifiers'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 const props = defineProps<{
   contents: CrateContentResponse[]
   loading?: boolean
   ownedItemIds?: Set<string>
 }>()
+
+const expanded = ref(false)
 
 function isOwned(itemId: string): boolean {
   return props.ownedItemIds?.has(itemId) ?? false
@@ -21,22 +23,35 @@ const groups = computed(() => groupCrateContentsByRarity(props.contents))
 
 <template>
   <section class="crate-contents">
-    <div class="crate-contents__head">
+    <button
+      type="button"
+      class="crate-contents__head"
+      :aria-expanded="expanded"
+      @click="expanded = !expanded"
+    >
       <span class="crate-contents__title">Contents</span>
       <span v-if="!loading && contents.length" class="crate-contents__count">
         {{ contents.length }} {{ contents.length === 1 ? 'item' : 'items' }}
       </span>
-    </div>
+      <svg
+        class="crate-contents__chevron"
+        :class="{ 'crate-contents__chevron--open': expanded }"
+        width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
+      >
+        <polyline points="6 9 12 15 18 9" />
+      </svg>
+    </button>
 
-    <div v-if="loading" class="crate-contents__list">
+    <div v-if="expanded && loading" class="crate-contents__list">
       <SkeletonLoader v-for="i in 4" :key="i" variant="table-row" />
     </div>
 
-    <p v-else-if="!contents.length" class="crate-contents__mystery">
+    <p v-else-if="expanded && !contents.length" class="crate-contents__mystery">
       Its contents are a mystery for now.
     </p>
 
-    <div v-else class="crate-contents__list">
+    <div v-else-if="expanded" class="crate-contents__list">
       <div
         v-for="group in groups"
         :key="group.rarity"
@@ -81,9 +96,16 @@ const groups = computed(() => groupCrateContentsByRarity(props.contents))
 
 .crate-contents__head {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  align-items: center;
   gap: var(--space-sm);
+  width: 100%;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
 }
 
 .crate-contents__title {
@@ -96,6 +118,28 @@ const groups = computed(() => groupCrateContentsByRarity(props.contents))
 .crate-contents__count {
   font-size: var(--text-caption);
   color: var(--text-tertiary);
+}
+
+.crate-contents__chevron {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+  transition: transform 150ms ease;
+}
+
+.crate-contents__chevron--open {
+  transform: rotate(180deg);
+}
+
+.crate-contents__head:hover .crate-contents__title,
+.crate-contents__head:hover .crate-contents__chevron {
+  color: var(--text-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crate-contents__chevron {
+    transition: none;
+  }
 }
 
 .crate-contents__mystery {

@@ -2,17 +2,19 @@
 import ItemPreview from '@/components/domain/ItemPreview.vue'
 import PublicCratePreview from '@/components/domain/PublicCratePreview.vue'
 import VariantSplitPreview from '@/components/domain/VariantSplitPreview.vue'
+import ItemPreviewModal from '@/components/domain/ItemPreviewModal.vue'
 import type { ItemResponse } from '@/types/api/items'
 import { itemVariantPreviews, rarityClass } from '@/utils/items'
 import { computed, ref, watch } from 'vue'
 
 const props = withDefaults(
   defineProps<{
+    item?: ItemResponse | null
     itemId?: string | null
     name?: string | null
     size?: number
   }>(),
-  { itemId: null, name: null, size: 56 },
+  { item: null, itemId: null, name: null, size: 56 },
 )
 
 const itemCache = new Map<string, Promise<ItemResponse | null>>()
@@ -27,51 +29,55 @@ function loadItem(id: string): Promise<ItemResponse | null> {
   return request
 }
 
-const item = ref<ItemResponse | null>(null)
+const fetched = ref<ItemResponse | null>(null)
 const open = ref(false)
 
+const resolved = computed(() => props.item ?? fetched.value)
+
 watch(
-  () => props.itemId,
-  async (id) => {
-    item.value = null
+  () => [props.item, props.itemId] as const,
+  async ([inline, id]) => {
+    if (inline) return
+    fetched.value = null
     if (!id) return
-    const resolved = await loadItem(id)
-    if (props.itemId === id) item.value = resolved
+    const result = await loadItem(id)
+    if (props.itemId === id && !props.item) fetched.value = result
   },
   { immediate: true },
 )
 
-const isCrate = computed(() => item.value?.typeKey === 'crate')
-const isTitle = computed(() => item.value?.typeKey === 'title')
-const variants = computed(() => (item.value ? itemVariantPreviews(item.value) : null))
-const displayName = computed(() => item.value?.name ?? props.name ?? 'Reward')
+const isCrate = computed(() => resolved.value?.typeKey === 'crate')
+const isTitle = computed(() => resolved.value?.typeKey === 'title')
+const clickable = computed(() => resolved.value !== null)
+const variants = computed(() => (resolved.value ? itemVariantPreviews(resolved.value) : null))
+const displayName = computed(() => resolved.value?.name ?? props.name ?? 'Reward')
 const initial = computed(() => displayName.value.charAt(0).toUpperCase())
 
 const hoverTitle = computed(() => {
-  const type = item.value ? item.value.typeKey.replace(/_/g, ' ') : null
+  const type = resolved.value ? resolved.value.typeKey.replace(/_/g, ' ') : null
   let base = type ? `${displayName.value} · ${type}` : displayName.value
   if (variants.value) base += ` · ${variants.value.length} variants`
-  if (isCrate.value) base += ' (click to preview)'
+  if (clickable.value) base += ' (click to preview)'
   return base
 })
 </script>
 
 <template>
   <component
-    :is="isCrate ? 'button' : 'div'"
-    :type="isCrate ? 'button' : undefined"
+    :is="clickable ? 'button' : 'div'"
+    :type="clickable ? 'button' : undefined"
     class="reward-tile"
     :class="[
-      item ? rarityClass(item.rarity) : 'reward-tile--plain',
-      { 'reward-tile--crate': isCrate, 'reward-tile--wide': isTitle },
+      resolved ? rarityClass(resolved.rarity) : 'reward-tile--plain',
+      { 'reward-tile--clickable': clickable, 'reward-tile--wide': isTitle },
     ]"
     :style="{ '--tile-size': `${size}px` }"
     :title="hoverTitle"
-    :aria-label="isCrate ? `Preview crate: ${displayName}` : displayName"
-    @click="isCrate && (open = true)"
+    :aria-label="isCrate ? `Preview crate: ${displayName}` : `Preview ${displayName}`"
+    @click="clickable && (open = true)"
   >
-    <VariantSplitPreview v-if="item && variants" :item="item" :variants="variants" />
-    <ItemPreview v-else-if="item" :item="item" />
+    <VariantSplitPreview v-if="resolved && variants" :item="resolved" :variants="variants" />
+    <ItemPreview v-else-if="resolved" :item="resolved" />
     <span v-else-if="name" class="reward-tile__initial">{{ initial }}</span>
     <svg v-else class="reward-tile__glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -84,7 +90,7 @@ const hoverTitle = computed(() => {
 
     <span v-if="variants" class="reward-tile__variant-count" aria-hidden="true">{{ variants.length }}</span>
 
-    <span v-if="isCrate" class="reward-tile__crate-hint" aria-hidden="true">
+    <span v-if="clickable" class="reward-tile__view-hint" aria-hidden="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
         stroke-linejoin="round">
         <circle cx="11" cy="11" r="7" />
@@ -92,7 +98,8 @@ const hoverTitle = computed(() => {
       </svg>
     </span>
 
-    <PublicCratePreview v-if="isCrate" :open="open" :crate="item" @close="open = false" />
+    <PublicCratePreview v-if="isCrate" :open="open" :crate="resolved" @close="open = false" />
+    <ItemPreviewModal v-else :open="open" :item="resolved" @close="open = false" />
   </component>
 </template>
 
@@ -134,7 +141,7 @@ button.reward-tile {
   transition: border-color 120ms ease, transform 120ms ease;
 }
 
-.reward-tile--crate:hover {
+.reward-tile--clickable:hover {
   transform: translateY(-1px);
   border-color: var(--text-primary);
 }
@@ -178,7 +185,7 @@ button.reward-tile {
   line-height: 1;
 }
 
-.reward-tile__crate-hint {
+.reward-tile__view-hint {
   position: absolute;
   right: 3px;
   bottom: 3px;
@@ -190,9 +197,10 @@ button.reward-tile {
   border-radius: 3px;
   background: color-mix(in srgb, var(--bg-base) 70%, transparent);
   color: var(--text-secondary);
+  opacity: 0.75;
 }
 
-.reward-tile__crate-hint svg {
+.reward-tile__view-hint svg {
   width: 10px;
   height: 10px;
 }

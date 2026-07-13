@@ -2,6 +2,7 @@
 import BaseButton from '@/components/common/BaseButton.vue'
 import BaseInput from '@/components/common/BaseInput.vue'
 import BaseModal from '@/components/common/BaseModal.vue'
+import ImageUploader from '@/components/common/ImageUploader.vue'
 import NewsResourceSelector, { type ResourceKind } from '@/components/domain/NewsResourceSelector.vue'
 import type { CreateNewsRequest, NewsResponse } from '@/types/api/news'
 import type { NewsStatus, NewsType } from '@/types/enums'
@@ -14,11 +15,14 @@ const props = defineProps<{
   allowed: ResourceKind[]
   allowedStandalone?: NewsType[]
   loading?: boolean
+  uploadImage?: (id: string, file: File) => Promise<NewsResponse>
+  deleteImage?: (id: string) => Promise<NewsResponse>
 }>()
 
 const emit = defineEmits<{
   close: []
   submit: [payload: CreateNewsRequest]
+  imageChanged: [news: NewsResponse]
 }>()
 
 const STATUS_OPTIONS: NewsStatus[] = ['DRAFT', 'PUBLISHED', 'ARCHIVED']
@@ -105,6 +109,22 @@ function submit() {
   if (!payload) return
   emit('submit', payload)
 }
+
+const canUploadImage = computed(() => isEdit.value && !!props.uploadImage)
+
+async function handleImageUpload(file: File) {
+  if (!props.editing || !props.uploadImage) return
+  const updated = await props.uploadImage(props.editing.id, file)
+  imageUrl.value = updated.imageUrl ?? ''
+  emit('imageChanged', updated)
+}
+
+async function handleImageRemove() {
+  if (!props.editing || !props.deleteImage) return
+  const updated = await props.deleteImage(props.editing.id)
+  imageUrl.value = updated.imageUrl ?? ''
+  emit('imageChanged', updated)
+}
 </script>
 
 <template>
@@ -120,6 +140,15 @@ function submit() {
       </div>
 
       <BaseInput v-model="imageUrl" label="Image URL (optional)" placeholder="https://…" />
+
+      <ImageUploader
+        v-if="canUploadImage"
+        label="Cover Image"
+        hint="Uploaded to the CDN, stored as WEBP"
+        :image-url="imageUrl || null"
+        :upload-handler="handleImageUpload"
+        :remove-handler="deleteImage ? handleImageRemove : undefined"
+      />
 
       <div class="news-form__row">
         <div class="news-form__field">

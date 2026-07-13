@@ -29,6 +29,16 @@ async function onUpdate(id: string, req: UpdateNewsRequest) {
   const { updateRankingNews } = await import('@/api/ranking/news')
   return updateRankingNews(id, req)
 }
+
+async function onUploadImage(id: string, file: File) {
+  const { uploadRankingNewsImage } = await import('@/api/ranking/news')
+  return uploadRankingNewsImage(id, file)
+}
+
+async function onDeleteImage(id: string) {
+  const { deleteRankingNewsImage } = await import('@/api/ranking/news')
+  return deleteRankingNewsImage(id)
+}
 </script>
 
 <template>
@@ -40,6 +50,8 @@ async function onUpdate(id: string, req: UpdateNewsRequest) {
       :on-create="onCreate"
       :on-update="onUpdate"
       :on-delete="null"
+      :on-upload-image="onUploadImage"
+      :on-delete-image="onDeleteImage"
     />
   </div>
 </template>

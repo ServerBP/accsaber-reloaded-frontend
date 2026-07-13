@@ -29,7 +29,7 @@ import {
   sortModifiersByKey,
   userItemTokenContext,
 } from '@/utils/items'
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 const props = defineProps<{
   userItem: UserItemResponse | null
@@ -52,6 +52,7 @@ defineEmits<{
   equip: [linkId: string]
   unequip: [typeKey: string]
   disintegrate: [linkId: string]
+  openCrate: [linkId: string]
   applyThemeMode: [linkId: string, alt: boolean]
   selectVariant: [linkId: string, variantKey: string]
 }>()
@@ -159,6 +160,14 @@ const showEquipActions = computed(() => !props.locked && props.isOwnProfile && e
 const essenceWorth = computed(() => item.value?.worth ?? 0)
 const showDisintegrate = computed(() => !props.locked && props.isOwnProfile && essenceWorth.value > 0)
 const disintegrateEssence = computed(() => essenceWorth.value * quantity.value)
+const showOpenCrate = computed(
+  () => isCrate.value && props.isOwnProfile && !props.locked && !!item.value?.active && !item.value.deprecated,
+)
+
+const CRATE_UNLOCK_MS = Date.UTC(2026, 6, 17, 15, 0, 0)
+const CRATE_UNLOCK_MESSAGE = 'Crate opening unlocks Friday, July 17 at 3:00 PM UTC.'
+const crateLocked = ref(Date.now() < CRATE_UNLOCK_MS)
+let crateUnlockTimer: ReturnType<typeof setTimeout> | undefined
 const showActions = computed(() => showEquipActions.value || showDisintegrate.value || !item.value?.tradeable)
 const hasMetaRows = computed(() => {
   if (!props.locked) return true
@@ -180,6 +189,15 @@ const sourceLabel = computed(() => {
 
 onMounted(() => {
   modifierStore.fetchModifiers()
+  if (crateLocked.value) {
+    const delay = CRATE_UNLOCK_MS - Date.now()
+    if (delay <= 0) crateLocked.value = false
+    else crateUnlockTimer = setTimeout(() => { crateLocked.value = false }, delay)
+  }
+})
+
+onUnmounted(() => {
+  if (crateUnlockTimer) clearTimeout(crateUnlockTimer)
 })
 </script>
 
@@ -224,6 +242,23 @@ onMounted(() => {
     </div>
 
     <p v-if="item.description" class="inv-detail__description">{{ item.description }}</p>
+
+    <div v-if="showOpenCrate" class="inv-detail__crate-open-row">
+      <span
+        class="inv-detail__crate-open"
+        :title="crateLocked ? CRATE_UNLOCK_MESSAGE : undefined"
+      >
+        <BaseButton
+          variant="primary"
+          size="md"
+          :loading="busy"
+          :disabled="crateLocked"
+          @click="$emit('openCrate', userItem.linkId)"
+        >
+          Open crate
+        </BaseButton>
+      </span>
+    </div>
 
     <CrateContentsList
       v-if="isCrate"
@@ -559,6 +594,14 @@ onMounted(() => {
   align-items: center;
   gap: var(--space-sm);
   flex-wrap: wrap;
+}
+
+.inv-detail__crate-open-row {
+  display: flex;
+}
+
+.inv-detail__crate-open {
+  display: inline-flex;
 }
 
 .inv-detail__essence-yield {

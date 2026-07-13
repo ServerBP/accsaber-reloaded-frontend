@@ -18,7 +18,7 @@ import {
   NEWS_TYPE_LABELS,
   NEWS_TYPE_ORDER,
 } from '@/utils/constants'
-import { EVENT_STATUS_COLOR, EVENT_STATUS_LABEL, eventStatus, type EventStatus } from '@/utils/events'
+import { EVENT_STATUS_COLOR, EVENT_STATUS_LABEL, eventCountdown, eventStatus } from '@/utils/events'
 import { formatRelativeDate } from '@/utils/formatters'
 import { computed, ref } from 'vue'
 
@@ -59,16 +59,6 @@ const filteredNews = computed(() => props.news.filter((n) => matches(n.title, n.
 
 const filterActive = computed(() => props.eventFilter !== null || props.newsFilter !== null)
 
-function shortDate(value: string): string {
-  return new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-}
-
-function eventMeta(event: EventResponse, status: EventStatus): string {
-  if (status === 'upcoming') return shortDate(event.startsAt)
-  if (status === 'past') return shortDate(event.endsAt)
-  return `ends ${shortDate(event.endsAt)}`
-}
-
 const eventCards = computed(() =>
   props.events
     .filter((e) => matches(e.title, e.description))
@@ -79,7 +69,7 @@ const eventCards = computed(() =>
         status,
         badge: EVENT_STATUS_LABEL[status],
         color: EVENT_STATUS_COLOR[status],
-        meta: eventMeta(event, status),
+        meta: eventCountdown(event, now.value),
       }
     }),
 )
@@ -170,8 +160,8 @@ const newsTypeChoices = computed(() => [
           :badge="card.badge"
           :badge-accent="card.color"
           :accent="card.color"
-          :active="activeKind === 'event' && activeId === card.event.id"
-          @select="emit('select-event', card.event.id)"
+          :active="activeKind === 'event' && activeId === card.event.slug"
+          @select="emit('select-event', card.event.slug)"
         >
           <template #fallback>
             <EventStatusGlyph :status="card.status" />

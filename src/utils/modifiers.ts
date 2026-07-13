@@ -57,6 +57,20 @@ export function formatMonthDay(value: string | null | undefined): string {
   return `${MONTH_LABELS[parsed.month - 1] ?? '?'} ${parsed.day}`
 }
 
+export function isModifierInSeason(
+  modifier: { seasonStart: string | null; seasonEnd: string | null },
+  now = new Date(),
+): boolean {
+  const start = parseMonthDay(modifier.seasonStart)
+  const end = parseMonthDay(modifier.seasonEnd)
+  if (!start || !end) return true
+  const md = (now.getMonth() + 1) * 100 + now.getDate()
+  const from = start.month * 100 + start.day
+  const to = end.month * 100 + end.day
+  if (from <= to) return md >= from && md <= to
+  return md >= from || md <= to
+}
+
 export function formatSeasonWindow(
   start: string | null,
   end: string | null,

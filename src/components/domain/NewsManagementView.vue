@@ -26,6 +26,8 @@ const props = defineProps<{
   onCreate: (req: CreateNewsRequest) => Promise<NewsResponse>
   onUpdate: (id: string, req: UpdateNewsRequest) => Promise<NewsResponse>
   onDelete?: ((id: string, hard: boolean) => Promise<void>) | null
+  onUploadImage?: (id: string, file: File) => Promise<NewsResponse>
+  onDeleteImage?: (id: string) => Promise<NewsResponse>
 }>()
 
 const items = ref<NewsResponse[]>([])
@@ -137,6 +139,11 @@ async function handleDelete(news: NewsResponse, hard: boolean) {
   }
 }
 
+function onImageChanged(updated: NewsResponse) {
+  const idx = items.value.findIndex((n) => n.id === updated.id)
+  if (idx !== -1) items.value[idx] = updated
+}
+
 function formatDate(iso: string | null) {
   if (!iso) return '-'
   return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
@@ -236,8 +243,11 @@ const STATUS_STYLE: Record<NewsStatus, string> = {
       :allowed="allowed"
       :allowed-standalone="allowedStandalone"
       :loading="submitting"
+      :upload-image="onUploadImage"
+      :delete-image="onDeleteImage"
       @close="showModal = false"
       @submit="handleSubmit"
+      @image-changed="onImageChanged"
     />
   </div>
 </template>

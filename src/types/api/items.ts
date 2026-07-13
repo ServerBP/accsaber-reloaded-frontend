@@ -562,6 +562,14 @@ export interface CrateModifierResponse {
   dropChance: number
 }
 
+export interface CrateOpenResponse {
+  id: string
+  crate: ItemResponse
+  consumedLinkId: string
+  reward: UserItemResponse
+  rolledAt: string
+}
+
 export interface UnusualEffectResponse extends UnusualEffectRef {
   description: string | null
   active: boolean

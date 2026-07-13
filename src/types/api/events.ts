@@ -1,3 +1,4 @@
+import type { ItemResponse } from './items'
 import type { MissionType, UserMissionResponse } from './missions'
 
 export type EventState = 'live' | 'upcoming' | 'past'
@@ -9,6 +10,7 @@ export interface EventBonusItem {
 
 export interface EventResponse {
   id: string
+  slug: string
   title: string
   description?: string
   backgroundUrl?: string
@@ -16,17 +18,17 @@ export interface EventResponse {
   startsAt: string
   endsAt: string
   bonusXp?: number
-  bonusItems: EventBonusItem[]
+  bonusItems: ItemResponse[]
   active: boolean
   live: boolean
-  currentWeek?: number
+  currentWeek?: number | null
   totalWeeks: number
 }
 
 export interface EventMissionTargets {
   categoryId?: string
   mapDifficultyId?: string
-  playerId?: number
+  playerId?: string
   acc?: number
   ap?: number
   score?: number
@@ -68,10 +70,22 @@ export interface EventMissionProgressResponse {
   current?: UserMissionResponse
   completions: number
   completed: boolean
+  weekLocked: boolean
+}
+
+export interface EventProfileResponse {
+  unlockedWeek: number
+  missionsCompleted: number
+  startedAt: string
+  completedAt?: string | null
+  bonusAwarded: boolean
+  bonusXp: number
 }
 
 export interface EventProgressResponse {
   event: EventResponse
+  profile: EventProfileResponse | null
+  begun: boolean
   missions: EventMissionProgressResponse[]
   bonusAwarded: boolean
 }
@@ -82,6 +96,7 @@ export interface EventListParams {
 
 export interface EventRequest {
   title?: string
+  slug?: string
   description?: string
   backgroundUrl?: string
   iconUrl?: string

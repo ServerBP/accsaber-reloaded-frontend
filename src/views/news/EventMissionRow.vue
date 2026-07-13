@@ -1,11 +1,18 @@
 <script setup lang="ts">
 import RewardItemTile from '@/views/news/RewardItemTile.vue'
-import type { EventMissionView } from '@/utils/events'
+import type { EventMissionView, MissionLock } from '@/utils/events'
 import { computed } from 'vue'
 
 const props = defineProps<{
   mission: EventMissionView
+  lock: MissionLock
 }>()
+
+const state = computed<'completed' | 'locked' | 'open'>(() => {
+  if (props.lock) return 'locked'
+  if (props.mission.completed) return 'completed'
+  return 'open'
+})
 
 const hasBar = computed(
   () => props.mission.progressTarget !== null && props.mission.progressTarget > 0,
@@ -18,10 +25,17 @@ const progressPct = computed(() => {
   return Math.min(100, Math.max(0, (current / target) * 100))
 })
 
-const state = computed<'completed' | 'locked' | 'open'>(() => {
-  if (props.mission.completed) return 'completed'
-  if (!props.mission.unlocked) return 'locked'
-  return 'open'
+const lockHint = computed(() => {
+  switch (props.lock) {
+    case 'not-begun':
+      return 'Begin the event to unlock'
+    case 'progression':
+      return props.mission.week > 1 ? `Complete week ${props.mission.week - 1} to unlock` : 'Locked'
+    case 'calendar':
+      return `Unlocks ${formatUnlock(props.mission.unlocksAt)}`
+    default:
+      return null
+  }
 })
 
 const completionsLabel = computed(() => {
@@ -29,17 +43,21 @@ const completionsLabel = computed(() => {
   if (!m.repeatable || m.completions === null) return null
   return m.maxCompletions ? `${m.completions}/${m.maxCompletions}` : `×${m.completions}`
 })
+
+function formatUnlock(value: string): string {
+  return new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
 </script>
 
 <template>
   <div class="mission" :class="[`mission--${state}`]">
     <div class="mission__head">
       <span class="mission__status" :class="`mission__status--${state}`" aria-hidden="true">
-        <svg v-if="state === 'completed'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        <svg v-if="state === 'completed'" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
           stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="20 6 9 17 4 12" />
         </svg>
-        <svg v-else-if="state === 'locked'" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        <svg v-else-if="state === 'locked'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <rect x="3" y="11" width="18" height="11" rx="2" />
           <path d="M7 11V7a5 5 0 0 1 10 0v4" />
@@ -55,14 +73,18 @@ const completionsLabel = computed(() => {
           v-if="mission.itemId || mission.itemName"
           :item-id="mission.itemId"
           :name="mission.itemName"
-          :size="34"
+          :size="36"
         />
       </div>
     </div>
 
     <p v-if="mission.description" class="mission__desc">{{ mission.description }}</p>
 
-    <div v-if="mission.tracked" class="mission__progress">
+    <div v-if="state === 'locked'" class="mission__progress">
+      <span class="mission__flag mission__flag--lock">{{ lockHint }}</span>
+    </div>
+
+    <div v-else-if="mission.tracked" class="mission__progress">
       <template v-if="hasBar">
         <div class="mission__track">
           <div class="mission__fill" :style="{ width: `${progressPct}%` }" />
@@ -70,13 +92,8 @@ const completionsLabel = computed(() => {
         <span class="mission__count">{{ mission.progressCurrent ?? 0 }} / {{ mission.progressTarget }}</span>
       </template>
       <span v-else-if="state === 'completed'" class="mission__flag mission__flag--done">Completed</span>
-      <span v-else-if="state === 'locked'" class="mission__flag">Locked</span>
       <span v-else class="mission__flag">In progress</span>
       <span v-if="completionsLabel" class="mission__completions">{{ completionsLabel }}</span>
-    </div>
-
-    <div v-else-if="state === 'locked'" class="mission__progress">
-      <span class="mission__flag">Locked</span>
     </div>
   </div>
 </template>
@@ -95,7 +112,7 @@ const completionsLabel = computed(() => {
 }
 
 .mission--locked {
-  opacity: 0.55;
+  opacity: 0.5;
 }
 
 .mission__head {
@@ -132,7 +149,7 @@ const completionsLabel = computed(() => {
 .mission__name {
   flex: 1;
   min-width: 0;
-  font-size: var(--text-body);
+  font-size: 1rem;
   font-weight: 600;
   color: var(--text-primary);
 }
@@ -140,14 +157,14 @@ const completionsLabel = computed(() => {
 .mission__rewards {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-xs);
   flex-shrink: 0;
 }
 
 .mission__reward {
-  padding: 1px 8px;
+  padding: 3px 10px;
   border-radius: var(--radius-pill);
-  font-size: 0.68rem;
+  font-size: 0.78rem;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -160,7 +177,7 @@ const completionsLabel = computed(() => {
 .mission__desc {
   margin: 0;
   padding-left: calc(20px + var(--space-sm));
-  font-size: var(--text-caption);
+  font-size: 0.85rem;
   color: var(--text-secondary);
   line-height: 1.45;
 }
@@ -174,7 +191,7 @@ const completionsLabel = computed(() => {
 
 .mission__track {
   flex: 1;
-  height: 6px;
+  height: 7px;
   border-radius: var(--radius-pill);
   background: var(--bg-overlay);
   overflow: hidden;
@@ -190,13 +207,13 @@ const completionsLabel = computed(() => {
 .mission__count {
   flex-shrink: 0;
   font-family: var(--font-mono);
-  font-size: var(--text-caption);
+  font-size: 0.82rem;
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
 
 .mission__flag {
-  font-size: var(--text-caption);
+  font-size: 0.82rem;
   color: var(--text-tertiary);
 }
 
@@ -205,10 +222,14 @@ const completionsLabel = computed(() => {
   font-weight: 600;
 }
 
+.mission__flag--lock {
+  font-style: italic;
+}
+
 .mission__completions {
   margin-left: auto;
   font-family: var(--font-mono);
-  font-size: var(--text-caption);
+  font-size: 0.82rem;
   color: var(--text-tertiary);
 }
 </style>

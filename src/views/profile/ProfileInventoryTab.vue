@@ -7,11 +7,13 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import PaginationControls from '@/components/common/PaginationControls.vue'
 import SearchBox from '@/components/common/SearchBox.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
+import CrateOpeningOverlay from '@/components/domain/CrateOpeningOverlay.vue'
 import DisintegrateDialog from '@/components/domain/DisintegrateDialog.vue'
 import InventoryDetailPanel from '@/components/domain/InventoryDetailPanel.vue'
 import InventoryItemCell from '@/components/domain/InventoryItemCell.vue'
 import { useCrateContents } from '@/composables/useCrateContents'
 import { useCrateModifiers } from '@/composables/useCrateModifiers'
+import { useCrateUnusualEffects } from '@/composables/useCrateUnusualEffects'
 import { useEquippedRenderProps } from '@/composables/useEquippedRenderProps'
 import { useOwnedItemIds } from '@/composables/useOwnedItemIds'
 import { usePageableRoute } from '@/composables/usePageableRoute'
@@ -23,11 +25,11 @@ import { useInventoryStore } from '@/stores/inventory'
 import { useItemModifierStore } from '@/stores/itemModifiers'
 import { useItemTypeStore } from '@/stores/itemTypes'
 import { useThemeStore } from '@/stores/theme'
-import type { DisintegrationResponse, ItemRarity, ItemResponse, ItemTypeKey, UserItemResponse } from '@/types/api/items'
+import type { CrateOpenResponse, DisintegrationResponse, ItemRarity, ItemResponse, ItemTypeKey, UserItemResponse } from '@/types/api/items'
 import type { Page } from '@/types/pagination'
 import { ESSENCE_GLYPH, formatEssence, formatEssenceAmount } from '@/utils/essence'
 import { RARITY_ORDER, readThemeValue } from '@/utils/items'
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 
 const props = defineProps<{
@@ -226,12 +228,25 @@ const selectedItem = computed<UserItemResponse | null>(() => {
   return items.value.find((u) => u.linkId === selectedLinkId.value) ?? null
 })
 
-const { contents: crateContents, loading: crateContentsLoading } = useCrateContents(
-  () => selectedItem.value?.item ?? null,
+const crateOpening = ref<{
+  userItem: UserItemResponse
+  result: CrateOpenResponse | null
+  error: string | null
+  busy: boolean
+  equipBusy: boolean
+  equippedLinkId: string | null
+} | null>(null)
+
+const crateItem = computed(
+  () => crateOpening.value?.userItem.item ?? selectedItem.value?.item ?? null,
 )
 
-const { modifiers: crateModifiers, loading: crateModifiersLoading } = useCrateModifiers(
-  () => selectedItem.value?.item ?? null,
+const { contents: crateContents, loading: crateContentsLoading } = useCrateContents(crateItem)
+
+const { modifiers: crateModifiers, loading: crateModifiersLoading } = useCrateModifiers(crateItem)
+
+const { effects: crateEffects, load: loadCrateEffects } = useCrateUnusualEffects(
+  () => (crateItem.value?.typeKey === 'crate' ? crateItem.value.id : null),
 )
 
 const isCrateSelected = computed(() => selectedItem.value?.item.typeKey === 'crate')
@@ -424,6 +439,98 @@ function applyDisintegration(res: DisintegrationResponse) {
   essenceStore.setBalance(res.balance)
   mutateLink(res.linkId, res.remainingQuantity)
   showFeedback('success', `+${formatEssence(res.essenceGained)} essence`)
+}
+
+function findOwnedCrateLink(itemId: string): UserItemResponse | null {
+  const source = showUnowned.value ? catalogOwnedItems.value : (data.value?.content ?? [])
+  return source.find((u) => u.item.id === itemId && !isLockedLink(u.linkId)) ?? null
+}
+
+const canOpenAnother = computed(() => {
+  const current = crateOpening.value
+  if (!current) return false
+  return findOwnedCrateLink(current.userItem.item.id) !== null
+})
+
+async function requestCrateOpen(target: UserItemResponse) {
+  try {
+    const { openCrate } = await import('@/api/crates')
+    const res = await openCrate(target.linkId)
+    mutateLink(res.consumedLinkId, null)
+    if (crateOpening.value) crateOpening.value = { ...crateOpening.value, result: res, busy: false }
+  } catch (err) {
+    const parsed = parseApiError(err, 'Could not open crate.')
+    if (parsed.status === 404) mutateLink(target.linkId, null)
+    if (crateOpening.value) {
+      crateOpening.value = {
+        ...crateOpening.value,
+        error: parsed.fieldErrors[0]?.message ?? parsed.message,
+        busy: false,
+      }
+    }
+  }
+}
+
+function handleOpenCrate(linkId: string) {
+  if (isLockedLink(linkId)) return
+  const target =
+    selectedItem.value?.linkId === linkId
+      ? selectedItem.value
+      : (items.value.find((u) => u.linkId === linkId) ?? null)
+  if (!target || target.item.typeKey !== 'crate') return
+  mobileDetailOpen.value = false
+  crateOpening.value = {
+    userItem: target,
+    result: null,
+    error: null,
+    busy: true,
+    equipBusy: false,
+    equippedLinkId: null,
+  }
+  void nextTick(loadCrateEffects)
+  requestCrateOpen(target)
+}
+
+function handleOpenAnother() {
+  const current = crateOpening.value
+  if (!current || current.busy) return
+  const next = findOwnedCrateLink(current.userItem.item.id)
+  if (!next) return
+  crateOpening.value = {
+    userItem: next,
+    result: null,
+    error: null,
+    busy: true,
+    equipBusy: false,
+    equippedLinkId: null,
+  }
+  requestCrateOpen(next)
+}
+
+async function handleCrateEquip(reward: UserItemResponse) {
+  const current = crateOpening.value
+  if (!current || current.equipBusy) return
+  crateOpening.value = { ...current, equipBusy: true }
+  try {
+    await inventoryStore.equip(reward.linkId, props.userId)
+    if (reward.item.typeKey === 'theme') {
+      const theme = readThemeValue(reward.item.value)
+      if (theme) themeStore.setThemeFromTokens(`item:${reward.item.id}`, theme.tokens)
+    }
+    if (crateOpening.value) {
+      crateOpening.value = { ...crateOpening.value, equipBusy: false, equippedLinkId: reward.linkId }
+    }
+  } catch {
+    if (crateOpening.value) crateOpening.value = { ...crateOpening.value, equipBusy: false }
+  }
+}
+
+function handleCrateOverlayClose() {
+  const rewardLinkId = crateOpening.value?.result?.reward.linkId ?? null
+  crateOpening.value = null
+  if (rewardLinkId) selectedLinkId.value = rewardLinkId
+  if (showUnowned.value) fetchCatalog()
+  else fetchInventory()
 }
 
 async function handleDisintegrateConfirm(quantity: number) {
@@ -619,6 +726,7 @@ onUnmounted(() => {
           @select-variant="handleSelectVariant"
           @unequip="handleUnequip"
           @disintegrate="handleDisintegrateRequest"
+          @open-crate="handleOpenCrate"
         />
       </aside>
     </div>
@@ -644,6 +752,7 @@ onUnmounted(() => {
         @select-variant="handleSelectVariant"
         @unequip="handleUnequip"
         @disintegrate="handleDisintegrateRequest"
+        @open-crate="handleOpenCrate"
       />
     </BaseModal>
 
@@ -653,6 +762,24 @@ onUnmounted(() => {
       :busy="actionBusy"
       @confirm="handleDisintegrateConfirm"
       @cancel="handleDisintegrateCancel"
+    />
+
+    <CrateOpeningOverlay
+      v-if="crateOpening"
+      :crate="crateOpening.userItem.item"
+      :contents="crateContents"
+      :crate-modifiers="crateModifiers"
+      :global-modifiers="itemModifierStore.modifiers"
+      :unusual-effects="crateEffects"
+      :result="crateOpening.result?.reward ?? null"
+      :error="crateOpening.error"
+      :busy="crateOpening.busy"
+      :can-open-another="canOpenAnother"
+      :equip-busy="crateOpening.equipBusy"
+      :equipped-link-id="crateOpening.equippedLinkId"
+      @close="handleCrateOverlayClose"
+      @open-another="handleOpenAnother"
+      @equip="handleCrateEquip"
     />
   </div>
 </template>

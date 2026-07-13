@@ -10,6 +10,7 @@ export interface EventMissionView {
   description: string
   week: number
   unlocked: boolean
+  unlocksAt: string
   open: boolean
   completed: boolean
   repeatable: boolean
@@ -21,6 +22,7 @@ export interface EventMissionView {
   itemId: string | null
   itemName: string | null
   tracked: boolean
+  weekLocked: boolean
 }
 
 export function missionViewFromDefinition(def: EventMissionResponse): EventMissionView {
@@ -30,6 +32,7 @@ export function missionViewFromDefinition(def: EventMissionResponse): EventMissi
     description: def.description,
     week: def.week,
     unlocked: def.unlocked,
+    unlocksAt: def.unlocksAt,
     open: def.open,
     completed: false,
     repeatable: def.repeatable,
@@ -41,6 +44,7 @@ export function missionViewFromDefinition(def: EventMissionResponse): EventMissi
     itemId: def.awardsItemId ?? null,
     itemName: def.awardsItemName ?? null,
     tracked: false,
+    weekLocked: false,
   }
 }
 
@@ -52,6 +56,7 @@ export function missionViewFromProgress(entry: EventMissionProgressResponse): Ev
     description: def.description,
     week: def.week,
     unlocked: def.unlocked,
+    unlocksAt: def.unlocksAt,
     open: def.open,
     completed: entry.completed,
     repeatable: def.repeatable,
@@ -63,7 +68,23 @@ export function missionViewFromProgress(entry: EventMissionProgressResponse): Ev
     itemId: def.awardsItemId ?? null,
     itemName: def.awardsItemName ?? null,
     tracked: true,
+    weekLocked: entry.weekLocked,
   }
+}
+
+export type MissionLock = 'not-begun' | 'calendar' | 'progression' | null
+
+export interface MissionLockContext {
+  begun: boolean | null
+  currentWeek: number | null
+  live: boolean
+}
+
+export function missionLockState(view: EventMissionView, ctx: MissionLockContext): MissionLock {
+  if (ctx.begun === false) return 'not-begun'
+  if (!ctx.live || ctx.currentWeek == null || view.week > ctx.currentWeek) return 'calendar'
+  if (view.weekLocked) return 'progression'
+  return null
 }
 
 export type EventStatus = 'live' | 'ending-soon' | 'upcoming' | 'past'
@@ -150,4 +171,11 @@ export function localInputToIso(local: string): string | null {
   const d = new Date(local)
   if (Number.isNaN(d.getTime())) return null
   return d.toISOString()
+}
+
+export function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
 }

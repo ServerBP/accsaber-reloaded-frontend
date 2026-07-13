@@ -40,6 +40,7 @@ import type {
   UnusualEffectResponse,
   UpdateItemRequest,
 } from '@/types/api/items'
+import { createCrateRoller, type CrateRoll } from '@/utils/crateRoll'
 import { RARITY_ORDER } from '@/utils/items'
 import { decimalToPercent, percentToDecimal } from '@/utils/modifiers'
 import { computed, onMounted, ref, watch } from 'vue'
@@ -357,18 +358,18 @@ function rollOnce(pool: CrateContentResponse[]): ItemResponse | null {
   return null
 }
 
-const lastRoll = ref<ItemResponse | null>(null)
+const lastRoll = ref<CrateRoll | null>(null)
 const rollToken = ref(0)
 
-const rollPool = computed(() =>
-  contents.value.map((c) => ({ item: c.rewardItem, weight: c.dropWeight })),
-)
-
 function doOpenOnce() {
-  if (contents.value.length === 0) return
-  const item = rollOnce(contents.value)
-  if (!item) return
-  lastRoll.value = item
+  const roll = createCrateRoller({
+    contents: contents.value,
+    crateModifiers: attachedModifiers.value,
+    globalModifiers: allModifiers.value,
+    unusualEffects: attachedEffects.value,
+  })()
+  if (!roll) return
+  lastRoll.value = roll
   rollToken.value++
 }
 
@@ -1030,13 +1031,18 @@ watch(crateId, refresh)
 
         <CrateOpenAnimation
           v-if="rollToken > 0 && lastRoll"
-          :pool="rollPool"
-          :result="lastRoll"
+          :contents="contents"
+          :crate-modifiers="attachedModifiers"
+          :global-modifiers="allModifiers"
+          :unusual-effects="attachedEffects"
+          :result="lastRoll.item"
+          :result-modifiers="lastRoll.modifiers"
+          :result-unusual-effect="lastRoll.unusualEffect"
           :play-token="rollToken"
         />
         <div v-if="lastRoll && rollToken > 0" class="crate-editor__roll-chance">
           Drop chance:
-          <span class="mono">{{ formatPct(dropChanceFor(lastRoll.id)) }}</span>
+          <span class="mono">{{ formatPct(dropChanceFor(lastRoll.item.id)) }}</span>
         </div>
 
         <table v-if="simRows && simRows.length" class="crate-editor__sim-table">

@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { getApiErrorMessage } from '@/api/client'
+import { getApiErrorMessage, parseApiError } from '@/api/client'
 import BaseButton from '@/components/common/BaseButton.vue'
 import BaseInput from '@/components/common/BaseInput.vue'
 import BaseModal from '@/components/common/BaseModal.vue'
 import type { EventRequest, EventResponse } from '@/types/api/events'
-import { localInputToIso } from '@/utils/events'
-import { ref, watch } from 'vue'
+import { localInputToIso, slugify } from '@/utils/events'
+import { computed, ref, watch } from 'vue'
 
 const props = defineProps<{ open: boolean }>()
 
@@ -15,6 +15,8 @@ const emit = defineEmits<{
 }>()
 
 const title = ref('')
+const slug = ref('')
+const slugTouched = ref(false)
 const description = ref('')
 const startsAt = ref('')
 const endsAt = ref('')
@@ -22,14 +24,30 @@ const bonusXp = ref('')
 
 const submitting = ref(false)
 const formError = ref('')
+const slugError = ref('')
+
+const slugPreview = computed(() => slugify(slug.value))
+
+watch(title, (value) => {
+  if (!slugTouched.value) slug.value = slugify(value)
+})
+
+function onSlugInput(value: string | number) {
+  slug.value = String(value)
+  slugTouched.value = true
+  slugError.value = ''
+}
 
 function reset() {
   title.value = ''
+  slug.value = ''
+  slugTouched.value = false
   description.value = ''
   startsAt.value = ''
   endsAt.value = ''
   bonusXp.value = ''
   formError.value = ''
+  slugError.value = ''
   submitting.value = false
 }
 
@@ -60,6 +78,7 @@ function buildPayload(): EventRequest | null {
     startsAt: startIso,
     endsAt: endIso,
   }
+  if (slug.value.trim()) payload.slug = slug.value.trim()
   if (description.value.trim()) payload.description = description.value.trim()
   const xp = Number.parseInt(bonusXp.value, 10)
   if (bonusXp.value.trim() && Number.isFinite(xp) && xp >= 0) payload.bonusXp = xp
@@ -68,6 +87,7 @@ function buildPayload(): EventRequest | null {
 
 async function submit() {
   formError.value = ''
+  slugError.value = ''
   const payload = buildPayload()
   if (!payload) return
   submitting.value = true
@@ -76,7 +96,15 @@ async function submit() {
     const created = await createEvent(payload)
     emit('created', created)
   } catch (e) {
-    formError.value = getApiErrorMessage(e, 'Failed to create the event.')
+    const parsed = parseApiError(e, 'Failed to create the event.')
+    const slugField = parsed.fieldErrors.find((f) => f.field === 'slug')
+    if (slugField) {
+      slugError.value = slugField.message
+    } else if (parsed.status === 422 && /slug/i.test(parsed.message)) {
+      slugError.value = parsed.message
+    } else {
+      formError.value = parsed.message
+    }
   } finally {
     submitting.value = false
   }
@@ -87,6 +115,14 @@ async function submit() {
   <BaseModal :open="open" title="New event" max-width="560px" @close="emit('close')">
     <div class="event-create">
       <BaseInput v-model="title" label="Title" placeholder="Event name" />
+
+      <div class="event-create__field">
+        <BaseInput :model-value="slug" label="Slug" placeholder="auto from title" :error="slugError"
+          @update:model-value="onSlugInput" />
+        <p class="event-create__hint">
+          Public link <code class="event-create__code">/events/{{ slugPreview || '…' }}</code>
+        </p>
+      </div>
 
       <div class="event-create__field">
         <label class="event-create__label">Description (optional)</label>
@@ -172,6 +208,11 @@ async function submit() {
   margin: 0;
   font-size: var(--text-caption);
   color: var(--text-tertiary);
+}
+
+.event-create__code {
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
 }
 
 .event-create__error {

@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import BaseButton from '@/components/common/BaseButton.vue'
 import BaseModal from '@/components/common/BaseModal.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
+import EffectPreviewModal from '@/components/domain/EffectPreviewModal.vue'
 import ItemPreview from '@/components/domain/ItemPreview.vue'
+import ItemPreviewModal from '@/components/domain/ItemPreviewModal.vue'
 import ModifierChip from '@/components/domain/ModifierChip.vue'
 import UnusualEffectTile from '@/components/domain/UnusualEffectTile.vue'
 import VariantSplitPreview from '@/components/domain/VariantSplitPreview.vue'
@@ -31,11 +34,17 @@ const props = defineProps<{
   effects: UnusualEffectResponse[]
   effectsLoading?: boolean
   ownedItemIds?: Set<string>
+  allowOpen?: boolean
 }>()
 
 defineEmits<{
   close: []
+  previewOpen: []
 }>()
+
+const canPreviewOpen = computed(
+  () => !!props.allowOpen && !props.contentsLoading && props.contents.length > 0,
+)
 
 const modifierStore = useItemModifierStore()
 
@@ -73,6 +82,21 @@ function modifierDescription(key: string): string | null {
 
 function isOwned(itemId: string): boolean {
   return props.ownedItemIds?.has(itemId) ?? false
+}
+
+const selectedItem = ref<ItemResponse | null>(null)
+const itemOpen = ref(false)
+const selectedEffect = ref<UnusualEffectResponse | null>(null)
+const effectOpen = ref(false)
+
+function openItem(item: ItemResponse) {
+  selectedItem.value = item
+  itemOpen.value = true
+}
+
+function openEffect(effect: UnusualEffectResponse) {
+  selectedEffect.value = effect
+  effectOpen.value = true
 }
 
 onMounted(() => {
@@ -206,12 +230,14 @@ onUnmounted(() => {
         </p>
 
         <div v-else class="crate-preview__items-body">
-          <span
+          <button
             v-for="t in flatTiles"
             :key="t.content.rewardItem.id"
+            type="button"
             class="crate-preview__tile"
             :class="[rarityClass(t.content.rewardItem.rarity), { 'crate-preview__tile--run-end': t.runEnd }]"
-            :title="`${t.content.rewardItem.name} - ${formatChancePercent(t.content.dropChance)}`"
+            :title="`${t.content.rewardItem.name} - ${formatChancePercent(t.content.dropChance)} (click to preview)`"
+            @click="openItem(t.content.rewardItem)"
           >
             <span v-if="t.label" class="crate-preview__run-label">
               <span class="crate-preview__run-label-name">{{ t.label.rarity }}</span>
@@ -241,7 +267,7 @@ onUnmounted(() => {
             <span v-if="t.variants" class="crate-preview__tile-variants">
               {{ t.variants.length }} variants!
             </span>
-          </span>
+          </button>
         </div>
       </section>
 
@@ -267,11 +293,27 @@ onUnmounted(() => {
 
         <ul v-else class="crate-preview__effects-grid">
           <li v-for="effect in effects" :key="effect.id">
-            <UnusualEffectTile :name="effect.name" :effect-spec="effect.effectSpec" />
+            <button
+              type="button"
+              class="crate-preview__effect-btn"
+              :title="`${effect.name} (click to preview)`"
+              @click="openEffect(effect)"
+            >
+              <UnusualEffectTile :name="effect.name" :effect-spec="effect.effectSpec" />
+            </button>
           </li>
         </ul>
       </section>
     </div>
+
+    <ItemPreviewModal :open="itemOpen" :item="selectedItem" @close="itemOpen = false" />
+    <EffectPreviewModal :open="effectOpen" :effect="selectedEffect" @close="effectOpen = false" />
+
+    <template v-if="allowOpen" #footer>
+      <BaseButton variant="primary" :disabled="!canPreviewOpen" @click="$emit('previewOpen')">
+        Preview open
+      </BaseButton>
+    </template>
   </BaseModal>
 </template>
 
@@ -463,6 +505,30 @@ onUnmounted(() => {
   margin: 26px var(--space-sm) var(--space-sm) 0;
   padding-top: var(--space-xs);
   --rarity-color: var(--text-tertiary);
+  appearance: none;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.crate-preview__tile:hover .crate-preview__tile-art {
+  border-color: color-mix(in srgb, var(--rarity-color) 75%, var(--text-primary));
+}
+
+.crate-preview__effect-btn {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  display: block;
+}
+
+.crate-preview__effect-btn:hover :deep(.ue-tile__frame) {
+  border-color: var(--text-tertiary);
 }
 
 .crate-preview__tile::before {

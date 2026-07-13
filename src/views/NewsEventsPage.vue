@@ -6,7 +6,6 @@ import { useAuthStore } from '@/stores/auth'
 import type { EventResponse, EventState } from '@/types/api/events'
 import type { NewsListParams, PublicNewsResponse } from '@/types/api/news'
 import type { NewsType } from '@/types/enums'
-import EventBackdrop from '@/views/news/EventBackdrop.vue'
 import EventDetailPane from '@/views/news/EventDetailPane.vue'
 import NewsEventsRail from '@/views/news/NewsEventsRail.vue'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
@@ -59,8 +58,8 @@ type Selection = { kind: 'event'; id: string } | { kind: 'news'; slug: string } 
 const activeSelection = computed<Selection>(() => {
   if (selectedNewsSlug.value) return { kind: 'news', slug: selectedNewsSlug.value }
   if (selectedEventId.value) return { kind: 'event', id: selectedEventId.value }
-  if (currentEvent.value) return { kind: 'event', id: currentEvent.value.id }
-  if (events.value.length) return { kind: 'event', id: events.value[0].id }
+  if (currentEvent.value) return { kind: 'event', id: currentEvent.value.slug }
+  if (events.value.length) return { kind: 'event', id: events.value[0].slug }
   if (news.value.length) return { kind: 'news', slug: news.value[0].slug }
   return null
 })
@@ -77,15 +76,6 @@ const selectedNews = computed(() => {
   if (selection?.kind !== 'news') return null
   return news.value.find((n) => n.slug === selection.slug) ?? null
 })
-
-const detailEventBg = ref<string | null>(null)
-const backdropUrl = computed(() =>
-  activeSelection.value?.kind === 'event' ? detailEventBg.value : null,
-)
-
-function onEventLoaded(loaded: EventResponse | null) {
-  detailEventBg.value = loaded?.backgroundUrl ?? null
-}
 
 async function loadEvents() {
   loadingEvents.value = true
@@ -166,8 +156,6 @@ onUnmounted(() => {
 
 <template>
   <div class="hub">
-    <EventBackdrop v-if="backdropUrl" :url="backdropUrl" />
-
     <NewsEventsRail
       v-show="!isMobile || mobileView === 'rail'"
       class="hub__rail"
@@ -205,7 +193,6 @@ onUnmounted(() => {
         :key="activeSelection.id"
         :event-id="activeSelection.id"
         :logged-in="authStore.isLoggedIn"
-        @loaded="onEventLoaded"
       />
 
       <div v-else-if="activeSelection?.kind === 'news' && selectedNews" class="hub__article">

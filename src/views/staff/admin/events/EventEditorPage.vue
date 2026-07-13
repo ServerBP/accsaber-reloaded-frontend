@@ -10,7 +10,7 @@ import {
   uploadEventBackground,
   uploadEventIcon,
 } from '@/api/admin/events'
-import { getApiErrorMessage } from '@/api/client'
+import { getApiErrorMessage, parseApiError } from '@/api/client'
 import BaseButton from '@/components/common/BaseButton.vue'
 import BaseInput from '@/components/common/BaseInput.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -30,6 +30,7 @@ import {
   eventTiming,
   isoToLocalInput,
   localInputToIso,
+  slugify,
 } from '@/utils/events'
 import EventItemPicker from '@/views/staff/admin/events/EventItemPicker.vue'
 import { computed, onMounted, ref, watch } from 'vue'
@@ -55,13 +56,19 @@ const pickerOpen = ref(false)
 
 const form = ref({
   title: '',
+  slug: '',
   description: '',
   startsAt: '',
   endsAt: '',
   bonusXp: '',
 })
 
+const slugError = ref('')
+
 const timing = computed(() => (event.value ? eventTiming(event.value, now.value) : 'upcoming'))
+
+const slugPreview = computed(() => slugify(form.value.slug))
+const slugChanged = computed(() => !!event.value && slugPreview.value !== event.value.slug)
 
 const bonusItems = computed<EventBonusItem[]>(() => event.value?.bonusItems ?? [])
 const bonusItemIds = computed(() => bonusItems.value.map((i) => i.id))
@@ -70,11 +77,13 @@ function syncForm() {
   if (!event.value) return
   form.value = {
     title: event.value.title,
+    slug: event.value.slug,
     description: event.value.description ?? '',
     startsAt: isoToLocalInput(event.value.startsAt),
     endsAt: isoToLocalInput(event.value.endsAt),
     bonusXp: event.value.bonusXp != null ? String(event.value.bonusXp) : '',
   }
+  slugError.value = ''
 }
 
 async function refresh() {
@@ -116,6 +125,7 @@ async function saveMetadata() {
   }
   metaSaving.value = true
   errorMsg.value = null
+  slugError.value = ''
   try {
     const req: EventRequest = {
       title: form.value.title.trim(),
@@ -124,10 +134,19 @@ async function saveMetadata() {
       endsAt: endIso,
       bonusXp: form.value.bonusXp.trim() ? Math.max(0, Number.parseInt(form.value.bonusXp, 10) || 0) : 0,
     }
+    if (slugChanged.value && form.value.slug.trim()) req.slug = form.value.slug.trim()
     event.value = await updateEvent(eventId.value, req)
     syncForm()
   } catch (e) {
-    errorMsg.value = getApiErrorMessage(e, 'Failed to save event')
+    const parsed = parseApiError(e, 'Failed to save event')
+    const slugField = parsed.fieldErrors.find((f) => f.field === 'slug')
+    if (slugField) {
+      slugError.value = slugField.message
+    } else if (parsed.status === 422 && /slug/i.test(parsed.message)) {
+      slugError.value = parsed.message
+    } else {
+      errorMsg.value = parsed.message
+    }
   } finally {
     metaSaving.value = false
   }
@@ -274,6 +293,12 @@ function missionXp(m: MissionTemplateResponse): string {
         <div class="event-editor__grid">
           <BaseInput v-model="form.title" label="Title" />
           <BaseInput v-model="form.bonusXp" type="number" min="0" step="1" label="Completion bonus XP" />
+          <div class="event-editor__field event-editor__field--full">
+            <BaseInput v-model="form.slug" label="Slug (public URL)" placeholder="alphas-end" :error="slugError" />
+            <p class="event-editor__hint">
+              Public link <span class="mono">/events/{{ slugPreview || '…' }}</span>. Stays fixed when you rename the event.
+            </p>
+          </div>
           <BaseInput v-model="form.startsAt" type="datetime-local" label="Starts at" />
           <BaseInput v-model="form.endsAt" type="datetime-local" label="Ends at" />
           <div class="event-editor__field event-editor__field--full">

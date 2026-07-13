@@ -30,6 +30,16 @@ async function onDelete(id: string, hard: boolean) {
   const { deleteAdminNews } = await import('@/api/admin/news')
   return deleteAdminNews(id, hard)
 }
+
+async function onUploadImage(id: string, file: File) {
+  const { uploadAdminNewsImage } = await import('@/api/admin/news')
+  return uploadAdminNewsImage(id, file)
+}
+
+async function onDeleteImage(id: string) {
+  const { deleteAdminNewsImage } = await import('@/api/admin/news')
+  return deleteAdminNewsImage(id)
+}
 </script>
 
 <template>
@@ -41,5 +51,7 @@ async function onDelete(id: string, hard: boolean) {
     :on-create="onCreate"
     :on-update="onUpdate"
     :on-delete="onDelete"
+    :on-upload-image="onUploadImage"
+    :on-delete-image="onDeleteImage"
   />
 </template>
