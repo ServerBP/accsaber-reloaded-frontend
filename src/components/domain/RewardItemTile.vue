@@ -89,8 +89,17 @@ const hoverTitle = computed(() => {
   padding-inline: 10px;
 }
 
+.reward-tile--wide :deep(.item-preview) {
+  container-type: normal;
+  width: max-content;
+}
+
+.reward-tile--wide :deep(.item-preview__title .title-renderer) {
+  font-size: 1.05rem;
+}
+
 .reward-tile--wide :deep(.item-preview__title),
-.reward-tile--wide :deep(.title-renderer__text) {
+.reward-tile--wide :deep(.item-preview__title .title-renderer__text) {
   max-width: none;
   overflow: visible;
   text-overflow: clip;
