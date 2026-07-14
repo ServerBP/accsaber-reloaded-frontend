@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import RewardItemTile from '@/views/news/RewardItemTile.vue'
+import MissionRewards from '@/components/domain/MissionRewards.vue'
 import type { EventMissionView, MissionLock } from '@/utils/events'
 import { computed } from 'vue'
 
@@ -67,15 +67,7 @@ function formatUnlock(value: string): string {
 
       <span class="mission__name">{{ mission.name }}</span>
 
-      <div class="mission__rewards">
-        <span v-if="mission.xp" class="mission__reward mission__reward--xp">+{{ mission.xp }} XP</span>
-        <RewardItemTile
-          v-if="mission.itemId || mission.itemName"
-          :item-id="mission.itemId"
-          :name="mission.itemName"
-          :size="36"
-        />
-      </div>
+      <MissionRewards :xp-reward="mission.xpReward" :item-reward="mission.itemReward" :size="36" />
     </div>
 
     <p v-if="mission.description" class="mission__desc">{{ mission.description }}</p>
@@ -152,26 +144,6 @@ function formatUnlock(value: string): string {
   font-size: 1rem;
   font-weight: 600;
   color: var(--text-primary);
-}
-
-.mission__rewards {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-  flex-shrink: 0;
-}
-
-.mission__reward {
-  padding: 3px 10px;
-  border-radius: var(--radius-pill);
-  font-size: 0.78rem;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.mission__reward--xp {
-  color: var(--tier-gold);
-  border: 1px solid color-mix(in srgb, var(--tier-gold) 35%, transparent);
 }
 
 .mission__desc {

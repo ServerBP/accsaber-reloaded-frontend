@@ -1,8 +1,6 @@
-import type {
-  EventMissionProgressResponse,
-  EventMissionResponse,
-  EventResponse,
-} from '@/types/api/events'
+import type { EventMissionProgressResponse, EventResponse } from '@/types/api/events'
+import type { ItemResponse } from '@/types/api/items'
+import type { MissionResponse } from '@/types/api/missions'
 
 export interface EventMissionView {
   id: string
@@ -18,31 +16,29 @@ export interface EventMissionView {
   maxCompletions: number | null
   progressCurrent: number | null
   progressTarget: number | null
-  xp: number | null
-  itemId: string | null
-  itemName: string | null
+  xpReward: number | null
+  itemReward: ItemResponse | null
   tracked: boolean
   weekLocked: boolean
 }
 
-export function missionViewFromDefinition(def: EventMissionResponse): EventMissionView {
+export function missionViewFromDefinition(def: MissionResponse): EventMissionView {
   return {
     id: def.id,
     name: def.name,
     description: def.description,
-    week: def.week,
-    unlocked: def.unlocked,
-    unlocksAt: def.unlocksAt,
-    open: def.open,
+    week: def.week ?? 1,
+    unlocked: def.unlocked ?? false,
+    unlocksAt: def.unlocksAt ?? '',
+    open: def.open ?? false,
     completed: false,
-    repeatable: def.repeatable,
+    repeatable: def.repeatable ?? false,
     completions: null,
     maxCompletions: def.maxCompletions ?? null,
     progressCurrent: null,
-    progressTarget: def.targets?.count ?? null,
-    xp: def.xp ?? null,
-    itemId: def.awardsItemId ?? null,
-    itemName: def.awardsItemName ?? null,
+    progressTarget: def.targetCount ?? null,
+    xpReward: def.xpReward ?? null,
+    itemReward: def.itemReward ?? null,
     tracked: false,
     weekLocked: false,
   }
@@ -54,19 +50,18 @@ export function missionViewFromProgress(entry: EventMissionProgressResponse): Ev
     id: def.id,
     name: def.name,
     description: def.description,
-    week: def.week,
-    unlocked: def.unlocked,
-    unlocksAt: def.unlocksAt,
-    open: def.open,
+    week: def.week ?? 1,
+    unlocked: def.unlocked ?? false,
+    unlocksAt: def.unlocksAt ?? '',
+    open: def.open ?? false,
     completed: entry.completed,
-    repeatable: def.repeatable,
+    repeatable: def.repeatable ?? false,
     completions: entry.completions,
     maxCompletions: def.maxCompletions ?? null,
     progressCurrent: entry.current?.progressCount ?? null,
-    progressTarget: entry.current?.targetCount ?? def.targets?.count ?? null,
-    xp: def.xp ?? null,
-    itemId: def.awardsItemId ?? null,
-    itemName: def.awardsItemName ?? null,
+    progressTarget: entry.current?.targetCount ?? def.targetCount ?? null,
+    xpReward: def.xpReward ?? null,
+    itemReward: def.itemReward ?? null,
     tracked: true,
     weekLocked: entry.weekLocked,
   }

@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import MissionRewards from '@/components/domain/MissionRewards.vue'
 import { useCategoryStore } from '@/stores/categories'
-import type { UserMissionResponse } from '@/types/api/missions'
+import type { MissionResponse } from '@/types/api/missions'
 import { buildMapRoute } from '@/utils/mapRoute'
 import { BAND_LABEL, normalizeDifficulties } from '@/utils/missions'
 import { computed } from 'vue'
@@ -18,7 +19,7 @@ interface MissionMapLink {
 }
 
 const props = defineProps<{
-  mission: UserMissionResponse
+  mission: MissionResponse
   mapLink?: MissionMapLink | null
 }>()
 
@@ -36,6 +37,8 @@ const categoryInfo = computed(() =>
 
 const categoryName = computed(() => categoryInfo.value?.name ?? props.mission.categoryCode ?? '')
 const categoryColor = computed(() => categoryInfo.value?.accent ?? 'var(--accent)')
+
+const progress = computed(() => props.mission.progressCount ?? 0)
 
 const target = computed(() => {
   switch (props.mission.type) {
@@ -60,13 +63,13 @@ const hasBar = computed(() =>
 
 const fillPercent = computed(() => {
   if (!hasBar.value || target.value <= 0) return 0
-  const ratio = Math.min(1, props.mission.progressCount / target.value)
+  const ratio = Math.min(1, progress.value / target.value)
   return Math.round(ratio * 100)
 })
 
 const counterLabel = computed(() => {
   const t = target.value
-  const p = props.mission.progressCount
+  const p = progress.value
   switch (props.mission.type) {
     case 'PLAY_N_MAPS':
       return `${p} / ${t} maps`
@@ -85,15 +88,15 @@ const binaryHint = computed(() => {
   const m = props.mission
   switch (m.type) {
     case 'ACC_ON_MAP':
-      return m.targetAcc !== null ? `Reach ${m.targetAcc.toFixed(2)}% acc` : ''
+      return m.targetAcc != null ? `Reach ${m.targetAcc.toFixed(2)}% acc` : ''
     case 'AP_ON_MAP':
-      return m.targetAp !== null ? `Score ${m.targetAp.toLocaleString()} AP` : ''
+      return m.targetAp != null ? `Score ${m.targetAp.toLocaleString()} AP` : ''
     case 'PB_SPECIFIC_MAP':
       return 'Set a new PB'
     case 'SNIPE_PLAYER_ON_MAP': {
       const parts: string[] = []
-      if (m.targetAcc !== null) parts.push(`${m.targetAcc.toFixed(2)}% acc`)
-      if (m.targetAp !== null) parts.push(`${m.targetAp.toLocaleString()} AP`)
+      if (m.targetAcc != null) parts.push(`${m.targetAcc.toFixed(2)}% acc`)
+      if (m.targetAp != null) parts.push(`${m.targetAp.toLocaleString()} AP`)
       return parts.length > 0 ? `Beat ${parts.join(' · ')}` : 'Beat their score'
     }
     default:
@@ -103,7 +106,7 @@ const binaryHint = computed(() => {
 
 function inlineLink(
   segments: Segment[],
-  name: string | null,
+  name: string | null | undefined,
   to: RouteLocationRaw | null,
 ): Segment[] {
   if (!name || !to) return segments
@@ -159,7 +162,7 @@ function handleLinkClick() {
   <article
     class="mission-row"
     :class="[
-      `mission-row--${mission.band}`,
+      mission.band ? `mission-row--${mission.band}` : null,
       { 'mission-row--done': isCompleted },
     ]"
   >
@@ -171,17 +174,13 @@ function handleLinkClick() {
           {{ categoryName }}
         </span>
         <span
+          v-if="mission.band"
           class="mission-row__band"
           :class="`mission-row__band--${mission.band}`"
           :style="mission.band === 'hard' ? { color: categoryColor, borderColor: categoryColor } : undefined"
         >{{ BAND_LABEL[mission.band] }}</span>
       </h3>
-      <div class="mission-row__reward">
-        <span class="mission-row__xp">+{{ mission.xpReward.toLocaleString() }} XP</span>
-        <span v-if="mission.crateRewardName" class="mission-row__crate" :title="mission.crateRewardName">
-          {{ mission.crateRewardName }}
-        </span>
-      </div>
+      <MissionRewards :xp-reward="mission.xpReward" :item-reward="mission.itemReward" :size="28" />
     </header>
 
     <p class="mission-row__desc">
@@ -208,7 +207,7 @@ function handleLinkClick() {
       </template>
       <template v-else-if="hasBar">
         <div class="mission-row__bar" role="progressbar"
-          :aria-valuenow="mission.progressCount" :aria-valuemin="0" :aria-valuemax="target">
+          :aria-valuenow="progress" :aria-valuemin="0" :aria-valuemax="target">
           <div class="mission-row__bar-fill" :style="{ transform: `scaleX(${fillPercent / 100})` }" />
         </div>
         <span class="mission-row__counter">{{ counterLabel }}</span>
@@ -237,9 +236,13 @@ function handleLinkClick() {
   color: var(--text-secondary);
 }
 
+.mission-row--extreme {
+  --mission-reward-accent: var(--tier-gold);
+}
+
 .mission-row__head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-sm);
 }
@@ -309,38 +312,6 @@ function handleLinkClick() {
   color: var(--tier-gold);
   border-color: color-mix(in srgb, var(--tier-gold) 70%, transparent);
   background: color-mix(in srgb, var(--tier-gold) 14%, transparent);
-}
-
-.mission-row__reward {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-sm);
-  flex-shrink: 0;
-}
-
-.mission-row__xp {
-  font-family: var(--font-mono);
-  font-size: var(--text-caption);
-  font-weight: 600;
-  color: var(--accent);
-  white-space: nowrap;
-}
-
-.mission-row--extreme .mission-row__xp {
-  color: var(--tier-gold);
-}
-
-.mission-row__crate {
-  font-family: var(--font-sans);
-  font-size: 0.5625rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-  max-width: 120px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .mission-row__desc {

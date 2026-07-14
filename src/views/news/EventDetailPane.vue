@@ -6,7 +6,7 @@ import PseudoLoginModal from '@/components/domain/PseudoLoginModal.vue'
 import { useNow } from '@/composables/useNow'
 import EventMissionsPanel from '@/views/news/EventMissionsPanel.vue'
 import EventProgressBar from '@/views/news/EventProgressBar.vue'
-import RewardItemTile from '@/views/news/RewardItemTile.vue'
+import RewardItemTile from '@/components/domain/RewardItemTile.vue'
 import type { EventProfileResponse, EventProgressResponse, EventResponse } from '@/types/api/events'
 import {
   EVENT_STATUS_COLOR,

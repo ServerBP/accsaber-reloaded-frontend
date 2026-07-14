@@ -1,5 +1,5 @@
 import type { ItemResponse } from './items'
-import type { MissionType, UserMissionResponse } from './missions'
+import type { MissionResponse, MissionType } from './missions'
 
 export type EventState = 'live' | 'upcoming' | 'past'
 
@@ -25,49 +25,14 @@ export interface EventResponse {
   totalWeeks: number
 }
 
-export interface EventMissionTargets {
-  categoryId?: string
-  mapDifficultyId?: string
-  playerId?: string
-  acc?: number
-  ap?: number
-  score?: number
-  count?: number
-  xp?: number
-  thresholdAp?: number
-  streak?: number
-}
-
-export interface EventMissionResponse {
-  id: string
-  code: string
-  name: string
-  description: string
-  type: MissionType
-  unlocksAt: string
-  completableUntil: string
-  week: number
-  unlocked: boolean
-  open: boolean
-  repeatable: boolean
-  maxCompletions?: number
-  xp?: number
-  awardsItemId?: string
-  awardsItemName?: string
-  targets?: EventMissionTargets
-  categoryCode?: string
-  targetMapSongName?: string
-  targetPlayerName?: string
-}
-
 export interface EventDetailResponse {
   event: EventResponse
-  missions: EventMissionResponse[]
+  missions: MissionResponse[]
 }
 
 export interface EventMissionProgressResponse {
-  mission: EventMissionResponse
-  current?: UserMissionResponse
+  mission: MissionResponse
+  current?: MissionResponse
   completions: number
   completed: boolean
   weekLocked: boolean
@@ -107,6 +72,19 @@ export interface EventRequest {
   active?: boolean
 }
 
+export interface MissionTemplateTargets {
+  categoryId?: string
+  mapDifficultyId?: string
+  playerId?: string
+  acc?: number
+  ap?: number
+  score?: number
+  count?: number
+  xp?: number
+  thresholdAp?: number
+  streak?: number
+}
+
 export interface MissionTemplateResponse {
   id: string
   code: string
@@ -132,5 +110,5 @@ export interface MissionTemplateResponse {
   repeatable?: boolean
   maxCompletions?: number
   fixedXp?: number
-  targets?: EventMissionTargets
+  targets?: MissionTemplateTargets
 }

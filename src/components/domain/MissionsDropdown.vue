@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { useClickOutside } from '@/composables/useClickOutside'
-import type { UserMissionResponse } from '@/types/api/missions'
+import type { MissionResponse } from '@/types/api/missions'
 import { defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 
 const MissionsPanel = defineAsyncComponent(() => import('@/components/domain/MissionsPanel.vue'))
 
-async function loadActive(): Promise<UserMissionResponse[]> {
+async function loadActive(): Promise<MissionResponse[]> {
   const { getMyMissions } = await import('@/api/missions')
   return getMyMissions()
 }
 
-async function loadHistory(): Promise<UserMissionResponse[]> {
+async function loadHistory(): Promise<MissionResponse[]> {
   const { getMyCompletedMissions } = await import('@/api/missions')
   return getMyCompletedMissions()
 }

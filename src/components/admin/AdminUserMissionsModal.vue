@@ -2,7 +2,7 @@
 import { getUserCompletedMissions, getUserMissions } from '@/api/admin/missions';
 import BaseModal from '@/components/common/BaseModal.vue';
 import MissionsPanel from '@/components/domain/MissionsPanel.vue';
-import type { UserMissionResponse } from '@/types/api/missions';
+import type { MissionResponse } from '@/types/api/missions';
 
 const props = defineProps<{
   open: boolean
@@ -14,12 +14,12 @@ const emit = defineEmits<{
   close: []
 }>()
 
-function loadActive(): Promise<UserMissionResponse[]> {
+function loadActive(): Promise<MissionResponse[]> {
   if (!props.userId) return Promise.resolve([])
   return getUserMissions(props.userId)
 }
 
-function loadHistory(): Promise<UserMissionResponse[]> {
+function loadHistory(): Promise<MissionResponse[]> {
   if (!props.userId) return Promise.resolve([])
   return getUserCompletedMissions(props.userId)
 }

@@ -5,7 +5,7 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import PaginationControls from '@/components/common/PaginationControls.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import MissionCard from '@/components/domain/MissionCard.vue'
-import type { MissionPool, UserMissionResponse } from '@/types/api/missions'
+import type { MissionPool, MissionResponse } from '@/types/api/missions'
 import {
   BAND_RANK,
   formatMissionCountdown,
@@ -16,8 +16,8 @@ import { computed, nextTick, onMounted, onUnmounted, ref, useId, watch } from 'v
 
 const props = defineProps<{
   active: boolean
-  loadActive: () => Promise<UserMissionResponse[]>
-  loadHistory: () => Promise<UserMissionResponse[]>
+  loadActive: () => Promise<MissionResponse[]>
+  loadHistory: () => Promise<MissionResponse[]>
   hideTitle?: boolean
 }>()
 
@@ -35,7 +35,7 @@ const tab = ref<'active' | 'history'>('active')
 const activeTabRef = ref<HTMLButtonElement | null>(null)
 const historyTabRef = ref<HTMLButtonElement | null>(null)
 
-const missionsById = ref(new Map<string, UserMissionResponse>())
+const missionsById = ref(new Map<string, MissionResponse>())
 const loadingActive = ref(false)
 const loadingHistory = ref(false)
 const activeError = ref<string | null>(null)
@@ -69,7 +69,7 @@ const hasActive = computed(() => activeList.value.length > 0)
 const hasHistory = computed(() => historyList.value.length > 0)
 
 const grouped = computed(() => {
-  const map = new Map<MissionPool, UserMissionResponse[]>()
+  const map = new Map<MissionPool, MissionResponse[]>()
   for (const pool of POOL_ORDER) map.set(pool, [])
   for (const m of activeList.value) {
     const bucket = map.get(m.pool)
@@ -98,19 +98,27 @@ watch(historyTotalPages, (total) => {
   if (historyPage.value > total) historyPage.value = total
 })
 
-function isWithinWindow(mission: UserMissionResponse, nowMs: number): boolean {
-  const expiresAt = new Date(mission.expiresAt).getTime()
+function expiryMs(mission: MissionResponse): number {
+  return mission.expiresAt ? new Date(mission.expiresAt).getTime() : Number.NaN
+}
+
+function isWithinWindow(mission: MissionResponse, nowMs: number): boolean {
+  const expiresAt = expiryMs(mission)
   if (!Number.isFinite(expiresAt)) return mission.status === 'active'
   return expiresAt > nowMs
 }
 
-function sortByBand(missions: UserMissionResponse[]): UserMissionResponse[] {
-  return [...missions].sort((a, b) => BAND_RANK[a.band] - BAND_RANK[b.band])
+function bandRank(mission: MissionResponse): number {
+  return mission.band ? BAND_RANK[mission.band] : Number.MAX_SAFE_INTEGER
 }
 
-function groupCountdown(missions: UserMissionResponse[]): string {
+function sortByBand(missions: MissionResponse[]): MissionResponse[] {
+  return [...missions].sort((a, b) => bandRank(a) - bandRank(b))
+}
+
+function groupCountdown(missions: MissionResponse[]): string {
   const earliest = missions
-    .map((m) => new Date(m.expiresAt).getTime())
+    .map(expiryMs)
     .filter((t) => Number.isFinite(t))
     .reduce((min, t) => (t < min ? t : min), Number.POSITIVE_INFINITY)
   if (!Number.isFinite(earliest)) return ''
@@ -121,13 +129,13 @@ function isMissionsUnavailable(err: unknown): boolean {
   return err instanceof ApiError && (err.status === 401 || err.status === 404)
 }
 
-function mergeMissions(list: UserMissionResponse[]) {
+function mergeMissions(list: MissionResponse[]) {
   const next = new Map(missionsById.value)
   for (const m of list) next.set(m.id, m)
   missionsById.value = next
 }
 
-async function resolveMapIds(missions: UserMissionResponse[]) {
+async function resolveMapIds(missions: MissionResponse[]) {
   const pending = new Set<string>()
   for (const m of missions) {
     const diffId = m.targetMapDifficultyId

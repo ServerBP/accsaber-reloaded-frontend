@@ -2,10 +2,10 @@ import type {
   EventDetailResponse,
   EventListParams,
   EventMissionProgressResponse,
-  EventMissionResponse,
   EventProgressResponse,
   EventResponse,
 } from '@/types/api/events'
+import type { MissionResponse } from '@/types/api/missions'
 import { get, post } from './client'
 import { buildQuery } from './utils'
 
@@ -21,8 +21,8 @@ export function getEventDetail(id: string): Promise<EventDetailResponse> {
   return get<EventDetailResponse>(`/events/${id}`)
 }
 
-export function getEventMissions(id: string, week?: number): Promise<EventMissionResponse[]> {
-  return get<EventMissionResponse[]>(`/events/${id}/missions${buildQuery({ week })}`)
+export function getEventMissions(id: string, week?: number): Promise<MissionResponse[]> {
+  return get<MissionResponse[]>(`/events/${id}/missions${buildQuery({ week })}`)
 }
 
 export function getEventProgress(id: string): Promise<EventProgressResponse> {

@@ -1,4 +1,5 @@
 import type { CategoryCode } from '@/types/display'
+import type { ItemResponse } from './items'
 
 export type MissionType =
   | 'PLAY_N_MAPS'
@@ -19,40 +20,48 @@ export type MissionStatus = 'active' | 'completed' | 'expired' | 'voided'
 
 export type MissionBand = 'easy' | 'medium' | 'hard' | 'extreme'
 
-export interface UserMissionResponse {
+export interface MissionResponse {
   id: string
   name: string
   description: string
   type: MissionType
   pool: MissionPool
-  status: MissionStatus
-  band: MissionBand
 
-  categoryId: string | null
-  categoryCode: CategoryCode | null
+  categoryId?: string
+  categoryCode?: CategoryCode
 
-  targetMapDifficultyId: string | null
-  targetMapSongName: string | null
+  targetMapDifficultyId?: string
+  targetMapSongName?: string
 
-  targetPlayerId: string | null
-  targetPlayerName: string | null
+  targetPlayerId?: string
+  targetPlayerName?: string
 
-  targetAcc: number | null
-  targetAp: number | null
-  targetScore: number | null
-  targetCount: number | null
-  targetXp: number | null
-  targetThresholdAp: number | null
+  targetAcc?: number
+  targetAp?: number
+  targetScore?: number
+  targetCount?: number
+  targetXp?: number
+  targetThresholdAp?: number
+  targetStreak?: number
 
-  progressCount: number
+  xpReward?: number
+  itemReward?: ItemResponse
 
-  xpReward: number
-  crateRewardId: string | null
-  crateRewardName: string | null
+  status?: MissionStatus
+  band?: MissionBand
+  progressCount?: number
+  assignedAt?: string
+  expiresAt?: string
+  completedAt?: string
 
-  assignedAt: string
-  expiresAt: string
-  completedAt: string | null
+  code?: string
+  week?: number
+  unlocksAt?: string
+  completableUntil?: string
+  unlocked?: boolean
+  open?: boolean
+  repeatable?: boolean
+  maxCompletions?: number
 }
 
 export interface MissionListParams {
