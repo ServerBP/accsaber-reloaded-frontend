@@ -100,6 +100,7 @@ function handleNavigate() {
           :active="open"
           :load-active="loadActive"
           :load-history="loadHistory"
+          self-view
           @navigate="handleNavigate"
         />
       </div>

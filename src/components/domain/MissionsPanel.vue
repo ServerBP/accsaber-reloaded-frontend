@@ -19,6 +19,7 @@ const props = defineProps<{
   loadActive: () => Promise<MissionResponse[]>
   loadHistory: () => Promise<MissionResponse[]>
   hideTitle?: boolean
+  selfView?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -38,6 +39,8 @@ const historyTabRef = ref<HTMLButtonElement | null>(null)
 const missionsById = ref(new Map<string, MissionResponse>())
 const loadingActive = ref(false)
 const loadingHistory = ref(false)
+const loadedActive = ref(false)
+const loadedHistory = ref(false)
 const activeError = ref<string | null>(null)
 const historyError = ref<string | null>(null)
 
@@ -67,6 +70,17 @@ const historyList = computed(() =>
 
 const hasActive = computed(() => activeList.value.length > 0)
 const hasHistory = computed(() => historyList.value.length > 0)
+
+const hasDaily = computed(() => activeList.value.some((m) => m.pool === 'daily'))
+
+const showInactiveNotice = computed(
+  () =>
+    Boolean(props.selfView)
+    && loadedActive.value
+    && loadedHistory.value
+    && !errorMessage.value
+    && !hasDaily.value,
+)
 
 const grouped = computed(() => {
   const map = new Map<MissionPool, MissionResponse[]>()
@@ -173,6 +187,7 @@ async function runLoadActive() {
     }
   } finally {
     loadingActive.value = false
+    loadedActive.value = true
   }
 }
 
@@ -190,6 +205,7 @@ async function runLoadHistory() {
     }
   } finally {
     loadingHistory.value = false
+    loadedHistory.value = true
   }
 }
 
@@ -285,21 +301,38 @@ onUnmounted(() => {
           <SkeletonLoader variant="card" />
           <SkeletonLoader variant="card" />
         </div>
-        <EmptyState v-else-if="!loadingActive && !loadingHistory && !hasActive && !errorMessage" icon="🎆"
-          message="No active missions right now. Check back at the next rollover." />
-        <div v-else class="missions-panel__groups">
-          <section v-for="group in grouped" :key="group.pool" class="missions-panel__group">
-            <header class="missions-panel__group-head">
-              <span class="missions-panel__group-label">{{ POOL_LABEL[group.pool] }}</span>
-              <span class="missions-panel__group-meta">resets in {{ groupCountdown(group.missions) }}</span>
-            </header>
-            <div class="missions-panel__stack">
-              <MissionCard v-for="mission in group.missions" :key="mission.id" :mission="mission"
-                :map-link="mission.targetMapDifficultyId ? mapLinkByDifficulty.get(mission.targetMapDifficultyId) ?? null : null"
-                @navigate="handleNavigate" />
+        <template v-else>
+          <div v-if="showInactiveNotice" class="missions-panel__notice" role="status">
+            <svg class="missions-panel__notice-icon" width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 8v4" />
+              <path d="M12 16h.01" />
+            </svg>
+            <div class="missions-panel__notice-text">
+              <p class="missions-panel__notice-title">Daily missions paused</p>
+              <p class="missions-panel__notice-body">
+                Your profile is marked inactive, so dailies stopped rolling. Play a ranked map to reactivate it, then
+                sign in again to get them back.
+              </p>
             </div>
-          </section>
-        </div>
+          </div>
+          <EmptyState v-if="!hasActive && !showInactiveNotice && !errorMessage" icon="🎆"
+            message="No active missions right now. Check back at the next rollover." />
+          <div v-else-if="hasActive" class="missions-panel__groups">
+            <section v-for="group in grouped" :key="group.pool" class="missions-panel__group">
+              <header class="missions-panel__group-head">
+                <span class="missions-panel__group-label">{{ POOL_LABEL[group.pool] }}</span>
+                <span class="missions-panel__group-meta">resets in {{ groupCountdown(group.missions) }}</span>
+              </header>
+              <div class="missions-panel__stack">
+                <MissionCard v-for="mission in group.missions" :key="mission.id" :mission="mission"
+                  :map-link="mission.targetMapDifficultyId ? mapLinkByDifficulty.get(mission.targetMapDifficultyId) ?? null : null"
+                  @navigate="handleNavigate" />
+              </div>
+            </section>
+          </div>
+        </template>
       </section>
 
       <section v-show="tab === 'history'" :id="historyPanelId" role="tabpanel" :aria-labelledby="historyTabId"
@@ -406,6 +439,46 @@ onUnmounted(() => {
   background: color-mix(in srgb, var(--error) 8%, transparent);
   border: 1px solid color-mix(in srgb, var(--error) 40%, transparent);
   border-radius: var(--radius-btn);
+}
+
+.missions-panel__notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  margin: var(--space-md) var(--space-md) 0;
+  padding: var(--space-sm) var(--space-md);
+  background: color-mix(in srgb, var(--warning) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent);
+  border-radius: var(--radius-btn);
+}
+
+.missions-panel__notice-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--warning);
+}
+
+.missions-panel__notice-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.missions-panel__notice-title {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--warning);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.missions-panel__notice-body {
+  margin: 0;
+  font-size: var(--text-caption);
+  line-height: 1.45;
+  color: var(--text-secondary);
 }
 
 .missions-panel__skeletons {
