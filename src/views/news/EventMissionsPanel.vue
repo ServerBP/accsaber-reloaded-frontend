@@ -2,7 +2,7 @@
 import EmptyState from '@/components/common/EmptyState.vue'
 import EventMissionRow from '@/views/news/EventMissionRow.vue'
 import { missionLockState, type EventMissionView } from '@/utils/events'
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 
 const props = defineProps<{
   missions: EventMissionView[]
@@ -31,6 +31,8 @@ const weekList = computed(() =>
   }),
 )
 
+const activeWeekLocked = computed(() => weekLocked(activeWeek.value))
+
 const visibleRows = computed(() => {
   const filtered = showTabs.value
     ? props.missions.filter((m) => m.week === activeWeek.value)
@@ -43,6 +45,31 @@ const visibleRows = computed(() => {
       live: props.live,
     }),
   }))
+})
+
+const listRef = ref<HTMLElement | null>(null)
+const scrollable = ref(false)
+const atEnd = ref(true)
+
+const showScrollCue = computed(() => scrollable.value && !atEnd.value)
+
+function measureScroll() {
+  const el = listRef.value
+  if (!el) {
+    scrollable.value = false
+    atEnd.value = true
+    return
+  }
+  const max = el.scrollHeight - el.clientHeight
+  scrollable.value = max > 1
+  atEnd.value = el.scrollTop >= max - 1
+}
+
+onMounted(measureScroll)
+
+watch(visibleRows, () => {
+  if (listRef.value) listRef.value.scrollTop = 0
+  nextTick(measureScroll)
 })
 
 watch(
@@ -80,14 +107,20 @@ watch(
       </div>
     </header>
 
+    <p v-if="activeWeekLocked" class="missions__disclaimer">
+      Missions subject to change before release.
+    </p>
+
     <EmptyState v-if="!visibleRows.length" message="No missions unlocked for this week yet." />
-    <div v-else class="missions__list">
-      <EventMissionRow
-        v-for="row in visibleRows"
-        :key="row.mission.id"
-        :mission="row.mission"
-        :lock="row.lock"
-      />
+    <div v-else class="missions__scroll" :class="{ 'missions__scroll--more': showScrollCue }">
+      <div ref="listRef" class="missions__list" @scroll.passive="measureScroll">
+        <EventMissionRow
+          v-for="row in visibleRows"
+          :key="row.mission.id"
+          :mission="row.mission"
+          :lock="row.lock"
+        />
+      </div>
     </div>
   </section>
 </template>
@@ -157,8 +190,57 @@ watch(
   flex-shrink: 0;
 }
 
+.missions__disclaimer {
+  margin: calc(-1 * var(--space-sm)) 0 0;
+  font-size: 0.82rem;
+  font-style: italic;
+  color: var(--text-tertiary);
+}
+
+.missions__scroll {
+  --mission-row-h: 117px;
+  --mission-scrollbar-w: 5px;
+  position: relative;
+}
+
+.missions__scroll::after {
+  content: '';
+  position: absolute;
+  inset: auto var(--mission-scrollbar-w) 0 0;
+  height: 52px;
+  background: linear-gradient(to top, var(--bg-base), transparent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms ease-out;
+}
+
+.missions__scroll--more::after {
+  opacity: 1;
+}
+
 .missions__list {
   display: flex;
   flex-direction: column;
+  max-height: calc(var(--mission-row-h) * 3);
+  overflow-y: auto;
+  padding-right: var(--space-sm);
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--bg-overlay) transparent;
+}
+
+.missions__list::-webkit-scrollbar {
+  width: var(--mission-scrollbar-w);
+}
+
+.missions__list::-webkit-scrollbar-thumb {
+  background: var(--bg-overlay);
+  border-radius: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .missions__scroll::after {
+    transition: none;
+  }
 }
 </style>

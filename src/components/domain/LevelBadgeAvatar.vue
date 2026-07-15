@@ -1,10 +1,15 @@
 <script setup lang="ts">
-defineProps<{
+import { onAvatarError } from '@/composables/useAvatarFallback'
+
+const props = defineProps<{
   avatarUrl: string
   clipId: string
   maskPath: string
   imageBox: { x: number; y: number; size: number }
+  fallbackUrl?: string | null
 }>()
+
+const handleAvatarError = (e: Event) => onAvatarError(props.fallbackUrl)(e)
 </script>
 
 <template>
@@ -27,7 +32,13 @@ defineProps<{
         :width="imageBox.size"
         :height="imageBox.size"
       >
-        <img :src="avatarUrl" alt="" class="level-badge__avatar-img" decoding="async" />
+        <img
+          :src="avatarUrl"
+          alt=""
+          class="level-badge__avatar-img"
+          decoding="async"
+          @error="handleAvatarError"
+        />
       </foreignObject>
     </g>
   </svg>

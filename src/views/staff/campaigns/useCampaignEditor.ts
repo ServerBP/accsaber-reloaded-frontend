@@ -1789,9 +1789,16 @@ export function useCampaignEditor() {
     { value: 'AVERAGE_RANK', label: 'Average rank' },
     { value: 'MAX_RANK', label: 'Best rank' },
     { value: 'FC', label: 'Full combo (all)' },
+    { value: 'COMPLETION_COUNT', label: 'Maps completed' },
   ]
 
   const barrierMeta = computed(() => barrierConditionMeta(formBarrier.value.conditionType))
+
+  const barrierAffectedCount = computed(
+    () => selectedBarrier.value?.affectedCampaignDifficultyIds.length ?? 0,
+  )
+
+  const barrierCountMax = computed(() => Math.max(1, barrierAffectedCount.value))
 
   const barrierValueDisplay = computed<number>({
     get: () => {
@@ -1807,6 +1814,9 @@ export function useCampaignEditor() {
         formBarrier.value.conditionValue = Math.max(0, Math.min(100, Number(v) || 0)) / 100
       } else if (m.metric === 'rank') {
         formBarrier.value.conditionValue = Math.max(1, Math.round(Number(v) || 1))
+      } else if (m.metric === 'count') {
+        const n = Math.round(Number(v) || 1)
+        formBarrier.value.conditionValue = Math.max(1, Math.min(barrierCountMax.value, n))
       } else if (m.metric === 'streak') {
         formBarrier.value.conditionValue = Math.max(0, Math.round(Number(v) || 0))
       } else {
@@ -1821,6 +1831,7 @@ export function useCampaignEditor() {
     if (m === 'ap') return { min: 0, max: 1200, step: 1, unit: 'AP' }
     if (m === 'streak') return { min: 0, max: 30, step: 1, unit: '' }
     if (m === 'rank') return { min: 1, max: 500, step: 1, unit: 'rank' }
+    if (m === 'count') return { min: 1, max: barrierCountMax.value, step: 1, unit: 'maps' }
     return { min: 0, max: 1, step: 1, unit: '' }
   })
 
@@ -1844,7 +1855,9 @@ export function useCampaignEditor() {
             ? 500
             : nextMeta.metric === 'streak'
               ? 8
-              : 50
+              : nextMeta.metric === 'count'
+                ? barrierCountMax.value
+                : 50
       formBarrier.value.conditionValue = def
       if (editable.value && b) {
         requirementDirtyIds.value.add(b.id)
@@ -1867,15 +1880,31 @@ export function useCampaignEditor() {
     if (current.has(nodeId)) current.delete(nodeId)
     else current.add(nodeId)
     const next = Array.from(current)
+    const patch: UpdateCampaignBarrierRequest = { affectedCampaignDifficultyIds: next }
+    if (
+      b.conditionType === 'COMPLETION_COUNT' &&
+      next.length > 0 &&
+      (b.conditionValue ?? 1) > next.length
+    ) {
+      patch.conditionValue = next.length
+      formBarrier.value.conditionValue = next.length
+      requirementDirtyIds.value.add(b.id)
+    }
     if (campaign.value) {
       campaign.value = {
         ...campaign.value,
         barriers: campaign.value.barriers.map((row) =>
-          row.id === b.id ? { ...row, affectedCampaignDifficultyIds: next } : row,
+          row.id === b.id
+            ? {
+                ...row,
+                affectedCampaignDifficultyIds: next,
+                conditionValue: patch.conditionValue ?? row.conditionValue,
+              }
+            : row,
         ),
       }
     }
-    void applyBarrierPatch(b.id, { affectedCampaignDifficultyIds: next })
+    void applyBarrierPatch(b.id, patch)
   }
 
   function setBarrierPrereqMode(mode: 'AND' | 'OR') {

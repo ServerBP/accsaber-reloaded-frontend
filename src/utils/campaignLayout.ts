@@ -318,7 +318,7 @@ export function formatUserValue(
   }
 }
 
-type BarrierMetric = 'acc' | 'ap' | 'streak' | 'rank' | 'fc'
+type BarrierMetric = 'acc' | 'ap' | 'streak' | 'rank' | 'fc' | 'count'
 
 interface BarrierConditionMeta {
   agg: string
@@ -338,6 +338,13 @@ const BARRIER_CONDITION_META: Record<BarrierConditionType, BarrierConditionMeta>
   AVERAGE_RANK: { agg: 'avg', metric: 'rank', lowerBetter: true, noValue: false, label: 'Average rank' },
   MAX_RANK: { agg: 'best', metric: 'rank', lowerBetter: true, noValue: false, label: 'Best rank' },
   FC: { agg: '', metric: 'fc', lowerBetter: false, noValue: true, label: 'Full combo' },
+  COMPLETION_COUNT: {
+    agg: 'count',
+    metric: 'count',
+    lowerBetter: false,
+    noValue: false,
+    label: 'Maps completed',
+  },
 }
 
 export function barrierConditionMeta(type: BarrierConditionType): BarrierConditionMeta {
@@ -354,6 +361,7 @@ const BARRIER_READOUT_LABEL: Record<BarrierConditionType, string> = {
   AVERAGE_RANK: 'Avg Rank',
   MAX_RANK: 'Best Rank',
   FC: 'Full Combo',
+  COMPLETION_COUNT: 'Maps Completed',
 }
 
 export function barrierConditionLabel(type: BarrierConditionType): string {
@@ -368,6 +376,7 @@ export function barrierPairValue(type: BarrierConditionType, value: number | nul
     case 'ap':
     case 'streak':
     case 'rank':
+    case 'count':
       return `${Math.round(value)}`
     default:
       return ''

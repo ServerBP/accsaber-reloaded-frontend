@@ -64,6 +64,7 @@ export type BarrierConditionType =
   | 'FC'
   | 'AVERAGE_RANK'
   | 'MAX_RANK'
+  | 'COMPLETION_COUNT'
 
 export type CampaignVoteDirection = 'UP' | 'DOWN'
 

@@ -26,6 +26,7 @@ const props = defineProps<{
   currentXp: number
   requiredXp: number
   avatarUrl?: string
+  avatarFallbackUrl?: string | null
   fallbackTitle?: string | null
   fallbackTitleColor?: string | null
   hideProgress?: boolean
@@ -102,6 +103,7 @@ const fallbackTitleStyle = computed(() => {
         <LevelBadgeAvatar
           v-if="avatarUrl"
           :avatar-url="avatarUrl"
+          :fallback-url="avatarFallbackUrl"
           :clip-id="avatarClipId"
           :mask-path="avatarMaskPath"
           :image-box="avatarImageBox"
@@ -115,6 +117,7 @@ const fallbackTitleStyle = computed(() => {
         <LevelBadgeAvatar
           v-if="avatarUrl"
           :avatar-url="avatarUrl"
+          :fallback-url="avatarFallbackUrl"
           :clip-id="avatarClipId"
           :mask-path="avatarMaskPath"
           :image-box="avatarImageBox"

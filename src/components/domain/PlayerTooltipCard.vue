@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { getUserLevel, getUserOverallStatistics } from '@/api/users';
 import CountryFlag from '@/components/domain/CountryFlag.vue';
+import LevelBadge from '@/components/domain/LevelBadge.vue';
 import RelationActions from '@/components/domain/RelationActions.vue';
-import { onAvatarError } from '@/composables/useAvatarFallback';
-import type { LevelResponse, UserCategoryStatisticsResponse } from '@/types/api/users';
-import { computed, onMounted, ref } from 'vue';
+import { useEquippedRenderProps } from '@/composables/useEquippedRenderProps';
+import { useMiniProfile } from '@/composables/useMiniProfile';
+import { fillToCss } from '@/utils/items';
+import { computed } from 'vue';
 
 const props = defineProps<{
   userId: string
@@ -14,37 +15,63 @@ const props = defineProps<{
   country: string
 }>()
 
-const handleAvatarError = (e: Event) => onAvatarError(props.avatarFallbackUrl)(e)
+const { profile, loading } = useMiniProfile(() => props.userId)
 
-const stats = ref<UserCategoryStatisticsResponse | null>(null)
-const level = ref<LevelResponse | null>(null)
-const loading = ref(true)
+const stats = computed(() => profile.value?.stats ?? null)
+const level = computed(() => profile.value?.level ?? null)
+
+const {
+  titleValue: equippedTitle,
+  borderShapeValue: equippedBorderShape,
+  borderColorValue: equippedBorderColor,
+  titleEffects: equippedTitleEffects,
+  borderEffects: equippedBorderEffects,
+} = useEquippedRenderProps(() => profile.value?.equipped)
 
 const tierKey = computed(() => {
   if (level.value?.title) return level.value.title.toLowerCase().replace(/\s+/g, '-')
   return null
 })
 
-const borderColor = computed(() =>
-  tierKey.value ? `var(--tier-${tierKey.value})` : undefined,
-)
+function flatten(value: string): string {
+  return `linear-gradient(${value}, ${value})`
+}
 
-onMounted(async () => {
-  const [statsRes, levelRes] = await Promise.allSettled([
-    getUserOverallStatistics(props.userId),
-    getUserLevel(props.userId),
-  ])
-  if (statsRes.status === 'fulfilled') stats.value = statsRes.value
-  if (levelRes.status === 'fulfilled') level.value = levelRes.value
-  loading.value = false
+const cardBorder = computed(() => {
+  const fill = equippedBorderColor.value?.states?.[0]?.fill
+  if (fill) {
+    const css = fillToCss(fill)
+    return fill.type === 'solid' ? flatten(css) : css
+  }
+  if (tierKey.value) return flatten(`var(--tier-${tierKey.value})`)
+  return undefined
 })
 </script>
 
 <template>
-  <div class="player-tooltip" :style="borderColor ? { '--level-color': borderColor } : undefined">
+  <div class="player-tooltip" :style="cardBorder ? { '--tooltip-border': cardBorder } : undefined">
     <div class="player-tooltip__content">
-      <img :src="avatarUrl" :alt="userName" class="player-tooltip__avatar" loading="lazy" decoding="async"
-        @error="handleAvatarError" />
+      <div v-if="loading" class="player-tooltip__badge-skeleton" aria-hidden="true">
+        <div class="player-tooltip__badge-skeleton-stack" />
+        <div class="player-tooltip__badge-skeleton-line" />
+      </div>
+      <div v-else class="player-tooltip__badge">
+        <LevelBadge
+          :level="level?.level ?? 0"
+          :current-xp="level?.xpForCurrentLevel ?? 0"
+          :required-xp="level?.xpForNextLevel ?? 1"
+          :avatar-url="avatarUrl"
+          :avatar-fallback-url="avatarFallbackUrl"
+          :fallback-title="level?.title"
+          hide-progress
+          :equipped-title="equippedTitle"
+          :equipped-border-shape="equippedBorderShape"
+          :equipped-border-color="equippedBorderColor"
+          :title-effects="equippedTitleEffects"
+          :border-effects="equippedBorderEffects"
+        />
+      </div>
+
       <div class="player-tooltip__info">
         <span class="player-tooltip__name">{{ userName }}</span>
         <span class="player-tooltip__country">
@@ -88,8 +115,10 @@ onMounted(async () => {
 .player-tooltip {
   width: 240px;
   border-radius: var(--radius-card);
-  border: 1px solid var(--level-color, var(--bg-overlay));
-  background: var(--bg-surface);
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--bg-surface), var(--bg-surface)) padding-box,
+    var(--tooltip-border, linear-gradient(var(--bg-overlay), var(--bg-overlay))) border-box;
 }
 
 .player-tooltip__content {
@@ -101,12 +130,51 @@ onMounted(async () => {
   padding: var(--space-md);
 }
 
-.player-tooltip__avatar {
-  width: 56px;
-  height: 56px;
+.player-tooltip__badge :deep(.level-badge) {
+  gap: var(--space-sm);
+}
+
+.player-tooltip__badge :deep(.level-badge__stack) {
+  width: 96px;
+  height: 96px;
+}
+
+.player-tooltip__badge :deep(.level-badge__avatar-wrap) {
+  width: 85px;
+  height: 85px;
+}
+
+.player-tooltip__badge :deep(.level-badge__title-line) {
+  justify-content: center;
+  flex-wrap: wrap;
+  white-space: normal;
+  max-width: 208px;
+}
+
+.player-tooltip__badge :deep(.level-badge__level) {
+  font-size: var(--text-caption);
+}
+
+.player-tooltip__badge-skeleton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  animation: shimmer 1.5s infinite;
+}
+
+.player-tooltip__badge-skeleton-stack {
+  width: 96px;
+  height: 96px;
   border-radius: var(--radius-avatar);
-  object-fit: cover;
-  border: 2px solid var(--level-color, var(--bg-overlay));
+  background: var(--bg-elevated);
+}
+
+.player-tooltip__badge-skeleton-line {
+  width: 104px;
+  height: 18px;
+  border-radius: var(--radius-btn);
+  background: var(--bg-elevated);
 }
 
 .player-tooltip__info {
@@ -162,6 +230,14 @@ onMounted(async () => {
 
   100% {
     opacity: 0.5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .player-tooltip__badge-skeleton,
+  .player-tooltip__stat--loading {
+    animation: none;
   }
 }
 

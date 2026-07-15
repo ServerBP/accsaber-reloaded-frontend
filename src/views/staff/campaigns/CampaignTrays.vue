@@ -1057,6 +1057,12 @@ const backgroundSwatch = computed(() => {
     <p v-if="barrierMeta.noValue" class="campaign-editor__hint">
       Opens once every affected node has been full-comboed.
     </p>
+    <p v-else-if="barrierMeta.metric === 'count'" class="campaign-editor__hint">
+      Opens once the player has completed this many of the
+      {{ affectedNodeList.length }}
+      {{ affectedNodeList.length === 1 ? 'affected node' : 'affected nodes' }}, each cleared by its
+      own requirement. Add more affected nodes to raise the cap.
+    </p>
     <p v-else-if="barrierMeta.lowerBetter" class="campaign-editor__hint">
       Lower is better. Opens when the {{ barrierMeta.agg }} leaderboard rank across the affected
       nodes reaches this position or better.
@@ -1157,6 +1163,10 @@ const backgroundSwatch = computed(() => {
         </button>
       </div>
     </div>
+    <p v-if="barrierMeta.metric === 'count'" class="campaign-editor__hint">
+      This gates the connections feeding the gate, not the affected nodes above: a map-count gate
+      always counts completions rather than aggregating a metric.
+    </p>
   </fieldset>
 
   <fieldset

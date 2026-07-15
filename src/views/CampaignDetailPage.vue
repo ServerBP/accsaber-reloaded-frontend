@@ -258,6 +258,20 @@ const displayedBarrierProgress = computed(() => {
 
 const barrierAccent = computed(() => displayedBarrier.value?.borderColor || 'var(--warning)')
 
+const barrierSubtitle = computed(() => {
+  const b = displayedBarrier.value
+  if (!b) return ''
+  const n = b.affectedCampaignDifficultyIds.length
+  const maps = n === 1 ? 'map' : 'maps'
+  const lead =
+    b.conditionType === 'COMPLETION_COUNT' ? 'Completions' : barrierConditionLabel(b.conditionType)
+  return `${lead} across ${n} ${maps}`
+})
+
+const barrierProgressLabel = computed(() =>
+  displayedBarrier.value?.conditionType === 'COMPLETION_COUNT' ? 'Completed' : 'Your best',
+)
+
 const prereqsFor = computed(() => {
   if (!displayedDifficulty.value || !campaign.value) return []
   const byId = new Map(campaign.value.difficulties.map((d) => [d.id, d]))
@@ -887,11 +901,7 @@ function unpinTooltip() {
                 <h2 class="campaign-detail__node-title">
                   {{ displayedBarrier.checkpointLabel || 'Checkpoint gate' }}
                 </h2>
-                <p class="campaign-detail__node-artist">
-                  {{ barrierConditionLabel(displayedBarrier.conditionType) }} across
-                  {{ displayedBarrier.affectedCampaignDifficultyIds.length }}
-                  {{ displayedBarrier.affectedCampaignDifficultyIds.length === 1 ? 'map' : 'maps' }}
-                </p>
+                <p class="campaign-detail__node-artist">{{ barrierSubtitle }}</p>
               </div>
             </div>
 
@@ -903,7 +913,7 @@ function unpinTooltip() {
                 </span>
               </div>
               <div v-if="displayedBarrierProgress" class="campaign-detail__target">
-                <span class="campaign-detail__target-label">Your best</span>
+                <span class="campaign-detail__target-label">{{ barrierProgressLabel }}</span>
                 <span class="campaign-detail__target-value">
                   {{ barrierPairValue(displayedBarrier.conditionType, displayedBarrierProgress.currentValue) }}
                 </span>

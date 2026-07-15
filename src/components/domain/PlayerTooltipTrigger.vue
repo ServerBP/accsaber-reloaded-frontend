@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import PlayerTooltipCard from '@/components/domain/PlayerTooltipCard.vue';
-import { onUnmounted, ref } from 'vue';
+import { defineAsyncComponent, onUnmounted, ref, watch } from 'vue';
+
+const loadCard = () => import('@/components/domain/PlayerTooltipCard.vue')
+const PlayerTooltipCard = defineAsyncComponent(loadCard)
 
 defineProps<{
   userId: string
@@ -12,9 +14,12 @@ defineProps<{
 
 const showTooltip = ref(false)
 const triggerRef = ref<HTMLElement | null>(null)
+const popupRef = ref<HTMLElement | null>(null)
 const tooltipStyle = ref<Record<string, string>>({})
+const VIEWPORT_MARGIN = 8
 let hoverTimer: ReturnType<typeof setTimeout> | null = null
 let hideTimer: ReturnType<typeof setTimeout> | null = null
+let resizeObserver: ResizeObserver | null = null
 
 const SCROLL_OPTS: AddEventListenerOptions = { capture: true, passive: true }
 
@@ -36,10 +41,20 @@ function updatePosition() {
   const el = triggerRef.value
   if (!el) return
   const rect = el.getBoundingClientRect()
+  const popup = popupRef.value?.getBoundingClientRect()
+  const width = popup?.width ?? 0
+  const height = popup?.height ?? 0
+
+  const below = rect.bottom + VIEWPORT_MARGIN
+  const above = rect.top - VIEWPORT_MARGIN - height
+  const flip =
+    height > 0 && below + height > window.innerHeight && above >= VIEWPORT_MARGIN
+  const maxLeft = window.innerWidth - width - VIEWPORT_MARGIN
+
   tooltipStyle.value = {
     position: 'fixed',
-    top: `${rect.bottom + 8}px`,
-    left: `${rect.left}px`,
+    top: `${flip ? above : below}px`,
+    left: `${Math.max(VIEWPORT_MARGIN, Math.min(rect.left, maxLeft))}px`,
   }
 }
 
@@ -71,6 +86,7 @@ function scheduleHide() {
 function onMouseEnter() {
   clearHideTimer()
   if (showTooltip.value) return
+  void loadCard()
   hoverTimer = setTimeout(() => {
     updatePosition()
     showTooltip.value = true
@@ -92,10 +108,20 @@ function onPopupLeave() {
   scheduleHide()
 }
 
+watch(popupRef, (el) => {
+  resizeObserver?.disconnect()
+  resizeObserver = null
+  if (!el) return
+  resizeObserver = new ResizeObserver(updatePosition)
+  resizeObserver.observe(el)
+})
+
 onUnmounted(() => {
   clearHoverTimer()
   clearHideTimer()
   detachListeners()
+  resizeObserver?.disconnect()
+  resizeObserver = null
 })
 </script>
 
@@ -104,7 +130,7 @@ onUnmounted(() => {
     <slot />
     <Teleport to="body">
       <Transition name="tooltip">
-        <div v-if="showTooltip" class="tooltip-trigger__popup" :style="tooltipStyle"
+        <div v-if="showTooltip" ref="popupRef" class="tooltip-trigger__popup" :style="tooltipStyle"
           @mouseenter="onPopupEnter" @mouseleave="onPopupLeave">
           <PlayerTooltipCard :user-id="userId" :user-name="userName" :avatar-url="avatarUrl"
             :avatar-fallback-url="avatarFallbackUrl" :country="country" />
