@@ -44,6 +44,17 @@ const completionsLabel = computed(() => {
   return m.maxCompletions ? `${m.completions}/${m.maxCompletions}` : `×${m.completions}`
 })
 
+const showsCount = computed(
+  () => state.value !== 'locked' && props.mission.tracked && completionsLabel.value !== null,
+)
+
+const repeatLabel = computed(() => {
+  const m = props.mission
+  if (!m.repeatable) return null
+  if (m.maxCompletions && !showsCount.value) return `Repeatable ×${m.maxCompletions}`
+  return 'Repeatable'
+})
+
 function formatUnlock(value: string): string {
   return new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
@@ -66,6 +77,17 @@ function formatUnlock(value: string): string {
       </span>
 
       <span class="mission__name">{{ mission.name }}</span>
+
+      <span v-if="repeatLabel" class="mission__repeat">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="17 1 21 5 17 9" />
+          <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+          <polyline points="7 23 3 19 7 15" />
+          <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+        </svg>
+        {{ repeatLabel }}
+      </span>
 
       <MissionRewards :xp-reward="mission.xpReward" :item-reward="mission.itemReward" :size="36" />
     </div>
@@ -144,6 +166,18 @@ function formatUnlock(value: string): string {
   font-size: 1rem;
   font-weight: 600;
   color: var(--text-primary);
+}
+
+.mission__repeat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
 }
 
 .mission__desc {
