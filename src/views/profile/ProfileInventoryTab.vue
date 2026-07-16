@@ -28,7 +28,7 @@ import { useThemeStore } from '@/stores/theme'
 import type { CrateOpenResponse, DisintegrationResponse, ItemRarity, ItemResponse, ItemTypeKey, UserItemResponse } from '@/types/api/items'
 import type { Page } from '@/types/pagination'
 import { ESSENCE_GLYPH, formatEssence, formatEssenceAmount } from '@/utils/essence'
-import { RARITY_ORDER, readThemeValue } from '@/utils/items'
+import { buildEffectLayers, RARITY_ORDER, readThemeValue } from '@/utils/items'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 
@@ -342,7 +342,13 @@ async function handleEquip(linkId: string) {
     await inventoryStore.equip(target.linkId, props.userId)
     if (target.item.typeKey === 'theme') {
       const theme = readThemeValue(target.item.value)
-      if (theme) themeStore.setThemeFromTokens(`item:${target.item.id}`, theme.tokens)
+      if (theme) {
+        themeStore.setThemeFromTokens(
+          `item:${target.item.id}`,
+          theme.tokens,
+          buildEffectLayers(target.modifiers, target.unusualEffect),
+        )
+      }
     }
   } catch {
   } finally {
@@ -384,7 +390,11 @@ async function handleApplyThemeMode(linkId: string, alt: boolean) {
     if (!isEquipped(target)) {
       await inventoryStore.equip(target.linkId, props.userId)
     }
-    themeStore.setThemeFromTokens(`item:${target.item.id}`, tokens)
+    themeStore.setThemeFromTokens(
+      `item:${target.item.id}`,
+      tokens,
+      buildEffectLayers(target.modifiers, target.unusualEffect),
+    )
   } catch {
   } finally {
     actionBusy.value = false
@@ -519,7 +529,13 @@ async function handleCrateEquip(reward: UserItemResponse) {
     await inventoryStore.equip(reward.linkId, props.userId)
     if (reward.item.typeKey === 'theme') {
       const theme = readThemeValue(reward.item.value)
-      if (theme) themeStore.setThemeFromTokens(`item:${reward.item.id}`, theme.tokens)
+      if (theme) {
+        themeStore.setThemeFromTokens(
+          `item:${reward.item.id}`,
+          theme.tokens,
+          buildEffectLayers(reward.modifiers, reward.unusualEffect),
+        )
+      }
     }
     if (crateOpening.value) {
       crateOpening.value = { ...crateOpening.value, equipBusy: false, equippedLinkId: reward.linkId }

@@ -13,6 +13,7 @@ const props = defineProps<{
 interface EntityConfig {
   widthPct: number
   xPct: number
+  yPct: number | null
   bodyColor: string
   mistColor: string
   eyeColor: string
@@ -25,6 +26,7 @@ function readEntity(c: Composition): EntityConfig {
   return {
     widthPct: Math.max(20, Math.min(90, asNumber(c.widthPct) ?? 55)),
     xPct: Math.max(0, Math.min(100, asNumber(c.xPct) ?? 50)),
+    yPct: asNumber(c.yPct) ?? null,
     bodyColor: asString(c.bodyColor) ?? '#0a0812',
     mistColor: asString(c.mistColor) ?? '#3d3654',
     eyeColor: asString(c.eyeColor) ?? '#ffffff',
@@ -56,7 +58,7 @@ const entities = computed<EntityRender[]>(() => {
   let w = (cfg.widthPct / 100) * minD * (elongated ? 1.4 : 1.25)
   let h = w * 0.55
   const headroom = box.y
-  if (headroom > minD * 0.25) {
+  if (cfg.yPct == null && headroom > minD * 0.25) {
     h = Math.min(h, headroom * 1.05)
     w = h / 0.55
   }
@@ -67,7 +69,7 @@ const entities = computed<EntityRender[]>(() => {
   const mistBg = `radial-gradient(ellipse 50% 45% at 50% 40%, color-mix(in srgb, ${cfg.mistColor} 26%, transparent) 0%, color-mix(in srgb, ${cfg.mistColor} 10%, transparent) 50%, transparent 74%)`
   return [{
     x: box.x + box.w * (cfg.xPct / 100) - w / 2,
-    y: box.y - h * hover,
+    y: cfg.yPct != null ? box.y + box.h * (cfg.yPct / 100) - h / 2 : box.y - h * hover,
     w,
     h,
     bodyBg,

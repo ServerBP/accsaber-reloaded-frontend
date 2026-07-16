@@ -22,10 +22,12 @@ interface AuroraConfig {
   blurPx: number
   shimmerMs: number
   intensity: number
+  underline: boolean
 }
 
 function readAurora(c: Composition): AuroraConfig {
   return {
+    underline: c.underline !== false,
     count: Math.max(6, Math.min(28, Math.round(asNumber(c.count) ?? 16))),
     hueBase: asNumber(c.hueBase) ?? 190,
     innerPct: Math.max(0, Math.min(45, asNumber(c.innerPct) ?? 26)),
@@ -190,6 +192,7 @@ const lines = computed<AuroraLine[]>(() => {
   if (!b.w || !b.h) return []
   if (b.w / b.h < 1.5) return []
   const cfg = readAurora(props.composition)
+  if (!cfg.underline) return []
   const radius = auroraRadius(cfg, b)
   const ext = Math.min(b.w * 0.12, 24)
   const height = Math.max(2, Math.min(b.w, b.h) * 0.09)

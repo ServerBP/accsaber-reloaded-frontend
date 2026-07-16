@@ -1,4 +1,4 @@
-import { applyThemeTokens, clearThemeTokens } from '@/utils/items'
+import { applyThemeTokens, clearThemeTokens, type EffectLayer } from '@/utils/items'
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 
@@ -6,6 +6,7 @@ export type BuiltinTheme = 'dark' | 'light'
 export type Theme = BuiltinTheme | string
 
 const TOKENS_STORAGE_KEY = 'theme:tokens'
+const EFFECTS_STORAGE_KEY = 'theme:effects'
 
 function getInitialTheme(): Theme {
   const stored = localStorage.getItem('theme')
@@ -26,9 +27,31 @@ function loadStoredTokens(): Record<string, string> | null {
   return null
 }
 
+function loadStoredEffects(): EffectLayer[] | null {
+  const raw = localStorage.getItem(EFFECTS_STORAGE_KEY)
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed) && parsed.length) return parsed as EffectLayer[]
+  } catch {
+    /* fallthrough */
+  }
+  return null
+}
+
 export const useThemeStore = defineStore('theme', () => {
   const theme = ref<Theme>(getInitialTheme())
   const activeTokens = ref<Record<string, string> | null>(loadStoredTokens())
+  const activeEffects = ref<EffectLayer[] | null>(loadStoredEffects())
+
+  function setActiveEffects(effects: EffectLayer[] | null | undefined) {
+    activeEffects.value = effects?.length ? effects : null
+    if (activeEffects.value) {
+      localStorage.setItem(EFFECTS_STORAGE_KEY, JSON.stringify(activeEffects.value))
+    } else {
+      localStorage.removeItem(EFFECTS_STORAGE_KEY)
+    }
+  }
 
   const resolvedBase = computed<BuiltinTheme>(() => {
     if (activeTokens.value) return activeTokens.value.base === 'light' ? 'light' : 'dark'
@@ -56,21 +79,31 @@ export const useThemeStore = defineStore('theme', () => {
       activeTokens.value = null
       localStorage.removeItem(TOKENS_STORAGE_KEY)
     }
+    setActiveEffects(null)
     theme.value = value
   }
 
-  function setThemeFromTokens(themeKey: string, tokens: Record<string, string>) {
+  function setThemeFromTokens(
+    themeKey: string,
+    tokens: Record<string, string>,
+    effects?: EffectLayer[],
+  ) {
     if (activeTokens.value) clearThemeTokens(activeTokens.value)
     activeTokens.value = tokens
     localStorage.setItem(TOKENS_STORAGE_KEY, JSON.stringify(tokens))
     applyThemeTokens(tokens)
+    setActiveEffects(effects)
     theme.value = themeKey
   }
 
-  function previewThemeTokens(tokens: Record<string, string> | null) {
+  function previewThemeTokens(
+    tokens: Record<string, string> | null,
+    effects: EffectLayer[] | null = null,
+  ) {
     if (activeTokens.value) clearThemeTokens(activeTokens.value)
     activeTokens.value = tokens
     if (tokens) applyThemeTokens(tokens)
+    activeEffects.value = effects?.length ? effects : null
   }
 
   function toggle() {
@@ -89,5 +122,5 @@ export const useThemeStore = defineStore('theme', () => {
     applyThemeTokens(activeTokens.value)
   }
 
-  return { theme, activeTokens, resolvedBase, toggle, setTheme, setThemeFromTokens, previewThemeTokens }
+  return { theme, activeTokens, activeEffects, resolvedBase, toggle, setTheme, setThemeFromTokens, previewThemeTokens }
 })

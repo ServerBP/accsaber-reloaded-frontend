@@ -94,6 +94,10 @@ const themeId = computed({
   get: () => preview.theme?.id ?? '',
   set: (id: string) => { preview.theme = findItem(id); preview.themeVariant = null },
 })
+const themeEffectId = computed({
+  get: () => preview.themeEffect?.id ?? '',
+  set: (id: string) => { preview.themeEffect = findEffect(id) },
+})
 
 const themeVariants = computed(() =>
   preview.theme ? itemVariantPreviews(preview.theme) ?? [] : [],
@@ -122,13 +126,14 @@ const chips = computed(() => {
   if (preview.borderColor) list.push(preview.borderColor.name || 'Border color')
   if (preview.title) list.push(preview.title.name || 'Title')
   if (preview.theme) list.push(preview.theme.name || 'Theme')
-  for (const e of [preview.borderShapeEffect, preview.borderColorEffect, preview.titleEffect]) {
+  for (const e of [preview.borderShapeEffect, preview.borderColorEffect, preview.titleEffect, preview.themeEffect]) {
     if (e) list.push(e.name || e.key)
   }
   for (const m of [
     ...preview.borderShapeModifiers,
     ...preview.borderColorModifiers,
     ...preview.titleModifiers,
+    ...preview.themeModifiers,
   ]) {
     list.push(m.name)
   }
@@ -200,6 +205,8 @@ const chips = computed(() => {
           <span class="preview-dock__group-title">Theme</span>
           <PreviewPicker v-model="themeId" :items="themes" placeholder="None" />
           <PreviewVariantRow :variants="themeVariants" v-model="preview.themeVariant" />
+          <PreviewPicker v-model="themeEffectId" :effects="effects" placeholder="No effect" />
+          <PreviewModifierPicker v-model="preview.themeModifiers" :modifiers="availableModifiers" />
         </div>
         </div>
         </div>

@@ -26,6 +26,8 @@ interface PreviewSnapshot {
   titleModifiers: ItemModifierRef[]
   theme: ItemResponse | null
   themeVariant: string | null
+  themeEffect: UnusualEffectRef | null
+  themeModifiers: ItemModifierRef[]
 }
 
 function loadSnapshot(): Partial<PreviewSnapshot> {
@@ -106,6 +108,8 @@ export const usePreviewStore = defineStore('creativesPreview', () => {
 
   const theme = ref<ItemResponse | null>(saved.theme ?? null)
   const themeVariant = ref<string | null>(saved.themeVariant ?? null)
+  const themeEffect = ref<UnusualEffectRef | null>(saved.themeEffect ?? null)
+  const themeModifiers = ref<ItemModifierRef[]>(saved.themeModifiers ?? [])
 
   const overrides = computed<EquippedItemsResponse>(() => {
     const result: EquippedItemsResponse = {}
@@ -158,6 +162,8 @@ export const usePreviewStore = defineStore('creativesPreview', () => {
         titleModifiers,
         theme,
         themeVariant,
+        themeEffect,
+        themeModifiers,
       ],
       () => {
         if (!canPersist) return
@@ -179,6 +185,8 @@ export const usePreviewStore = defineStore('creativesPreview', () => {
               titleModifiers: titleModifiers.value,
               theme: theme.value,
               themeVariant: themeVariant.value,
+              themeEffect: themeEffect.value,
+              themeModifiers: themeModifiers.value,
             } satisfies PreviewSnapshot),
           )
         } catch {
@@ -203,6 +211,8 @@ export const usePreviewStore = defineStore('creativesPreview', () => {
     titleModifiers,
     theme,
     themeVariant,
+    themeEffect,
+    themeModifiers,
     overrides,
   }
 })

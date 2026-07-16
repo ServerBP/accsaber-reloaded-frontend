@@ -5,7 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useItemTypeStore } from '@/stores/itemTypes'
 import { useThemeStore } from '@/stores/theme'
 import type { ItemResponse, UserItemResponse } from '@/types/api/items'
-import { filterThemableTokens, readThemeValue } from '@/utils/items'
+import { buildEffectLayers, filterThemableTokens, readThemeValue } from '@/utils/items'
 import { computed, onMounted, ref, watch } from 'vue'
 
 interface ThemeCard {
@@ -42,9 +42,9 @@ const ownedThemes = ref<UserItemResponse[]>([])
 const themeBusy = ref<string | null>(null)
 
 const ownedThemeItemIds = computed(() => new Set(ownedThemes.value.map((u) => u.item.id)))
-const ownedThemeLinkByItemId = computed(() => {
-  const map = new Map<string, string>()
-  for (const u of ownedThemes.value) map.set(u.item.id, u.linkId)
+const ownedThemeByItemId = computed(() => {
+  const map = new Map<string, UserItemResponse>()
+  for (const u of ownedThemes.value) map.set(u.item.id, u)
   return map
 })
 
@@ -142,16 +142,20 @@ async function pickTheme(card: ThemeCard, alt = false) {
   if (!card.owned || themeBusy.value) return
   themeBusy.value = card.id
   try {
+    const owned = card.itemId ? ownedThemeByItemId.value.get(card.itemId) : undefined
     if (!card.builtin && card.itemId) {
-      const linkId = ownedThemeLinkByItemId.value.get(card.itemId)
-      if (!linkId) return
-      await equipItem({ linkId })
+      if (!owned) return
+      await equipItem({ linkId: owned.linkId })
     }
     const tokens = alt ? card.altTokens : card.tokens
     if (card.builtin) {
       themeStore.setTheme(card.themeKey)
     } else if (tokens) {
-      themeStore.setThemeFromTokens(card.themeKey, tokens)
+      themeStore.setThemeFromTokens(
+        card.themeKey,
+        tokens,
+        owned ? buildEffectLayers(owned.modifiers, owned.unusualEffect) : undefined,
+      )
     }
   } catch {
   } finally {
