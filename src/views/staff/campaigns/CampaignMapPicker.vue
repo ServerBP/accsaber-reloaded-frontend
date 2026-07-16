@@ -17,9 +17,7 @@ import type { CategoryCode } from '@/types/display'
 import { computed, onMounted, ref, watch } from 'vue'
 import MapFilterSidebar from '@/views/maps/MapFilterSidebar.vue'
 
-const props = withDefaults(defineProps<{ loading?: boolean; existingIds?: string[] }>(), {
-  existingIds: () => [],
-})
+const props = defineProps<{ loading?: boolean }>()
 
 const emit = defineEmits<{
   close: []
@@ -46,7 +44,6 @@ const multi = ref(false)
 const staged = ref<PublicMapDifficultyResponse[]>([])
 
 const stagedIds = computed(() => new Set(staged.value.map((d) => d.id)))
-const existingSet = computed(() => new Set(props.existingIds))
 
 const hasActiveFilters = computed(
   () =>
@@ -114,7 +111,7 @@ function setMulti(value: boolean) {
 }
 
 function rowClick(diff: PublicMapDifficultyResponse) {
-  if (existingSet.value.has(diff.id) || props.loading) return
+  if (props.loading) return
   if (!multi.value) {
     emit('pick', [diff])
     return
@@ -208,7 +205,7 @@ function commit() {
                 type="button"
                 class="map-picker__row"
                 :class="{ 'map-picker__row--staged': multi && stagedIds.has(diff.id) }"
-                :disabled="loading || existingSet.has(diff.id)"
+                :disabled="loading"
                 @click="rowClick(diff)"
               >
                 <span class="map-picker__cover">
@@ -231,9 +228,8 @@ function commit() {
                     </span>
                     <ComplexityBadge v-if="diff.complexity != null" :complexity="diff.complexity" />
                   </span>
-                  <span v-if="existingSet.has(diff.id)" class="map-picker__added">Added</span>
                   <span
-                    v-else-if="multi"
+                    v-if="multi"
                     class="map-picker__check"
                     :class="{ 'map-picker__check--on': stagedIds.has(diff.id) }"
                     aria-hidden="true"
@@ -645,15 +641,6 @@ function commit() {
 }
 
 .map-picker__char {
-  font-family: var(--font-sans);
-  font-size: 0.625rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-}
-
-.map-picker__added {
   font-family: var(--font-sans);
   font-size: 0.625rem;
   font-weight: 700;

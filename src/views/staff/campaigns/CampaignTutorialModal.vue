@@ -89,7 +89,6 @@ const firstNode = computed(() => nodes.value[0] ?? null)
 const hasConnection = computed(() =>
   nodes.value.some((n) => n.prerequisites.length > 0),
 )
-const existingMapIds = computed(() => nodes.value.map((n) => n.mapDifficultyId))
 
 const firstBarrier = computed(() => barriers.value[0] ?? null)
 
@@ -860,7 +859,6 @@ onUnmounted(() => {
 
       <CampaignMapPicker
         v-if="pickerOpen"
-        :existing-ids="existingMapIds"
         @close="pickerOpen = false"
         @pick="handlePicked"
       />

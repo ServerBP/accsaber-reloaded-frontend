@@ -1223,10 +1223,6 @@ export function useCampaignEditor() {
     clearSelection()
   }
 
-  const existingMapDifficultyIds = computed(
-    () => new Set((campaign.value?.difficulties ?? []).map((d) => d.mapDifficultyId)),
-  )
-
   function openMapPicker() {
     if (!editable.value) return
     showMapPicker.value = true
@@ -2414,7 +2410,6 @@ export function useCampaignEditor() {
     selectedIdList,
     selectedCount,
     isMultiSelect,
-    existingMapDifficultyIds,
     canvasMode,
     itemPickerFor,
     requirementDirtyIds,

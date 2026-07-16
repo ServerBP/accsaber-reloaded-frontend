@@ -44,7 +44,6 @@ const {
   showMapPicker,
   selectedId,
   selectedIdList,
-  existingMapDifficultyIds,
   canvasMode,
   itemPickerFor,
   showCollaboratorPicker,
@@ -660,7 +659,6 @@ function peerActivity(p: PresencePeer): string {
       <CampaignMapPicker
         v-if="showMapPicker"
         :loading="actionPending"
-        :existing-ids="Array.from(existingMapDifficultyIds)"
         @close="closeMapPicker"
         @pick="handleMapsPicked"
       />
