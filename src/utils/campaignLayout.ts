@@ -1,7 +1,40 @@
-import type { CampaignDifficultyResponse, CampaignNodeShape } from '@/types/api/campaigns'
+import type {
+  CampaignDifficultyResponse,
+  CampaignNodeShape,
+  CampaignPrerequisiteResponse,
+} from '@/types/api/campaigns'
+import type { CampaignPrerequisiteInput } from '@/types/api/admin'
 import type { BarrierConditionType } from '@/types/enums'
 
 export const SQRT3 = Math.sqrt(3)
+
+export const MAX_PREREQUISITES_PER_NODE = 25
+
+export const CONNECTION_COLOR_RE = /^$|^#?[A-Za-z0-9]{1,32}$/
+
+export function prereqIds(
+  prerequisites: CampaignPrerequisiteResponse[] | null | undefined,
+): string[] {
+  return (prerequisites ?? []).map((p) => p.comesFromCampaignDifficultyId)
+}
+
+export function toPrerequisiteInputs(
+  prerequisites: CampaignPrerequisiteResponse[],
+): CampaignPrerequisiteInput[] {
+  return prerequisites.map((p) => ({
+    comesFromCampaignDifficultyId: p.comesFromCampaignDifficultyId,
+    ...(p.color ? { color: p.color } : {}),
+  }))
+}
+
+export function resolveConnectionColor(color: string | null | undefined): string | null {
+  const v = color?.trim()
+  if (!v) return null
+  if (/^[0-9a-fA-F]{3}$/.test(v) || /^[0-9a-fA-F]{6}$/.test(v) || /^[0-9a-fA-F]{8}$/.test(v)) {
+    return `#${v}`
+  }
+  return v
+}
 
 const SHAPE_VALUES: ReadonlyArray<CampaignNodeShape> = ['hex', 'square', 'circle', 'diamond']
 

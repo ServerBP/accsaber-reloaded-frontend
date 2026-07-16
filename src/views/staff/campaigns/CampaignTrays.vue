@@ -124,6 +124,11 @@ const {
   textEffects,
   textEffectActive,
   toggleTextEffect,
+  selectedEdge,
+  formConnection,
+  connectionColorError,
+  commitConnectionColor,
+  resetConnectionColor,
 } = useCampaignEditorContext()
 
 const affectedNodeList = computed(() => {
@@ -148,6 +153,13 @@ const HEX6 = /^#[0-9a-fA-F]{6}$/
 const backgroundSwatch = computed(() => {
   const v = formMeta.value.backgroundColor.trim()
   return HEX6.test(v) ? v : defaultColorHex.value
+})
+
+const connectionSwatch = computed(() => {
+  const v = formConnection.value.color.trim()
+  if (HEX6.test(v)) return v
+  if (/^[0-9a-fA-F]{6}$/.test(v)) return `#${v}`
+  return defaultColorHex.value
 })
 </script>
 
@@ -1398,6 +1410,44 @@ const backgroundSwatch = computed(() => {
         </button>
       </div>
     </div>
+  </fieldset>
+
+  <fieldset
+    v-else-if="activeTray === 'connection' && selectedEdge"
+    class="campaign-editor__section"
+    :disabled="!editable"
+  >
+    <label class="campaign-editor__field">
+      <span>Connection color</span>
+      <div class="campaign-editor__color-row">
+        <input
+          type="color"
+          aria-label="Connection color swatch"
+          :value="connectionSwatch"
+          @input="formConnection.color = ($event.target as HTMLInputElement).value"
+          @change="commitConnectionColor"
+        />
+        <input
+          class="campaign-editor__color-text"
+          type="text"
+          autocomplete="off"
+          spellcheck="false"
+          maxlength="33"
+          placeholder="#f5b800 · gold"
+          :aria-invalid="!!connectionColorError"
+          v-model="formConnection.color"
+          @blur="commitConnectionColor"
+          @keydown.enter.prevent="commitConnectionColor"
+        />
+        <button type="button" class="campaign-editor__inline-btn" @click="resetConnectionColor">
+          Auto
+        </button>
+      </div>
+      <small>Hex or named color. Leave empty for the default arrow color.</small>
+      <p v-if="connectionColorError" class="campaign-editor__field-error" role="alert">
+        {{ connectionColorError }}
+      </p>
+    </label>
   </fieldset>
 </template>
 

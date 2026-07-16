@@ -244,6 +244,11 @@ export interface UpdateCampaignRequest {
   tagIds?: string[]
 }
 
+export interface CampaignPrerequisiteInput {
+  comesFromCampaignDifficultyId: string
+  color?: string
+}
+
 export interface AddCampaignDifficultyRequest {
   mapDifficultyId: string
   requirementType: CampaignRequirementType
@@ -260,7 +265,7 @@ export interface AddCampaignDifficultyRequest {
   positionX: number
   positionY: number
   xp?: number
-  prerequisiteCampaignDifficultyIds?: string[]
+  prerequisites?: CampaignPrerequisiteInput[]
   prerequisiteMode?: CampaignPrerequisiteMode
 }
 
@@ -279,7 +284,7 @@ export interface UpdateCampaignDifficultyRequest {
   positionX?: number
   positionY?: number
   xp?: number
-  prerequisiteCampaignDifficultyIds?: string[]
+  prerequisites?: CampaignPrerequisiteInput[]
   prerequisiteMode?: CampaignPrerequisiteMode
 }
 
@@ -308,7 +313,7 @@ export interface AddCampaignBarrierRequest {
   positionX: number
   positionY: number
   xp?: number
-  prerequisiteCampaignDifficultyIds?: string[]
+  prerequisites?: CampaignPrerequisiteInput[]
   affectedCampaignDifficultyIds?: string[]
 }
 
@@ -327,7 +332,7 @@ export interface UpdateCampaignBarrierRequest {
   positionX?: number
   positionY?: number
   xp?: number
-  prerequisiteCampaignDifficultyIds?: string[]
+  prerequisites?: CampaignPrerequisiteInput[]
   prerequisiteMode?: CampaignPrerequisiteMode
   affectedCampaignDifficultyIds?: string[]
 }

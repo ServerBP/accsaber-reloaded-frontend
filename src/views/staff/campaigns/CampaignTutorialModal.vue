@@ -78,8 +78,6 @@ const barriers = ref<CampaignBarrierResponse[]>([])
 const sandboxMode = ref<'drag' | 'connect' | 'select'>('drag')
 const selectedId = ref<string | null>(null)
 const pickerOpen = ref(false)
-const addPending = ref(false)
-const addError = ref<string | null>(null)
 const goalTouched = ref(false)
 const barrierTouched = ref(false)
 const barrierPlacement = ref(false)
@@ -89,7 +87,7 @@ let nodeSeq = 0
 const currentStep = computed(() => steps[stepIndex.value])
 const firstNode = computed(() => nodes.value[0] ?? null)
 const hasConnection = computed(() =>
-  nodes.value.some((n) => n.prerequisiteCampaignDifficultyIds.length > 0),
+  nodes.value.some((n) => n.prerequisites.length > 0),
 )
 const existingMapIds = computed(() => nodes.value.map((n) => n.mapDifficultyId))
 
@@ -97,8 +95,8 @@ const firstBarrier = computed(() => barriers.value[0] ?? null)
 
 const edgeCount = computed(
   () =>
-    nodes.value.reduce((sum, n) => sum + n.prerequisiteCampaignDifficultyIds.length, 0) +
-    barriers.value.reduce((sum, b) => sum + b.prerequisiteCampaignDifficultyIds.length, 0),
+    nodes.value.reduce((sum, n) => sum + n.prerequisites.length, 0) +
+    barriers.value.reduce((sum, b) => sum + b.prerequisites.length, 0),
 )
 
 const thirdMapConnected = computed(() => nodes.value.length >= 3 && edgeCount.value >= 2)
@@ -113,10 +111,10 @@ const nodesBeforeGate = computed<CampaignDifficultyResponse[]>(() => {
     forward.set(from, list)
   }
   for (const n of nodes.value) {
-    for (const p of n.prerequisiteCampaignDifficultyIds) addEdge(p, n.id)
+    for (const p of n.prerequisites) addEdge(p.comesFromCampaignDifficultyId, n.id)
   }
   for (const b of barriers.value) {
-    for (const p of b.prerequisiteCampaignDifficultyIds) addEdge(p, b.id)
+    for (const p of b.prerequisites) addEdge(p.comesFromCampaignDifficultyId, b.id)
   }
   const beyond = new Set<string>()
   const queue = [barrier.id]
@@ -214,6 +212,11 @@ function toNode(meta: PublicMapDifficultyResponse): CampaignDifficultyResponse {
   return {
     id: `tutorial-${nodeSeq}`,
     mapDifficultyId: meta.id,
+    mapId: meta.mapId,
+    categoryId: meta.categoryId,
+    complexity: meta.complexity,
+    beatsaverCode: meta.beatsaverCode,
+    maxScore: meta.maxScore,
     songName: meta.songName,
     songAuthor: meta.songAuthor,
     mapAuthor: meta.mapAuthor,
@@ -235,31 +238,20 @@ function toNode(meta: PublicMapDifficultyResponse): CampaignDifficultyResponse {
     positionX: nodes.value.length * 2,
     positionY: 0,
     xp: 0,
-    prerequisiteCampaignDifficultyIds: [],
+    prerequisites: [],
     prerequisiteMode: 'AND',
     items: [],
   }
 }
 
-async function handlePicked(mapDifficultyIds: string[]) {
-  if (mapDifficultyIds.length === 0) return
-  addPending.value = true
-  addError.value = null
-  try {
-    const { getDifficultiesByIds } = await import('@/api/maps')
-    const metas = await getDifficultiesByIds(mapDifficultyIds)
-    for (const meta of metas) {
-      nodes.value = [...nodes.value, toNode(meta)]
-    }
-    pickerOpen.value = false
-    if (nodes.value.length === 1) selectedId.value = nodes.value[0].id
-    checkAutoAdvance()
-  } catch {
-    addError.value = 'Could not load that map. Try another one.'
-    pickerOpen.value = false
-  } finally {
-    addPending.value = false
+function handlePicked(picked: PublicMapDifficultyResponse[]) {
+  if (picked.length === 0) return
+  for (const meta of picked) {
+    nodes.value = [...nodes.value, toNode(meta)]
   }
+  pickerOpen.value = false
+  if (nodes.value.length === 1) selectedId.value = nodes.value[0].id
+  checkAutoAdvance()
 }
 
 function handleMove(payload: { id: string; positionX: number; positionY: number }) {
@@ -279,11 +271,11 @@ function handleConnect(payload: { fromId: string; toId: string }) {
   const from = vertexById(payload.fromId)
   const to = vertexById(payload.toId)
   if (!from || !to) return
-  if (to.prerequisiteCampaignDifficultyIds.includes(payload.fromId)) return
-  if (from.prerequisiteCampaignDifficultyIds.includes(payload.toId)) return
-  to.prerequisiteCampaignDifficultyIds = [
-    ...to.prerequisiteCampaignDifficultyIds,
-    payload.fromId,
+  if (to.prerequisites.some((p) => p.comesFromCampaignDifficultyId === payload.fromId)) return
+  if (from.prerequisites.some((p) => p.comesFromCampaignDifficultyId === payload.toId)) return
+  to.prerequisites = [
+    ...to.prerequisites,
+    { comesFromCampaignDifficultyId: payload.fromId, color: null },
   ]
   checkAutoAdvance()
 }
@@ -291,8 +283,8 @@ function handleConnect(payload: { fromId: string; toId: string }) {
 function handleDisconnect(payload: { fromId: string; toId: string }) {
   const to = vertexById(payload.toId)
   if (!to) return
-  to.prerequisiteCampaignDifficultyIds = to.prerequisiteCampaignDifficultyIds.filter(
-    (id) => id !== payload.fromId,
+  to.prerequisites = to.prerequisites.filter(
+    (p) => p.comesFromCampaignDifficultyId !== payload.fromId,
   )
 }
 
@@ -330,7 +322,7 @@ function handlePlaceBarrier(payload: { fromId: string; toId: string }) {
     positionX: Math.round((from.positionX + to.positionX) / 2),
     positionY: Math.round((from.positionY + to.positionY) / 2),
     xp: 0,
-    prerequisiteCampaignDifficultyIds: [payload.fromId],
+    prerequisites: [{ comesFromCampaignDifficultyId: payload.fromId, color: null }],
     prerequisiteMode: 'AND',
     affectedCampaignDifficultyIds: payload.fromId.startsWith('tutorial-barrier')
       ? []
@@ -338,9 +330,9 @@ function handlePlaceBarrier(payload: { fromId: string; toId: string }) {
     items: [],
   }
   barriers.value = [...barriers.value, barrier]
-  to.prerequisiteCampaignDifficultyIds = to.prerequisiteCampaignDifficultyIds
-    .filter((id) => id !== payload.fromId)
-    .concat(barrier.id)
+  to.prerequisites = to.prerequisites
+    .filter((p) => p.comesFromCampaignDifficultyId !== payload.fromId)
+    .concat({ comesFromCampaignDifficultyId: barrier.id, color: null })
   barrierPlacement.value = false
   selectedId.value = barrier.id
   checkAutoAdvance()
@@ -418,7 +410,6 @@ function resetTutorial() {
   sandboxMode.value = 'drag'
   barrierPlacement.value = false
   pickerOpen.value = false
-  addError.value = null
   goalTouched.value = false
   barrierTouched.value = false
   direction.value = 'back'
@@ -629,8 +620,6 @@ onUnmounted(() => {
                 <p class="tutorial__step-count">Step {{ stepIndex + 1 }}</p>
                 <h3 class="tutorial__step-title">{{ currentStep.title }}</h3>
                 <p class="tutorial__step-body">{{ currentStep.body }}</p>
-
-                <p v-if="addError" class="tutorial__error" role="alert">{{ addError }}</p>
 
                 <ul v-if="currentStep.id === 'connect'" class="tutorial__checklist">
                   <li :class="{ 'tutorial__check--on': nodes.length >= 2 }">
@@ -871,7 +860,6 @@ onUnmounted(() => {
 
       <CampaignMapPicker
         v-if="pickerOpen"
-        :loading="addPending"
         :existing-ids="existingMapIds"
         @close="pickerOpen = false"
         @pick="handlePicked"

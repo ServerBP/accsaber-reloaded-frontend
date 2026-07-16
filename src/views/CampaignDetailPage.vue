@@ -20,7 +20,6 @@ import CampaignRewardNotice from '@/views/campaign/CampaignRewardNotice.vue'
 import ComplexityBadge from '@/components/domain/ComplexityBadge.vue'
 import DifficultyBadge from '@/components/domain/DifficultyBadge.vue'
 import { pickCoverUrl } from '@/composables/useAvatarFallback'
-import { useCampaignDifficultyMeta } from '@/composables/useCampaignDifficultyMeta'
 import { useItemCatalog } from '@/composables/useItemCatalog'
 import { useAuthStore } from '@/stores/auth'
 import { useCategoryStore } from '@/stores/categories'
@@ -68,7 +67,6 @@ const hoverId = ref<string | null>(null)
 const starting = ref(false)
 const abandoning = ref(false)
 const actionError = ref<string | null>(null)
-const { difficultyMeta, loadDifficultyMeta } = useCampaignDifficultyMeta()
 
 const idOrSlug = computed(() => String(route.params.campaignId ?? ''))
 
@@ -106,7 +104,6 @@ async function load() {
     } else {
       progress.value = null
     }
-    void loadDifficultyMeta(fetched.difficulties)
     if (fetched.completionItems.length > 0 || fetched.difficulties.some((d) => d.items.length > 0)) {
       void ensureRewardItems()
     }
@@ -275,8 +272,8 @@ const barrierProgressLabel = computed(() =>
 const prereqsFor = computed(() => {
   if (!displayedDifficulty.value || !campaign.value) return []
   const byId = new Map(campaign.value.difficulties.map((d) => [d.id, d]))
-  return (displayedDifficulty.value.prerequisiteCampaignDifficultyIds ?? [])
-    .map((id) => byId.get(id))
+  return (displayedDifficulty.value.prerequisites ?? [])
+    .map((p) => byId.get(p.comesFromCampaignDifficultyId))
     .filter((d): d is CampaignDifficultyResponse => !!d)
 })
 
@@ -297,20 +294,13 @@ const nodeAccents = computed(() => {
       map.set(d.id, custom)
       continue
     }
-    const meta = difficultyMeta.value.get(d.id)
-    if (!meta) continue
-    const code = categoryStore.getCategoryCode(meta.categoryId)
+    if (!d.categoryId) continue
+    const code = categoryStore.getCategoryCode(d.categoryId)
     if (!code) continue
     const a = categoryStore.getCategoryInfo(code)?.accent
     if (a) map.set(d.id, a)
   }
   return map
-})
-
-const displayedMeta = computed(() => {
-  const d = displayedDifficulty.value
-  if (!d) return null
-  return difficultyMeta.value.get(d.id) ?? null
 })
 
 const displayedCover = computed(() => pickCoverUrl(displayedDifficulty.value))
@@ -322,14 +312,14 @@ const displayedAccent = computed(() => {
 })
 
 const displayedMapRoute = computed(() => {
-  const meta = displayedMeta.value
-  if (!meta) return null
+  const d = displayedDifficulty.value
+  if (!d) return null
   return buildMapRoute({
-    beatsaverCode: meta.beatsaverCode,
-    mapId: meta.mapId,
-    difficulty: meta.difficulty,
-    difficultyId: meta.id,
-    characteristic: meta.characteristic,
+    beatsaverCode: d.beatsaverCode,
+    mapId: d.mapId,
+    difficulty: d.difficulty,
+    difficultyId: d.mapDifficultyId,
+    characteristic: d.characteristic,
   })
 })
 
@@ -341,7 +331,7 @@ const focusNodeId = computed<string | null>(() => {
   const cleared = progress.value?.difficulties.filter((p) => p.completed) ?? []
 
   const rootId = () =>
-    c.difficulties.find((d) => d.prerequisiteCampaignDifficultyIds.length === 0)?.id
+    c.difficulties.find((d) => d.prerequisites.length === 0)?.id
     ?? c.difficulties[0].id
 
   if (cleared.length === 0) return rootId()
@@ -352,14 +342,14 @@ const focusNodeId = computed<string | null>(() => {
     if (depthMemo.has(id)) return depthMemo.get(id)!
     if (seen.has(id)) return 0
     const node = byId.get(id)
-    if (!node || node.prerequisiteCampaignDifficultyIds.length === 0) {
+    if (!node || node.prerequisites.length === 0) {
       depthMemo.set(id, 0)
       return 0
     }
     seen.add(id)
     let max = 0
-    for (const pid of node.prerequisiteCampaignDifficultyIds) {
-      max = Math.max(max, 1 + depthOf(pid, seen))
+    for (const p of node.prerequisites) {
+      max = Math.max(max, 1 + depthOf(p.comesFromCampaignDifficultyId, seen))
     }
     seen.delete(id)
     depthMemo.set(id, max)
@@ -739,9 +729,9 @@ function unpinTooltip() {
                   <DifficultyBadge :difficulty="displayedDifficulty.difficulty" />
                   <span v-if="displayedDifficulty.characteristic && displayedDifficulty.characteristic.toLowerCase() !== 'standard'"
                     class="campaign-detail__node-char">{{ displayedDifficulty.characteristic }}</span>
-                  <span v-if="displayedMeta?.complexity != null" class="campaign-detail__node-badge-sep" aria-hidden="true">·</span>
-                  <ComplexityBadge v-if="displayedMeta?.complexity != null"
-                    :complexity="displayedMeta.complexity" />
+                  <span v-if="displayedDifficulty.complexity != null" class="campaign-detail__node-badge-sep" aria-hidden="true">·</span>
+                  <ComplexityBadge v-if="displayedDifficulty.complexity != null"
+                    :complexity="displayedDifficulty.complexity" />
                 </div>
               </div>
             </div>

@@ -110,7 +110,7 @@ const tickR = computed(() => effectiveSize.value * 0.32)
 
 const requiresAll = computed(() =>
   props.difficulty.prerequisiteMode === 'AND'
-  && (props.difficulty.prerequisiteCampaignDifficultyIds?.length ?? 0) >= 2,
+  && (props.difficulty.prerequisites?.length ?? 0) >= 2,
 )
 
 const gateCx = computed(() => props.cx + effectiveSize.value * 0.62)

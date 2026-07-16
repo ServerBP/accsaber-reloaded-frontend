@@ -23,7 +23,7 @@ const props = withDefaults(defineProps<{ loading?: boolean; existingIds?: string
 
 const emit = defineEmits<{
   close: []
-  pick: [mapDifficultyIds: string[]]
+  pick: [difficulties: PublicMapDifficultyResponse[]]
 }>()
 
 const categoryStore = useCategoryStore()
@@ -116,7 +116,7 @@ function setMulti(value: boolean) {
 function rowClick(diff: PublicMapDifficultyResponse) {
   if (existingSet.value.has(diff.id) || props.loading) return
   if (!multi.value) {
-    emit('pick', [diff.id])
+    emit('pick', [diff])
     return
   }
   if (stagedIds.value.has(diff.id)) {
@@ -132,7 +132,7 @@ function removeStaged(id: string) {
 
 function commit() {
   if (staged.value.length === 0) return
-  emit('pick', staged.value.map((d) => d.id))
+  emit('pick', staged.value)
 }
 </script>
 

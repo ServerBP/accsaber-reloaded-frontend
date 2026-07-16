@@ -63,13 +63,15 @@ const {
   accent,
   nodeAccents,
   selectedDifficulty,
-  selectedMeta,
   breadcrumbs,
   handleMove,
   handleMoveMany,
   handleConnect,
   handleDisconnect,
   handleEmptyClick,
+  selectedEdge,
+  selectedEdgeEndpoints,
+  handleEdgeSelect,
   openMapPicker,
   handleMapsPicked,
   removeSelectedNode,
@@ -262,6 +264,7 @@ function peerActivity(p: PresencePeer): string {
           :default-scale="1.3"
           :selected-id="selectedId"
           :selected-ids="selectedIdList"
+          :selected-edge="selectedEdge"
           :highlight-barrier-id="pickModeBarrierId"
           :barrier-placement="barrierPlacementMode"
           :active-tray="activeTray"
@@ -279,6 +282,7 @@ function peerActivity(p: PresencePeer): string {
           @empty-click="handleEmptyClick"
           @connect="handleConnect"
           @disconnect="handleDisconnect"
+          @edge-select="handleEdgeSelect"
           @place-barrier="placeBarrierOnEdge"
         >
           <template #actions>
@@ -516,8 +520,8 @@ function peerActivity(p: PresencePeer): string {
               <p>{{ selectedDifficulty.songAuthor }} · {{ selectedDifficulty.mapAuthor }}</p>
               <p class="campaign-editor__node-diff">
                 {{ formatDifficulty(selectedDifficulty.difficulty) }}
-                <span v-if="selectedMeta?.complexity != null"
-                  >· complexity {{ selectedMeta.complexity.toFixed(1) }}</span
+                <span v-if="selectedDifficulty.complexity != null"
+                  >· complexity {{ selectedDifficulty.complexity.toFixed(1) }}</span
                 >
                 <span class="campaign-editor__node-grid">
                   · grid
@@ -610,6 +614,40 @@ function peerActivity(p: PresencePeer): string {
               @click="removeSelectedText"
             >
               Remove
+            </BaseButton>
+          </div>
+
+          <div
+            v-if="activeTray === 'connection' && selectedEdge && selectedEdgeEndpoints"
+            class="campaign-editor__barrier-head"
+          >
+            <span class="campaign-editor__barrier-head-icon" aria-hidden="true">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <line x1="5" y1="19" x2="16" y2="8" />
+                <polyline points="10 8 16 8 16 14" />
+              </svg>
+            </span>
+            <div class="campaign-editor__barrier-head-meta">
+              <h3>Connection</h3>
+              <p>{{ selectedEdgeEndpoints.from }} → {{ selectedEdgeEndpoints.to }}</p>
+            </div>
+            <BaseButton
+              v-if="editable"
+              size="sm"
+              variant="destructive"
+              :loading="actionPending"
+              @click="handleDisconnect(selectedEdge)"
+            >
+              Disconnect
             </BaseButton>
           </div>
 

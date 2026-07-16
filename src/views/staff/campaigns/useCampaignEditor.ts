@@ -33,7 +33,7 @@ import { useCampaignLifecycle } from './useCampaignLifecycle'
 import { useCampaignRewards } from './useCampaignRewards'
 import { ApiError, getApiErrorMessage, parseApiError } from '@/api/client'
 import type { Crumb } from '@/components/common/Breadcrumbs.vue'
-import { useCampaignDifficultyMeta } from '@/composables/useCampaignDifficultyMeta'
+import type { PublicMapDifficultyResponse } from '@/types/api/maps'
 import { useItemCatalog } from '@/composables/useItemCatalog'
 import { getCurve } from '@/api/curves'
 import { useAuthStore } from '@/stores/auth'
@@ -52,12 +52,19 @@ import type {
   CampaignBarrierResponse,
   CampaignDetailResponse,
   CampaignDifficultyResponse,
+  CampaignPrerequisiteResponse,
   CampaignTagResponse,
   CampaignTextResponse,
 } from '@/types/api/campaigns'
 import type { CurveResponse } from '@/types/api/categories'
 import type { BarrierConditionType, CampaignRequirementType } from '@/types/enums'
-import { barrierConditionMeta } from '@/utils/campaignLayout'
+import {
+  barrierConditionMeta,
+  CONNECTION_COLOR_RE,
+  MAX_PREREQUISITES_PER_NODE,
+  prereqIds,
+  toPrerequisiteInputs,
+} from '@/utils/campaignLayout'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -80,6 +87,7 @@ export type TrayId =
   | 'barrierStyle'
   | 'barrierRewards'
   | 'text'
+  | 'connection'
 
 const MAX_BARRIERS = 50
 const MAX_TEXTS = 50
@@ -95,7 +103,6 @@ export function useCampaignEditor() {
 
   const campaign = ref<CampaignDetailResponse | null>(null)
   const allTags = ref<CampaignTagResponse[]>([])
-  const { difficultyMeta, loadDifficultyMeta } = useCampaignDifficultyMeta()
   const loading = ref(true)
   const error = ref<string | null>(null)
   const actionPending = ref(false)
@@ -296,7 +303,6 @@ export function useCampaignEditor() {
         if (restored.length > 0) setSelection(restored)
         else if (c.difficulties.length > 0) selectOnly(c.difficulties[0].id)
       }
-      void loadDifficultyMeta(c.difficulties)
     } catch (err) {
       if (!(err instanceof ApiError && err.status === 404)) {
         error.value = getApiErrorMessage(err, 'Failed to load campaign')
@@ -459,9 +465,8 @@ export function useCampaignEditor() {
         map.set(d.id, custom)
         continue
       }
-      const meta = difficultyMeta.value.get(d.id)
-      if (!meta) continue
-      const code = categoryStore.getCategoryCode(meta.categoryId)
+      if (!d.categoryId) continue
+      const code = categoryStore.getCategoryCode(d.categoryId)
       if (!code) continue
       const a = categoryStore.getCategoryInfo(code)?.accent
       if (a) map.set(d.id, a)
@@ -515,12 +520,80 @@ export function useCampaignEditor() {
   const affectedPickMode = ref(false)
   const barrierPlacementMode = ref(false)
 
+  const selectedEdge = ref<{ fromId: string; toId: string } | null>(null)
+
+  const selectedEdgePrereq = computed<CampaignPrerequisiteResponse | null>(() => {
+    const edge = selectedEdge.value
+    if (!edge) return null
+    const prereqs = vertexPrereqs(edge.toId)
+    return (
+      prereqs?.find((p) => p.comesFromCampaignDifficultyId === edge.fromId) ?? null
+    )
+  })
+
+  const selectedEdgeEndpoints = computed<{ from: string; to: string } | null>(() => {
+    const edge = selectedEdge.value
+    if (!edge) return null
+    return { from: nodeLabel(edge.fromId), to: nodeLabel(edge.toId) }
+  })
+
+  const formConnection = ref({ color: '' })
+  const connectionColorError = ref<string | null>(null)
+
+  watch(
+    selectedEdgePrereq,
+    (p) => {
+      formConnection.value = { color: p?.color ?? '' }
+      connectionColorError.value = null
+    },
+    { immediate: true },
+  )
+
+  watch(campaign, () => {
+    if (selectedEdge.value && !selectedEdgePrereq.value) selectedEdge.value = null
+  })
+
+  function handleEdgeSelect(payload: { fromId: string; toId: string }) {
+    if (!editable.value) return
+    barrierPlacementMode.value = false
+    affectedPickMode.value = false
+    clearSelection()
+    selectedEdge.value = payload
+    activeTray.value = 'connection'
+  }
+
+  function commitConnectionColor() {
+    const edge = selectedEdge.value
+    const current = selectedEdgePrereq.value
+    if (!editable.value || !edge || !current) return
+    const value = formConnection.value.color.trim()
+    formConnection.value.color = value
+    if (!CONNECTION_COLOR_RE.test(value)) {
+      connectionColorError.value =
+        'Use a hex value (with or without #) or a named color, max 32 characters.'
+      return
+    }
+    connectionColorError.value = null
+    if (value === (current.color ?? '')) return
+    const prev = vertexPrereqs(edge.toId)
+    if (!prev) return
+    const next = prev.map((p) =>
+      p.comesFromCampaignDifficultyId === edge.fromId ? { ...p, color: value || null } : p,
+    )
+    void persistPrereqs(edge.toId, next, prev)
+  }
+
+  function resetConnectionColor() {
+    formConnection.value.color = ''
+    commitConnectionColor()
+  }
+
   const hasConnections = computed(() => {
     const c = campaign.value
     if (!c) return false
     return (
-      c.difficulties.some((d) => (d.prerequisiteCampaignDifficultyIds?.length ?? 0) > 0) ||
-      c.barriers.some((b) => (b.prerequisiteCampaignDifficultyIds?.length ?? 0) > 0)
+      c.difficulties.some((d) => (d.prerequisites?.length ?? 0) > 0) ||
+      c.barriers.some((b) => (b.prerequisites?.length ?? 0) > 0)
     )
   })
 
@@ -528,12 +601,6 @@ export function useCampaignEditor() {
 
   const canAddBarrier = computed(
     () => editable.value && hasConnections.value && !campaign.value?.progressionAgnostic,
-  )
-
-  const selectedMeta = computed(() =>
-    selectedDifficulty.value
-      ? (difficultyMeta.value.get(selectedDifficulty.value.id) ?? null)
-      : null,
   )
 
   const tagsByKind = computed(() => {
@@ -976,15 +1043,15 @@ export function useCampaignEditor() {
     const c = campaign.value
     if (!c) return false
     const successors = new Map<string, string[]>()
-    const addEdges = (id: string, prereqs: string[] | undefined) => {
-      for (const pid of prereqs ?? []) {
+    const addEdges = (id: string, prereqs: CampaignPrerequisiteResponse[] | undefined) => {
+      for (const pid of prereqIds(prereqs)) {
         const list = successors.get(pid) ?? []
         list.push(id)
         successors.set(pid, list)
       }
     }
-    for (const d of c.difficulties) addEdges(d.id, d.prerequisiteCampaignDifficultyIds)
-    for (const b of c.barriers) addEdges(b.id, b.prerequisiteCampaignDifficultyIds)
+    for (const d of c.difficulties) addEdges(d.id, d.prerequisites)
+    for (const b of c.barriers) addEdges(b.id, b.prerequisites)
     const visited = new Set<string>()
     const stack: string[] = [toId]
     while (stack.length > 0) {
@@ -1004,11 +1071,11 @@ export function useCampaignEditor() {
     return d?.songName || 'node'
   }
 
-  function vertexPrereqs(id: string): string[] | null {
+  function vertexPrereqs(id: string): CampaignPrerequisiteResponse[] | null {
     const b = barrierById.value.get(id)
-    if (b) return b.prerequisiteCampaignDifficultyIds ?? []
+    if (b) return b.prerequisites ?? []
     const d = campaign.value?.difficulties.find((x) => x.id === id)
-    return d ? (d.prerequisiteCampaignDifficultyIds ?? []) : null
+    return d ? (d.prerequisites ?? []) : null
   }
 
   function setPrereqMode(mode: 'AND' | 'OR') {
@@ -1035,32 +1102,36 @@ export function useCampaignEditor() {
     }
   }
 
-  function setPrereqsLocal(toId: string, ids: string[]) {
+  function setPrereqsLocal(toId: string, entries: CampaignPrerequisiteResponse[]) {
     if (!campaign.value) return
     if (isBarrierId(toId)) {
       campaign.value = {
         ...campaign.value,
         barriers: campaign.value.barriers.map((b) =>
-          b.id === toId ? { ...b, prerequisiteCampaignDifficultyIds: ids } : b,
+          b.id === toId ? { ...b, prerequisites: entries } : b,
         ),
       }
     } else {
       campaign.value = {
         ...campaign.value,
         difficulties: campaign.value.difficulties.map((d) =>
-          d.id === toId ? { ...d, prerequisiteCampaignDifficultyIds: ids } : d,
+          d.id === toId ? { ...d, prerequisites: entries } : d,
         ),
       }
     }
   }
 
-  async function persistPrereqs(toId: string, next: string[], prev: string[]) {
+  async function persistPrereqs(
+    toId: string,
+    next: CampaignPrerequisiteResponse[],
+    prev: CampaignPrerequisiteResponse[],
+  ) {
     if (!campaign.value) return
     const barrier = isBarrierId(toId)
     setPrereqsLocal(toId, next)
     try {
       actionError.value = null
-      const payload = { prerequisiteCampaignDifficultyIds: next }
+      const payload = { prerequisites: toPrerequisiteInputs(next) }
       if (barrier) {
         const updated = useAdminEndpoint.value
           ? await updateCampaignBarrier(toId, payload)
@@ -1113,27 +1184,42 @@ export function useCampaignEditor() {
   async function handleConnect(payload: { fromId: string; toId: string }) {
     const prev = vertexPrereqs(payload.toId)
     if (prev == null) return
-    if (prev.includes(payload.fromId)) return
+    if (prev.some((p) => p.comesFromCampaignDifficultyId === payload.fromId)) return
+    if (prev.length >= MAX_PREREQUISITES_PER_NODE) {
+      actionError.value = `"${nodeLabel(payload.toId)}" already has the maximum of ${MAX_PREREQUISITES_PER_NODE} incoming connections.`
+      return
+    }
     if (wouldCreateCycle(payload.fromId, payload.toId)) {
       actionError.value = `Can't connect "${nodeLabel(payload.fromId)}" → "${nodeLabel(payload.toId)}". The reverse path already exists, which would create a cycle.`
       return
     }
-    await persistPrereqs(payload.toId, [...prev, payload.fromId], prev)
+    await persistPrereqs(
+      payload.toId,
+      [...prev, { comesFromCampaignDifficultyId: payload.fromId, color: null }],
+      prev,
+    )
   }
 
   async function handleDisconnect(payload: { fromId: string; toId: string }) {
     const prev = vertexPrereqs(payload.toId)
     if (prev == null) return
-    if (!prev.includes(payload.fromId)) return
+    if (!prev.some((p) => p.comesFromCampaignDifficultyId === payload.fromId)) return
+    if (
+      selectedEdge.value?.fromId === payload.fromId &&
+      selectedEdge.value?.toId === payload.toId
+    ) {
+      selectedEdge.value = null
+    }
     await persistPrereqs(
       payload.toId,
-      prev.filter((id) => id !== payload.fromId),
+      prev.filter((p) => p.comesFromCampaignDifficultyId !== payload.fromId),
       prev,
     )
   }
 
   function handleEmptyClick() {
     barrierPlacementMode.value = false
+    selectedEdge.value = null
     clearSelection()
   }
 
@@ -1199,7 +1285,8 @@ export function useCampaignEditor() {
     return cells
   }
 
-  async function handleMapsPicked(mapDifficultyIds: string[]) {
+  async function handleMapsPicked(picked: PublicMapDifficultyResponse[]) {
+    const mapDifficultyIds = picked.map((d) => d.id)
     if (mapDifficultyIds.length === 0) return
     actionPending.value = true
     actionError.value = null
@@ -1305,7 +1392,7 @@ export function useCampaignEditor() {
     if (current && NODE_TRAY_IDS.includes(current)) {
       if (current !== 'unlock') return current
       const d = campaign.value?.difficulties.find((x) => x.id === id)
-      if ((d?.prerequisiteCampaignDifficultyIds ?? []).length >= 2) return current
+      if ((d?.prerequisites ?? []).length >= 2) return current
     }
     return 'requirement'
   }
@@ -1321,17 +1408,20 @@ export function useCampaignEditor() {
       return
     }
     barrierPlacementMode.value = false
+    selectedEdge.value = null
     selectOnly(id)
     activeTray.value = trayForSelection(id)
   }
 
   function handleToggleSelect(id: string) {
+    selectedEdge.value = null
     toggleInSelection(id)
     if (selectedIds.value.size >= 2) activeTray.value = 'bulk'
     else if (selectedIds.value.size === 1) activeTray.value = vertexTrayFor(selectedId.value)
   }
 
   function handleSelectMany(ids: string[]) {
+    selectedEdge.value = null
     setSelection(ids)
     if (selectedIds.value.size >= 2) activeTray.value = 'bulk'
     else if (selectedIds.value.size === 1) activeTray.value = vertexTrayFor(selectedId.value)
@@ -1339,6 +1429,7 @@ export function useCampaignEditor() {
 
   function handleDeselect() {
     if (showMapPicker.value) return
+    selectedEdge.value = null
     clearSelection()
   }
 
@@ -1379,7 +1470,7 @@ export function useCampaignEditor() {
   })
 
   const scoreCap = computed(() => {
-    const maxScore = selectedMeta.value?.maxScore
+    const maxScore = selectedDifficulty.value?.maxScore
     return maxScore && maxScore > 0 ? maxScore : 1_500_000
   })
 
@@ -1432,7 +1523,7 @@ export function useCampaignEditor() {
   }
 
   watch(
-    () => selectedMeta.value?.categoryId,
+    () => selectedDifficulty.value?.categoryId,
     (categoryId) => void ensureScoreCurve(scoreCurveIdFor(categoryId)),
     { immediate: true },
   )
@@ -1440,11 +1531,11 @@ export function useCampaignEditor() {
   const requirementEquivalents = computed<Array<{ key: string; text: string }>>(() => {
     const type = formNode.value.requirementType
     if (type !== 'ACC' && type !== 'AP' && type !== 'SCORE') return []
-    const meta = selectedMeta.value
-    if (!meta) return []
-    const complexity = meta.complexity
-    const maxScore = meta.maxScore
-    const curveId = scoreCurveIdFor(meta.categoryId)
+    const d = selectedDifficulty.value
+    if (!d) return []
+    const complexity = d.complexity
+    const maxScore = d.maxScore
+    const curveId = scoreCurveIdFor(d.categoryId)
     const curve = curveId ? (scoreCurves.value.get(curveId) ?? null) : null
     const raw = formNode.value.requirementValue
 
@@ -1456,14 +1547,14 @@ export function useCampaignEditor() {
       acc = raw
     } else if (type === 'SCORE') {
       score = raw
-      if (maxScore > 0) acc = raw / maxScore
+      if (maxScore != null && maxScore > 0) acc = raw / maxScore
     } else {
       ap = raw
       if (curve && complexity != null) acc = reverseApToAccuracyByComplexity(curve, raw, complexity)
     }
 
     if (acc != null && Number.isFinite(acc)) {
-      if (score == null && maxScore > 0) score = acc * maxScore
+      if (score == null && maxScore != null && maxScore > 0) score = acc * maxScore
       if (ap == null && curve && complexity != null) ap = calculateAp(curve, acc, complexity)
     }
 
@@ -1705,6 +1796,10 @@ export function useCampaignEditor() {
     if (!fromPos || !toPos) return
     const targetPrereqs = vertexPrereqs(payload.toId)
     if (targetPrereqs == null) return
+    const replacedEdge = targetPrereqs.find(
+      (p) => p.comesFromCampaignDifficultyId === payload.fromId,
+    )
+    const edgeColor = replacedEdge?.color ?? null
     const cell = findFreeCellNear(
       Math.round((fromPos.x + toPos.x) / 2),
       Math.round((fromPos.y + toPos.y) / 2),
@@ -1717,16 +1812,21 @@ export function useCampaignEditor() {
         conditionValue: 0.9,
         positionX: cell.x,
         positionY: cell.y,
-        prerequisiteCampaignDifficultyIds: [payload.fromId],
+        prerequisites: [
+          {
+            comesFromCampaignDifficultyId: payload.fromId,
+            ...(edgeColor ? { color: edgeColor } : {}),
+          },
+        ],
         affectedCampaignDifficultyIds: [payload.fromId],
       }
       const created = useAdminEndpoint.value
         ? await addCampaignBarrier(c.id, req)
         : await addPlayerCampaignBarrier(c.id, req)
       const nextPrereqs = targetPrereqs
-        .filter((id) => id !== payload.fromId)
-        .concat(created.id)
-      const rewire = { prerequisiteCampaignDifficultyIds: nextPrereqs }
+        .filter((p) => p.comesFromCampaignDifficultyId !== payload.fromId)
+        .concat({ comesFromCampaignDifficultyId: created.id, color: edgeColor })
+      const rewire = { prerequisites: toPrerequisiteInputs(nextPrereqs) }
       if (isBarrierId(payload.toId)) {
         await (useAdminEndpoint.value
           ? updateCampaignBarrier(payload.toId, rewire)
@@ -2187,6 +2287,9 @@ export function useCampaignEditor() {
   })
 
   const nodeTrays = computed<TrayDef[]>(() => {
+    if (selectedEdge.value) {
+      return [{ id: 'connection', label: 'Style', icon: 'link' }]
+    }
     if (isMultiSelect.value) {
       return [{ id: 'bulk', label: 'Selection', icon: 'layers', count: selectedCount.value }]
     }
@@ -2214,7 +2317,7 @@ export function useCampaignEditor() {
       { id: 'milestone', label: 'Milestone', icon: 'award' },
       { id: 'shape', label: 'Shape', icon: 'hexagon' },
     ]
-    if ((d.prerequisiteCampaignDifficultyIds ?? []).length >= 2) {
+    if ((d.prerequisites ?? []).length >= 2) {
       trays.push({ id: 'unlock', label: 'Unlock', icon: 'link' })
     }
     trays.push({ id: 'rewards', label: 'Rewards', icon: 'package', count: d.items.length })
@@ -2240,6 +2343,7 @@ export function useCampaignEditor() {
     barrierStyle: 'Barrier style',
     barrierRewards: 'Barrier rewards',
     text: 'Text element',
+    connection: 'Connection',
   }
 
   const activeTrayIsNode = computed(
@@ -2280,6 +2384,12 @@ export function useCampaignEditor() {
 
   watch(selectedId, () => {
     affectedPickMode.value = false
+  })
+
+  watch(selectedEdge, (edge) => {
+    if (!edge && activeTray.value === 'connection') {
+      activeTray.value = null
+    }
   })
 
   watch(nodeTrays, (list) => {
@@ -2323,7 +2433,6 @@ export function useCampaignEditor() {
     accent,
     nodeAccents,
     selectedDifficulty,
-    selectedMeta,
     tagsByKind,
     campaignTagIds,
     statusLabel,
@@ -2369,6 +2478,13 @@ export function useCampaignEditor() {
     handleConnect,
     handleDisconnect,
     handleEmptyClick,
+    selectedEdge,
+    selectedEdgeEndpoints,
+    formConnection,
+    connectionColorError,
+    handleEdgeSelect,
+    commitConnectionColor,
+    resetConnectionColor,
     openMapPicker,
     handleMapsPicked,
     removeSelectedNode,

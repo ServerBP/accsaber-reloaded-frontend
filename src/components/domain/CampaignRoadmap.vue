@@ -25,6 +25,8 @@ import {
   computeLabelPlacements,
   edgePointOnShape,
   layoutNodes,
+  prereqIds,
+  resolveConnectionColor,
   resolveSize,
   resolveShape,
   shapeCorners,
@@ -50,6 +52,7 @@ const props = withDefaults(
     showStarfield?: boolean
     selectedId?: string | null
     selectedIds?: string[]
+    selectedEdge?: { fromId: string; toId: string } | null
     highlightBarrierId?: string | null
     barrierPlacement?: boolean
     activeTray?: string | null
@@ -75,6 +78,7 @@ const props = withDefaults(
     showStarfield: false,
     selectedId: null,
     selectedIds: () => [],
+    selectedEdge: null,
     highlightBarrierId: null,
     barrierPlacement: false,
     activeTray: null,
@@ -113,6 +117,7 @@ const emit = defineEmits<{
   connect: [payload: { fromId: string; toId: string }]
   disconnect: [payload: { fromId: string; toId: string }]
   placeBarrier: [payload: { fromId: string; toId: string }]
+  edgeSelect: [payload: { fromId: string; toId: string }]
   cursormove: [
     payload: {
       x: number
@@ -297,10 +302,10 @@ const dependentsByVertex = computed(() => {
     map.set(from, list)
   }
   for (const d of props.difficulties) {
-    for (const p of d.prerequisiteCampaignDifficultyIds ?? []) push(p, d.id)
+    for (const p of prereqIds(d.prerequisites)) push(p, d.id)
   }
   for (const b of props.barriers) {
-    for (const p of b.prerequisiteCampaignDifficultyIds ?? []) push(p, b.id)
+    for (const p of prereqIds(b.prerequisites)) push(p, b.id)
   }
   return map
 })
@@ -341,6 +346,7 @@ interface Edge {
   available: boolean
   locked: boolean
   toSize: number
+  color: string | null
 }
 
 interface CheckpointLabel {
@@ -482,13 +488,23 @@ function vertexUnlocked(id: string): boolean {
   return !!progressById.value.get(id)?.unlocked
 }
 
-const edgeTargets = computed<{ id: string; prereqs: string[] }[]>(() => {
-  const list: { id: string; prereqs: string[] }[] = []
+interface EdgePrereq {
+  fromId: string
+  color: string | null
+}
+
+const edgeTargets = computed<{ id: string; prereqs: EdgePrereq[] }[]>(() => {
+  const toEdgePrereqs = (list: { comesFromCampaignDifficultyId: string; color: string | null }[]) =>
+    list.map((p) => ({
+      fromId: p.comesFromCampaignDifficultyId,
+      color: resolveConnectionColor(p.color),
+    }))
+  const list: { id: string; prereqs: EdgePrereq[] }[] = []
   for (const d of props.difficulties) {
-    list.push({ id: d.id, prereqs: d.prerequisiteCampaignDifficultyIds ?? [] })
+    list.push({ id: d.id, prereqs: toEdgePrereqs(d.prerequisites ?? []) })
   }
   for (const b of props.barriers) {
-    list.push({ id: b.id, prereqs: b.prerequisiteCampaignDifficultyIds ?? [] })
+    list.push({ id: b.id, prereqs: toEdgePrereqs(b.prerequisites ?? []) })
   }
   return list
 })
@@ -499,7 +515,7 @@ const edges = computed<Edge[]>(() => {
     const to = vertexPos.value.get(t.id)
     const toFp = vertexFootprint(t.id)
     if (!to || !toFp) continue
-    for (const fromId of t.prereqs) {
+    for (const { fromId, color } of t.prereqs) {
       const from = vertexPos.value.get(fromId)
       const fromFp = vertexFootprint(fromId)
       if (!from || !fromFp) continue
@@ -523,11 +539,22 @@ const edges = computed<Edge[]>(() => {
         available,
         locked,
         toSize: toFp.outerSize,
+        color,
       })
     }
   }
   return out
 })
+
+function edgeStroke(e: Edge): string {
+  if (e.color) return e.color
+  return e.cleared ? '#ffffff' : e.available ? 'var(--text-secondary)' : 'var(--text-tertiary)'
+}
+
+function isSelectedEdge(e: { fromId: string; toId: string }): boolean {
+  const sel = props.selectedEdge
+  return !!sel && sel.fromId === e.fromId && sel.toId === e.toId
+}
 
 interface BarrierGeom {
   id: string
@@ -552,7 +579,7 @@ const barrierGeometry = computed<BarrierGeom[]>(() => {
   for (const b of props.barriers) {
     const center = barrierById.value.get(b.id)
     if (!center) continue
-    const incoming = (b.prerequisiteCampaignDifficultyIds ?? [])
+    const incoming = prereqIds(b.prerequisites)
       .map((id) => vertexPos.value.get(id))
       .filter((p): p is { cx: number; cy: number } => !!p)
     const outgoing = (dependentsByVertex.value.get(b.id) ?? [])
@@ -757,6 +784,15 @@ function nodeIdAtPoint(clientX: number, clientY: number): string | null {
   if (!hit) return null
   const node = hit.closest('[data-node]') as HTMLElement | null
   return node?.dataset.id ?? null
+}
+
+function edgeAtPoint(clientX: number, clientY: number): { fromId: string; toId: string } | null {
+  if (typeof document === 'undefined') return null
+  const hit = document.elementFromPoint(clientX, clientY)
+  const line = hit?.closest('.campaign-roadmap__edge-hit') as SVGElement | null
+  const fromId = line?.dataset.edgeFrom
+  const toId = line?.dataset.edgeTo
+  return fromId && toId ? { fromId, toId } : null
 }
 
 function clientToContent(clientX: number, clientY: number) {
@@ -1157,7 +1193,9 @@ function onPointerUp(e: PointerEvent) {
       const ids = additive ? Array.from(new Set([...props.selectedIds, ...inside])) : inside
       emit('selectMany', ids)
     } else if (!additive) {
-      emit('selectMany', [])
+      const edge = edgeAtPoint(e.clientX, e.clientY)
+      if (edge) emit('edgeSelect', edge)
+      else emit('selectMany', [])
     }
     return
   }
@@ -1229,8 +1267,13 @@ function onPointerUp(e: PointerEvent) {
 
   if (!nodeId && !moved) {
     if (props.editable) {
-      const content = clientToContent(e.clientX, e.clientY)
-      emit('emptyClick', content)
+      const edge = props.barrierPlacement ? null : edgeAtPoint(e.clientX, e.clientY)
+      if (edge) {
+        emit('edgeSelect', edge)
+      } else {
+        const content = clientToContent(e.clientX, e.clientY)
+        emit('emptyClick', content)
+      }
     } else {
       emit('deselect')
     }
@@ -1487,7 +1530,13 @@ const arrowDecorations = computed(() =>
           </text>
         </g>
 
-        <g class="campaign-roadmap__edges" :class="{ 'campaign-roadmap__edges--place': barrierPlacement }">
+        <g
+          class="campaign-roadmap__edges"
+          :class="{
+            'campaign-roadmap__edges--place': barrierPlacement,
+            'campaign-roadmap__edges--interactive': editable && !barrierPlacement,
+          }"
+        >
           <g
             v-for="e in arrowDecorations"
             :key="`edge-${e.fromId}-${e.toId}`"
@@ -1496,10 +1545,14 @@ const arrowDecorations = computed(() =>
               'campaign-roadmap__edge-group--highlight':
                 hoverNodeId === e.fromId || hoverNodeId === e.toId,
               'campaign-roadmap__edge-group--placeable': barrierPlacement,
+              'campaign-roadmap__edge-group--selected': isSelectedEdge(e),
             }"
+            :style="{ '--edge-hl': e.color ?? '#ffffff' }"
           >
             <line
               class="campaign-roadmap__edge-hit"
+              :data-edge-from="e.fromId"
+              :data-edge-to="e.toId"
               :x1="e.fromX"
               :y1="e.fromY"
               :x2="e.toX"
@@ -1514,30 +1567,18 @@ const arrowDecorations = computed(() =>
               :y1="e.fromY"
               :x2="e.toX"
               :y2="e.toY"
-              :stroke="
-                e.cleared
-                  ? '#ffffff'
-                  : e.available
-                    ? 'var(--text-secondary)'
-                    : 'var(--text-tertiary)'
-              "
+              :stroke="edgeStroke(e)"
               :stroke-width="e.cleared ? 2 : 1.25"
               :stroke-dasharray="e.locked ? `${unit * 0.12} ${unit * 0.1}` : undefined"
-              :opacity="e.cleared ? 0.95 : e.available ? 0.85 : 0.45"
+              :opacity="e.cleared ? 0.95 : e.available ? 0.85 : e.color ? 0.6 : 0.45"
             />
             <polygon
               class="campaign-roadmap__edge-arrow"
               :points="e.arrowPoints"
-              :fill="e.cleared ? '#ffffff' : e.available ? 'var(--text-secondary)' : 'transparent'"
-              :stroke="
-                e.cleared
-                  ? '#ffffff'
-                  : e.available
-                    ? 'var(--text-secondary)'
-                    : 'var(--text-tertiary)'
-              "
+              :fill="e.cleared || e.available ? edgeStroke(e) : 'transparent'"
+              :stroke="edgeStroke(e)"
               stroke-width="1"
-              :opacity="e.cleared ? 0.95 : e.available ? 0.85 : 0.4"
+              :opacity="e.cleared ? 0.95 : e.available ? 0.85 : e.color ? 0.55 : 0.4"
             />
             <g
               v-if="editable && !barrierPlacement"
@@ -1931,19 +1972,51 @@ const arrowDecorations = computed(() =>
 }
 
 .campaign-roadmap__edge-group--highlight .campaign-roadmap__edge-line {
-  stroke: #ffffff;
+  stroke: var(--edge-hl, #ffffff);
   stroke-width: 2.5;
   opacity: 1;
 }
 
 .campaign-roadmap__edge-group--highlight .campaign-roadmap__edge-arrow {
-  fill: #ffffff;
-  stroke: #ffffff;
+  fill: var(--edge-hl, #ffffff);
+  stroke: var(--edge-hl, #ffffff);
   opacity: 1;
 }
 
 .campaign-roadmap__edges--place .campaign-roadmap__edge-hit {
   cursor: pointer;
+}
+
+.campaign-roadmap__edges--interactive .campaign-roadmap__edge-hit {
+  cursor: pointer;
+}
+
+.campaign-roadmap__edges--interactive .campaign-roadmap__edge-group:hover .campaign-roadmap__edge-line {
+  stroke: var(--edge-hl, #ffffff);
+  stroke-width: 2.5;
+  opacity: 1;
+}
+
+.campaign-roadmap__edges--interactive .campaign-roadmap__edge-group:hover .campaign-roadmap__edge-arrow {
+  fill: var(--edge-hl, #ffffff);
+  stroke: var(--edge-hl, #ffffff);
+  opacity: 1;
+}
+
+.campaign-roadmap__edge-group--selected .campaign-roadmap__edge-hit {
+  stroke: color-mix(in srgb, var(--page-accent, var(--accent)) 22%, transparent);
+}
+
+.campaign-roadmap__edge-group--selected .campaign-roadmap__edge-line {
+  stroke: var(--edge-hl, #ffffff);
+  stroke-width: 3;
+  opacity: 1;
+}
+
+.campaign-roadmap__edge-group--selected .campaign-roadmap__edge-arrow {
+  fill: var(--edge-hl, #ffffff);
+  stroke: var(--edge-hl, #ffffff);
+  opacity: 1;
 }
 
 .campaign-roadmap__edge-group--placeable .campaign-roadmap__edge-line {

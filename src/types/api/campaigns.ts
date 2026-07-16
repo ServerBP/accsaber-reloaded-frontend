@@ -69,9 +69,19 @@ export interface CampaignItemAwardResponse {
   quantity: number
 }
 
+export interface CampaignPrerequisiteResponse {
+  comesFromCampaignDifficultyId: string
+  color: string | null
+}
+
 export interface CampaignDifficultyResponse {
   id: string
   mapDifficultyId: string
+  mapId: string
+  categoryId: string | null
+  complexity: number | null
+  beatsaverCode: string | null
+  maxScore: number | null
   songName: string
   songAuthor: string
   mapAuthor: string
@@ -93,7 +103,7 @@ export interface CampaignDifficultyResponse {
   positionX: number
   positionY: number
   xp: number
-  prerequisiteCampaignDifficultyIds: string[]
+  prerequisites: CampaignPrerequisiteResponse[]
   prerequisiteMode: CampaignPrerequisiteMode
   items: CampaignItemAwardResponse[]
 }
@@ -114,7 +124,7 @@ export interface CampaignBarrierResponse {
   positionX: number
   positionY: number
   xp: number
-  prerequisiteCampaignDifficultyIds: string[]
+  prerequisites: CampaignPrerequisiteResponse[]
   prerequisiteMode: CampaignPrerequisiteMode
   affectedCampaignDifficultyIds: string[]
   items: CampaignItemAwardResponse[]

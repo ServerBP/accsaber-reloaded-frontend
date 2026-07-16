@@ -35,25 +35,6 @@ export function getDifficulty(difficultyId: string): Promise<PublicMapDifficulty
   return get<PublicMapDifficultyResponse>(`/maps/difficulties/${difficultyId}`)
 }
 
-const DIFFICULTY_BATCH_CHUNK = 100
-
-export async function getDifficultiesByIds(
-  ids: string[],
-): Promise<PublicMapDifficultyResponse[]> {
-  const unique = [...new Set(ids)]
-  if (unique.length === 0) return []
-  const chunks: string[][] = []
-  for (let i = 0; i < unique.length; i += DIFFICULTY_BATCH_CHUNK) {
-    chunks.push(unique.slice(i, i + DIFFICULTY_BATCH_CHUNK))
-  }
-  const results = await Promise.all(
-    chunks.map((chunk) =>
-      get<PublicMapDifficultyResponse[]>(`/maps/difficulties/batch${buildQuery({ ids: chunk })}`),
-    ),
-  )
-  return results.flat()
-}
-
 export function getDifficulties(params?: DifficultyListParams): Promise<Page<PublicMapDifficultyResponse>> {
   return get<Page<PublicMapDifficultyResponse>>(`/maps/difficulties${buildQuery(params)}`)
 }
