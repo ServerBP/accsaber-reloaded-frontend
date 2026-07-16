@@ -6,6 +6,7 @@ import type {
   ItemResponse,
   UnusualEffectRef,
 } from '@/types/api/items'
+import type { CrateTick } from '@/composables/useCrateSounds'
 import { createCrateRoller, type CrateRoll } from '@/utils/crateRoll'
 import { RARITY_ORDER } from '@/utils/items'
 import { nextTick, onUnmounted, ref, type Ref } from 'vue'
@@ -60,7 +61,7 @@ interface UseCrateAnimationOptions {
   spinDurationMs: Ref<number>
   stageEl: Ref<HTMLElement | null>
   sparksEl: Ref<HTMLCanvasElement | null>
-  onTick?: (progress: number) => void
+  onTicks?: (ticks: CrateTick[]) => void
   onLand?: () => void
   onSwing?: () => void
   onSlice?: (score01: number) => void
@@ -150,7 +151,6 @@ export function useCrateAnimation(opts: UseCrateAnimationOptions) {
   let startAt = 0
   let lastFrameAt = 0
   let targetOffset = 0
-  let lastTickIndex = -1
   let stageW = 640
   let stageH = 260
   let cutReleased = false
@@ -193,7 +193,6 @@ export function useCrateAnimation(opts: UseCrateAnimationOptions) {
     sparks = []
     cutReleased = false
     revealBurstFired = false
-    lastTickIndex = -1
     clearSparksCanvas()
   }
 
@@ -269,12 +268,20 @@ export function useCrateAnimation(opts: UseCrateAnimationOptions) {
     return targetOffset * easeOutQuint(clamp(t / spin, 0, 1))
   }
 
-  function detectTicks(t: number, spin: number) {
-    const index = reticleIndex(carouselOffset.value)
-    if (index > lastTickIndex) {
-      lastTickIndex = index
-      opts.onTick?.(clamp(t / spin, 0, 1))
+  function computeTickTimes(): CrateTick[] {
+    const spin = opts.spinDurationMs.value
+    const cardTotal = opts.cardWidth.value + opts.cardGap.value
+    if (cardTotal <= 0 || targetOffset === 0) return []
+    const startIndex = reticleIndex(0)
+    const endIndex = reticleIndex(targetOffset)
+    const ticks: CrateTick[] = []
+    for (let k = startIndex + 1; k <= endIndex; k++) {
+      const offsetAtCross = stageW / 2 - k * cardTotal
+      const eased = clamp(offsetAtCross / targetOffset, 0, 1)
+      const progress = 1 - Math.pow(1 - eased, 0.2)
+      ticks.push({ t: progress * spin, progress })
     }
+    return ticks
   }
 
   function releaseHalves() {
@@ -412,7 +419,6 @@ export function useCrateAnimation(opts: UseCrateAnimationOptions) {
 
     if (phase.value === 'spinning') {
       carouselOffset.value = sampleOffset(t, marks.spin)
-      detectTicks(t, marks.spin)
       if (t >= marks.land) {
         carouselOffset.value = targetOffset
         phase.value = 'landed'
@@ -502,7 +508,6 @@ export function useCrateAnimation(opts: UseCrateAnimationOptions) {
     measureStage()
     rollGeometry()
     sparkColor = rarityCssColor(result.rarity)
-    lastTickIndex = reticleIndex(0)
 
     const urls = Array.from(
       new Set(carousel.value.map((c) => c.item.iconUrl).filter((u): u is string => !!u)),
@@ -516,6 +521,7 @@ export function useCrateAnimation(opts: UseCrateAnimationOptions) {
     startAt = performance.now()
     lastFrameAt = startAt
     phase.value = 'spinning'
+    opts.onTicks?.(computeTickTimes())
     rafId = requestAnimationFrame(frame)
   }
 

@@ -27,6 +27,7 @@ const rootStyle = computed<Record<string, string>>(() => ({
   '--holo-angle': `${angleDeg.value}deg`,
   '--holo-sweep': `${sweepMs.value}ms`,
   '--holo-op': String(0.5 + intensity.value * 0.4),
+  '--holo-base': String(0.42 + intensity.value * 0.44),
 }))
 
 const titleStyle = computed<Record<string, string>>(() => {
@@ -188,27 +189,29 @@ onBeforeUnmount(() => {
   background:
     linear-gradient(
       var(--holo-angle, 115deg),
-      transparent 40%,
-      rgba(255, 95, 130, 0.5) 45%,
-      rgba(255, 235, 140, 0.5) 48%,
+      transparent 38%,
+      rgba(255, 105, 145, 0.75) 45%,
+      rgba(255, 240, 175, 0.9) 48%,
       rgba(255, 255, 255, 1) 50%,
-      rgba(130, 240, 185, 0.5) 52%,
-      rgba(120, 195, 255, 0.5) 55%,
-      transparent 60%
+      rgba(150, 250, 205, 0.9) 52%,
+      rgba(135, 205, 255, 0.75) 55%,
+      transparent 62%
     ),
     linear-gradient(
       var(--holo-angle, 115deg),
-      rgba(255, 140, 205, 0.42),
-      rgba(150, 225, 255, 0.42),
-      rgba(205, 165, 255, 0.42)
+      rgba(255, 120, 200, var(--holo-base, 0.6)),
+      rgba(255, 225, 150, var(--holo-base, 0.6)) 22%,
+      rgba(150, 245, 205, var(--holo-base, 0.6)) 46%,
+      rgba(140, 205, 255, var(--holo-base, 0.6)) 70%,
+      rgba(210, 160, 255, var(--holo-base, 0.6)) 100%
     );
   background-size: 300% 100%, 100% 100%;
   background-repeat: no-repeat, no-repeat;
   -webkit-background-clip: text;
   background-clip: text;
   mix-blend-mode: screen;
-  opacity: calc(0.75 + var(--holo-active, 0) * 0.25);
-  animation: comp-holo-textsweep var(--holo-sweep, 6500ms) ease-in-out infinite;
+  opacity: calc(0.85 + var(--holo-active, 0) * 0.15);
+  animation: comp-holo-textsweep calc(var(--holo-sweep, 6500ms) * 0.5) linear infinite;
   transition: opacity 180ms ease;
 }
 
@@ -235,13 +238,10 @@ onBeforeUnmount(() => {
 }
 
 @keyframes comp-holo-textsweep {
-  0% {
+  from {
     background-position: 0% 0, 0% 0;
   }
-  35% {
-    background-position: 100% 0, 0% 0;
-  }
-  100% {
+  to {
     background-position: 100% 0, 0% 0;
   }
 }
@@ -254,6 +254,10 @@ onBeforeUnmount(() => {
 
   .comp-holo__shine {
     background-position: 50% 50%;
+  }
+
+  .comp-holo__text {
+    background-position: 50% 0, 0% 0;
   }
 }
 </style>

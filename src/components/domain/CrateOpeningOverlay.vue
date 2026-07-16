@@ -31,6 +31,7 @@ const emit = defineEmits<{
   close: []
   openAnother: []
   equip: [reward: UserItemResponse]
+  opened: []
 }>()
 
 const animRef = ref<InstanceType<typeof CrateOpenAnimation> | null>(null)
@@ -48,6 +49,11 @@ watch(
 )
 
 const settled = computed(() => revealed.value || !!props.error)
+
+function onOpened() {
+  revealed.value = true
+  emit('opened')
+}
 
 const reward = computed(() => props.result)
 const rewardEquippable = computed(() => {
@@ -94,7 +100,7 @@ onUnmounted(() => {
       :result-serial-number="result?.serialNumber ?? null"
       :play-token="playToken"
       :height="320"
-      @complete="revealed = true"
+      @complete="onOpened"
     />
 
     <p v-if="error" class="crate-open__error" role="alert">{{ error }}</p>

@@ -23,6 +23,7 @@ import {
   readFragmentSpec,
   userItemTokenContext,
 } from '@/utils/items'
+import { useItemTypeStore } from '@/stores/itemTypes'
 import { computed, ref, toRef, watch } from 'vue'
 
 const props = withDefaults(
@@ -102,7 +103,7 @@ const {
   spinDurationMs: toRef(props, 'spinDurationMs'),
   stageEl,
   sparksEl,
-  onTick: sounds.tick,
+  onTicks: sounds.scheduleTicks,
   onLand: sounds.land,
   onSwing: sounds.swing,
   onSlice: sounds.slice,
@@ -143,6 +144,15 @@ const resultFragmentSpec = computed(() => readFragmentSpec(props.resultUnusualEf
 const revealName = computed(() =>
   props.result ? displayItemName(props.resultModifiers, props.result.name) : '',
 )
+const itemTypeStore = useItemTypeStore()
+const typeName = computed(() => {
+  const key = props.result?.typeKey
+  if (!key) return ''
+  return (
+    itemTypeStore.byKey.get(key)?.name ??
+    key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+  )
+})
 const tokenCtx = computed(() =>
   userItemTokenContext({ serialNumber: props.resultSerialNumber ?? null }),
 )
@@ -316,6 +326,7 @@ const scoreTier = computed<'perfect' | 'great' | 'good' | 'ok'>(() => {
         />
       </div>
       <div class="crate-anim__reveal-name">{{ revealName }}</div>
+      <div v-if="typeName" class="crate-anim__reveal-type">{{ typeName }}</div>
       <div class="crate-anim__reveal-rarity">{{ result.rarity }}</div>
       <div v-if="resultModifiers.length" class="crate-anim__reveal-chips">
         <ModifierChip v-for="(m, i) in resultModifiers" :key="`${m.id}-${i}`" :modifier="m" />
@@ -634,6 +645,14 @@ const scoreTier = computed<'perfect' | 'great' | 'good' | 'ok'>(() => {
   font-weight: 600;
   color: var(--text-primary);
   text-align: center;
+}
+
+.crate-anim__reveal-type {
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-secondary);
+  font-weight: 600;
 }
 
 .crate-anim__reveal-rarity {

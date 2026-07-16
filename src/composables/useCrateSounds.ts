@@ -1,10 +1,14 @@
 import { onUnmounted, ref } from 'vue'
 
 const MUTE_KEY = 'crate:muted'
-const TICK_MIN_GAP_MS = 28
-const TICK_SPACING = 0.024
-const TICK_LOOKAHEAD = 0.006
+const TICK_MIN_GAP_MS = 24
+const TICK_LOOKAHEAD = 0.02
 const CHIME_PARTIAL_RATIO = 2.4
+
+export interface CrateTick {
+  t: number
+  progress: number
+}
 
 interface NoiseHitOptions {
   type: BiquadFilterType
@@ -83,9 +87,7 @@ export function useCrateSounds() {
   const muted = ref(localStorage.getItem(MUTE_KEY) === '1')
 
   let bus: GainNode | null = null
-  let dryBus: GainNode | null = null
-  let lastTickAt = 0
-  let tickCursor = 0
+  let tickBus: GainNode | null = null
   let disposed = false
 
   activeInstances++
@@ -102,28 +104,15 @@ export function useCrateSounds() {
     return bus
   }
 
-  function outDry(): GainNode | null {
-    if (muted.value || disposed) return null
-    const shared = sharedAudio()
-    if (!shared) return null
-    if (!dryBus) {
-      dryBus = shared.ctx.createGain()
-      dryBus.connect(shared.master)
-    }
-    return dryBus
-  }
-
   function reset() {
     if (bus) {
       bus.disconnect()
       bus = null
     }
-    if (dryBus) {
-      dryBus.disconnect()
-      dryBus = null
+    if (tickBus) {
+      tickBus.disconnect()
+      tickBus = null
     }
-    lastTickAt = 0
-    tickCursor = 0
   }
 
   function noise(ac: AudioContext): AudioBufferSourceNode {
@@ -181,15 +170,7 @@ export function useCrateSounds() {
     osc.stop(at + attack + opts.decay + 0.05)
   }
 
-  function tick(progress: number) {
-    const dest = outDry()
-    if (!dest) return
-    const now = performance.now()
-    if (now - lastTickAt < TICK_MIN_GAP_MS) return
-    lastTickAt = now
-    const ac = dest.context as AudioContext
-    const at = Math.max(ac.currentTime + TICK_LOOKAHEAD, tickCursor + TICK_SPACING)
-    tickCursor = at
+  function tickAt(dest: GainNode, at: number, progress: number) {
     const jitter = 0.95 + Math.random() * 0.1
     noiseHit(dest, { type: 'highpass', freq: 5200 * jitter, peak: 0.2, decay: 0.012, at })
     noiseHit(dest, {
@@ -201,6 +182,22 @@ export function useCrateSounds() {
       at,
     })
     tone(dest, { type: 'sine', freq: 200, freqEnd: 150, peak: 0.04, decay: 0.03, at })
+  }
+
+  function scheduleTicks(ticks: CrateTick[]) {
+    if (muted.value || disposed) return
+    const shared = sharedAudio()
+    if (!shared) return
+    if (tickBus) tickBus.disconnect()
+    tickBus = shared.ctx.createGain()
+    tickBus.connect(shared.master)
+    const base = shared.ctx.currentTime + TICK_LOOKAHEAD
+    let lastKept = -Infinity
+    for (const { t, progress } of ticks) {
+      if (t - lastKept < TICK_MIN_GAP_MS) continue
+      lastKept = t
+      tickAt(tickBus, base + t / 1000, progress)
+    }
   }
 
   function land() {
@@ -304,5 +301,5 @@ export function useCrateSounds() {
     }
   })
 
-  return { muted, toggleMute, prime, reset, tick, land, swing, slice, reveal }
+  return { muted, toggleMute, prime, reset, scheduleTicks, land, swing, slice, reveal }
 }

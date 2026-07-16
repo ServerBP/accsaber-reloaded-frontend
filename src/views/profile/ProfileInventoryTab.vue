@@ -237,6 +237,8 @@ const crateOpening = ref<{
   equippedLinkId: string | null
 } | null>(null)
 
+const crateRefreshed = ref(false)
+
 const crateItem = computed(
   () => crateOpening.value?.userItem.item ?? selectedItem.value?.item ?? null,
 )
@@ -479,6 +481,7 @@ function handleOpenCrate(linkId: string) {
       : (items.value.find((u) => u.linkId === linkId) ?? null)
   if (!target || target.item.typeKey !== 'crate') return
   mobileDetailOpen.value = false
+  crateRefreshed.value = false
   crateOpening.value = {
     userItem: target,
     result: null,
@@ -496,6 +499,7 @@ function handleOpenAnother() {
   if (!current || current.busy) return
   const next = findOwnedCrateLink(current.userItem.item.id)
   if (!next) return
+  crateRefreshed.value = false
   crateOpening.value = {
     userItem: next,
     result: null,
@@ -525,12 +529,23 @@ async function handleCrateEquip(reward: UserItemResponse) {
   }
 }
 
-function handleCrateOverlayClose() {
-  const rewardLinkId = crateOpening.value?.result?.reward.linkId ?? null
-  crateOpening.value = null
-  if (rewardLinkId) selectedLinkId.value = rewardLinkId
+function refreshAfterCrate() {
   if (showUnowned.value) fetchCatalog()
   else fetchInventory()
+}
+
+function handleCrateOpened() {
+  crateRefreshed.value = true
+  refreshAfterCrate()
+}
+
+function handleCrateOverlayClose() {
+  const rewardLinkId = crateOpening.value?.result?.reward.linkId ?? null
+  const refreshed = crateRefreshed.value
+  crateOpening.value = null
+  crateRefreshed.value = false
+  if (rewardLinkId) selectedLinkId.value = rewardLinkId
+  if (!refreshed) refreshAfterCrate()
 }
 
 async function handleDisintegrateConfirm(quantity: number) {
@@ -777,6 +792,7 @@ onUnmounted(() => {
       :can-open-another="canOpenAnother"
       :equip-busy="crateOpening.equipBusy"
       :equipped-link-id="crateOpening.equippedLinkId"
+      @opened="handleCrateOpened"
       @close="handleCrateOverlayClose"
       @open-another="handleOpenAnother"
       @equip="handleCrateEquip"
