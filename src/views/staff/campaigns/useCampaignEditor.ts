@@ -255,7 +255,20 @@ export function useCampaignEditor() {
     }
   }
 
+  let creatingCampaign: Promise<CampaignDetailResponse | null> | null = null
+
   async function ensureCampaign(): Promise<CampaignDetailResponse | null> {
+    if (campaign.value && campaign.value.id !== '') return campaign.value
+    if (creatingCampaign) return creatingCampaign
+    creatingCampaign = createCampaignNow()
+    try {
+      return await creatingCampaign
+    } finally {
+      creatingCampaign = null
+    }
+  }
+
+  async function createCampaignNow(): Promise<CampaignDetailResponse | null> {
     if (campaign.value && campaign.value.id !== '') return campaign.value
     if (!auth.isLoggedIn && !isCurator.value) {
       actionError.value = 'Sign in to create a campaign.'
