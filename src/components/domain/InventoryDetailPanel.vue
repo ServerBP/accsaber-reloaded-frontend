@@ -329,7 +329,7 @@ onUnmounted(() => {
         <dt>Serial</dt>
         <dd class="inv-detail__mono">#{{ userItem.serialNumber }}</dd>
       </div>
-      <div v-if="!locked" class="inv-detail__row">
+      <div v-if="!locked && !item?.tradeable" class="inv-detail__row">
         <dt>Source</dt>
         <dd>{{ sourceLabel }}</dd>
       </div>
