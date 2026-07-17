@@ -68,6 +68,40 @@ export interface BeatSaverSearchResponse {
   docs: BeatSaverMapResponse[]
 }
 
+export interface BeatSaverMapper {
+  id: number
+  name: string
+}
+
+export async function findBeatSaverMapper(name: string): Promise<BeatSaverMapper | null> {
+  const trimmed = name.trim()
+  if (!trimmed) return null
+  try {
+    const res = await fetch(`/proxy/beatsaver/users/name/${encodeURIComponent(trimmed)}`, {
+      headers: { accept: 'application/json' },
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    if (data && typeof data.id === 'number' && typeof data.name === 'string') {
+      return { id: data.id, name: data.name }
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+export async function fetchBeatSaverMapperMaps(
+  mapperId: number,
+  page = 0,
+): Promise<BeatSaverSearchResponse> {
+  const res = await fetch(`/proxy/beatsaver/maps/uploader/${mapperId}/${page}`, {
+    headers: { accept: 'application/json' },
+  })
+  if (!res.ok) throw new Error(`BeatSaver mapper maps failed: ${res.status}`)
+  return (await res.json()) as BeatSaverSearchResponse
+}
+
 export async function searchBeatSaver(
   params: BeatSaverSearchParams,
   page = 0,

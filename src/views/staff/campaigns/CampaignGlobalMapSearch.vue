@@ -9,11 +9,14 @@ import type { ImportCampaignMapRequest } from '@/types/api/campaigns'
 import {
   type BeatSaverLeaderboardFilter,
   type BeatSaverMapResponse,
+  type BeatSaverMapper,
   type BeatSaverOrder,
   type BeatSaverSearchParams,
   type MapLeaderboardIndex,
   fetchBeatSaverMap,
+  fetchBeatSaverMapperMaps,
   fetchMapLeaderboardIndex,
+  findBeatSaverMapper,
   formatBsDifficulty,
   parseBeatSaverCode,
   searchBeatSaver,
@@ -96,11 +99,18 @@ const reachedEnd = ref(false)
 const isCodeResult = ref(false)
 const error = ref<string | null>(null)
 
+const mapperSuggestion = ref<BeatSaverMapper | null>(null)
+const mapperMode = ref<BeatSaverMapper | null>(null)
+
 const expandedId = ref<string | null>(null)
 const resolvedByHash = ref(new Map<string, MapLeaderboardIndex>())
 const resolvingHash = ref<string | null>(null)
 
-type ImportState = { status: 'importing' | 'imported' | 'attached' | 'error'; message?: string }
+type ImportState = {
+  status: 'importing' | 'imported' | 'attached' | 'error'
+  message?: string
+  count?: number
+}
 const importStates = ref(new Map<string, ImportState>())
 
 function importKey(mapId: string, diffKey: string): string {
@@ -173,20 +183,64 @@ const debouncedKey = useDebouncedRef(searchKey, 350)
 const isBeatSaverUrl = (raw: string) => /beatsaver\.com\/maps\//i.test(raw)
 
 watch(debouncedKey, () => {
-  if (canSearch.value) void runSearch(0)
-  else {
+  // Editing the query leaves any active "maps by mapper" view.
+  mapperMode.value = null
+  if (canSearch.value) {
+    void runSearch(0)
+    void refreshMapperSuggestion()
+  } else {
     docs.value = []
     reachedEnd.value = false
     isCodeResult.value = false
+    mapperSuggestion.value = null
     error.value = null
   }
 })
+
+async function refreshMapperSuggestion() {
+  const raw = query.value.trim()
+  if (!raw || parseBeatSaverCode(raw)) {
+    mapperSuggestion.value = null
+    return
+  }
+  const found = await findBeatSaverMapper(raw)
+  // Guard against a stale response after the query changed again.
+  if (query.value.trim() === raw) mapperSuggestion.value = found
+}
+
+function activateMapper(mapper: BeatSaverMapper) {
+  mapperMode.value = mapper
+  mapperSuggestion.value = null
+  void runSearch(0)
+}
+
+function clearMapperMode() {
+  mapperMode.value = null
+  void runSearch(0)
+  void refreshMapperSuggestion()
+}
 
 async function runSearch(targetPage: number) {
   loading.value = true
   error.value = null
   page.value = targetPage
   expandedId.value = null
+  isCodeResult.value = false
+
+  if (mapperMode.value) {
+    try {
+      const res = await fetchBeatSaverMapperMaps(mapperMode.value.id, targetPage)
+      docs.value = res.docs ?? []
+      reachedEnd.value = docs.value.length < PAGE_SIZE
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to load mapper maps'
+      docs.value = []
+      reachedEnd.value = true
+    } finally {
+      loading.value = false
+    }
+    return
+  }
 
   const raw = query.value.trim()
   const code = parseBeatSaverCode(raw)
@@ -304,22 +358,28 @@ async function importDiff(map: BeatSaverMapResponse, row: DiffRow) {
   if (!row.importable || !row.blLeaderboardId || !row.ssLeaderboardId) return
   const key = importKey(map.id, row.key)
   const existing = importStates.value.get(key)
-  if (existing && (existing.status === 'importing' || existing.status === 'imported' || existing.status === 'attached')) {
-    return
-  }
-  setImportState(key, { status: 'importing' })
+  if (existing?.status === 'importing') return
+  setImportState(key, { status: 'importing', count: existing?.count })
   try {
     const { attached } = await props.submit({
       blLeaderboardId: row.blLeaderboardId,
       ssLeaderboardId: row.ssLeaderboardId,
     })
+    const count = (existing?.count ?? 0) + 1
     setImportState(key, {
       status: attached ? 'attached' : 'imported',
-      message: attached ? 'Already in system · attached' : undefined,
+      count,
+      message: attached
+        ? count > 1
+          ? `Attached ×${count}`
+          : 'Attached · already in system'
+        : count > 1
+          ? `Added ×${count}`
+          : 'Added',
     })
   } catch (e) {
     const parsed = parseApiError(e, 'Import failed')
-    setImportState(key, { status: 'error', message: parsed.message })
+    setImportState(key, { status: 'error', message: parsed.message, count: existing?.count })
   }
 }
 
@@ -334,10 +394,10 @@ function importStateFor(map: BeatSaverMapResponse, row: DiffRow): ImportState | 
 }
 
 function actionLabel(state: ImportState | undefined): string {
-  if (!state) return props.mode === 'repoint' ? 'Use this' : 'Add'
+  if (props.mode === 'repoint') return 'Use this'
+  if (!state) return 'Add'
   if (state.status === 'importing') return '...'
-  if (state.status === 'imported') return 'Imported'
-  if (state.status === 'attached') return 'Attached'
+  if (state.status === 'imported' || state.status === 'attached') return 'Add again'
   return 'Retry'
 }
 
@@ -456,6 +516,19 @@ function resetFilters() {
 
     <p v-if="error" class="gms__error" role="alert">{{ error }}</p>
 
+    <div v-if="mapperMode" class="gms__mapper gms__mapper--active">
+      <span>Showing maps by <strong>{{ mapperMode.name }}</strong></span>
+      <button type="button" class="gms__mapper-btn" @click="clearMapperMode">Back to search</button>
+    </div>
+    <button
+      v-else-if="mapperSuggestion"
+      type="button"
+      class="gms__mapper gms__mapper--suggest"
+      @click="activateMapper(mapperSuggestion)"
+    >
+      Looking for maps by <strong>{{ mapperSuggestion.name }}</strong>? Show their maps →
+    </button>
+
     <div class="gms__body">
       <div v-if="loading" class="gms__list">
         <SkeletonLoader v-for="i in 6" :key="i" variant="table-row" />
@@ -548,7 +621,7 @@ function resetFilters() {
                 <BaseButton
                   size="sm"
                   :variant="importStateFor(map, row)?.status === 'imported' || importStateFor(map, row)?.status === 'attached' ? 'default' : 'primary'"
-                  :disabled="!row.importable || importStateFor(map, row)?.status === 'importing' || importStateFor(map, row)?.status === 'imported' || importStateFor(map, row)?.status === 'attached'"
+                  :disabled="!row.importable || importStateFor(map, row)?.status === 'importing'"
                   :loading="importStateFor(map, row)?.status === 'importing'"
                   @click="importDiff(map, row)"
                 >
@@ -578,7 +651,7 @@ function resetFilters() {
   flex-direction: column;
   gap: var(--space-md);
   width: min(860px, 100%);
-  max-height: min(78vh, 680px);
+  max-height: min(620px, calc(100vh - 250px));
 }
 
 .gms__head {
@@ -721,6 +794,55 @@ function resetFilters() {
   background: color-mix(in srgb, var(--error) 8%, transparent);
   border: 1px solid color-mix(in srgb, var(--error) 35%, transparent);
   border-radius: 3px;
+}
+
+.gms__mapper {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  width: 100%;
+  padding: 8px 12px;
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+  text-align: left;
+  border-radius: 3px;
+  border: 1px solid var(--bg-overlay);
+  background: var(--bg-base);
+}
+
+.gms__mapper strong {
+  color: var(--text-primary);
+}
+
+.gms__mapper--suggest {
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.gms__mapper--suggest:hover {
+  border-color: var(--page-accent, var(--accent));
+  color: var(--text-primary);
+}
+
+.gms__mapper--active {
+  border-color: color-mix(in srgb, var(--page-accent, var(--accent)) 45%, transparent);
+  background: color-mix(in srgb, var(--page-accent, var(--accent)) 8%, transparent);
+}
+
+.gms__mapper-btn {
+  flex: 0 0 auto;
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--page-accent, var(--accent));
+  background: transparent;
+  border: none;
+  cursor: pointer;
 }
 
 .gms__body {
