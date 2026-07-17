@@ -2,13 +2,14 @@
 import BaseTabs from '@/components/common/BaseTabs.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import { useThemeStore } from '@/stores/theme'
-import type { MetricType, TimeRange, TimeSeriesPoint } from '@/types/display'
+import type { ChartSeries, MetricType, TimeRange, TimeSeriesPoint } from '@/types/display'
 import { computed, nextTick, onUnmounted, ref, shallowRef, watch } from 'vue'
 
 const props = defineProps<{
-  data: TimeSeriesPoint[]
-  metricLabel: string
+  data?: TimeSeriesPoint[]
+  metricLabel?: string
   accentColor?: string
+  series?: ChartSeries[]
   availableMetrics?: { key: MetricType; label: string }[]
   selectedMetric?: MetricType
   selectedRange?: TimeRange
@@ -17,6 +18,32 @@ const props = defineProps<{
   yMax?: number
   yMin?: number
 }>()
+
+interface ResolvedSeries {
+  label: string
+  points: TimeSeriesPoint[]
+  color: string
+  invertY: boolean
+  formatValue?: (v: number) => string
+}
+
+const resolvedSeries = computed<ResolvedSeries[]>(() =>
+  props.series?.length
+    ? props.series.map((s) => ({
+      label: s.label,
+      points: s.points,
+      color: s.color,
+      invertY: !!s.invertY,
+      formatValue: s.formatValue,
+    }))
+    : [{
+      label: props.metricLabel ?? '',
+      points: props.data ?? [],
+      color: props.accentColor ?? '',
+      invertY: !!props.invertY,
+      formatValue: props.formatValue,
+    }],
+)
 
 const emit = defineEmits<{
   'update:selectedMetric': [value: MetricType]
@@ -41,7 +68,7 @@ const timeRanges: { key: TimeRange; label: string }[] = [
 
 const activeRange = computed(() => props.selectedRange ?? 'all')
 
-const hasData = computed(() => props.data.length > 0)
+const hasData = computed(() => resolvedSeries.value.some((s) => s.points.length > 0))
 
 function formatNumber(value: number): string {
   if (!Number.isFinite(value)) return `${value}`
@@ -62,30 +89,66 @@ async function loadChart() {
     const styles = getComputedStyle(document.documentElement)
     const gridColor = styles.getPropertyValue('--chart-grid').trim() || 'rgba(255,255,255,0.06)'
     const textColor = styles.getPropertyValue('--chart-text').trim() || '#8888a0'
-    const resolvedAccent = props.accentColor ?? (styles.getPropertyValue('--accent').trim() || '#f5b800')
-    const fillColor = `color-mix(in srgb, ${resolvedAccent} 10%, transparent)`
+    const resolvedAccent = styles.getPropertyValue('--accent').trim() || '#f5b800'
 
     const formatDate = (ts: number): string => {
       const d = new Date(ts)
       return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' })
     }
 
+    const series = resolvedSeries.value
+    const isMulti = series.length > 1
+    const allTs = [...new Set(series.flatMap((s) => s.points.map((p) => p.timestamp)))].sort((a, b) => a - b)
+
+    const prepared = series.map((s, idx) => {
+      const valueMap = new Map<number, number>()
+      const pointMap = new Map<number, TimeSeriesPoint>()
+      for (const p of s.points) {
+        valueMap.set(p.timestamp, p.value)
+        pointMap.set(p.timestamp, p)
+      }
+      return {
+        ...s,
+        idx,
+        valueMap,
+        pointMap,
+        color: s.color || resolvedAccent,
+        axisId: isMulti ? `y${idx}` : 'y',
+      }
+    })
+
+    const yScales = Object.fromEntries(prepared.map((s) => [s.axisId, {
+      reverse: s.invertY,
+      position: !isMulti || s.idx === 0 ? 'left' : 'right',
+      display: !isMulti || s.idx < 2,
+      max: isMulti ? undefined : props.yMax,
+      min: isMulti ? undefined : props.yMin,
+      grid: { color: gridColor, drawOnChartArea: s.idx === 0 },
+      ticks: {
+        color: isMulti ? s.color : textColor,
+        font: { family: 'JetBrains Mono, monospace', size: 10 },
+        callback: (value: number | string) =>
+          s.formatValue ? s.formatValue(value as number) : formatNumber(value as number),
+      },
+    }]))
+
     chartInstance.value = new Chart(canvasRef.value, {
       type: 'line',
       data: {
-        labels: props.data.map((p) => formatDate(p.timestamp)),
-        datasets: [
-          {
-            data: props.data.map((p) => p.value),
-            borderColor: resolvedAccent,
-            backgroundColor: fillColor,
-            fill: props.invertY ? 'start' : true,
-            tension: 0.3,
-            pointRadius: props.data.length < 50 ? 3 : 0,
-            pointHoverRadius: 5,
-            borderWidth: 2,
-          },
-        ],
+        labels: allTs.map(formatDate),
+        datasets: prepared.map((s) => ({
+          label: s.label,
+          data: allTs.map((ts) => (s.valueMap.has(ts) ? s.valueMap.get(ts)! : null)),
+          borderColor: s.color,
+          backgroundColor: `color-mix(in srgb, ${s.color} 10%, transparent)`,
+          fill: isMulti ? false : s.invertY ? 'start' : true,
+          yAxisID: s.axisId,
+          spanGaps: true,
+          tension: 0.3,
+          pointRadius: s.points.length < 50 ? 3 : 0,
+          pointHoverRadius: 5,
+          borderWidth: 2,
+        })),
       },
       options: {
         responsive: true,
@@ -99,22 +162,20 @@ async function loadChart() {
             intersect: false,
             callbacks: {
               title: (items) => {
-                const idx = items[0]?.dataIndex
-                if (idx != null && props.data[idx]) {
-                  const d = new Date(props.data[idx].timestamp)
-                  return d.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })
-                }
-                return ''
+                const ts = allTs[items[0]?.dataIndex ?? -1]
+                return ts != null
+                  ? new Date(ts).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })
+                  : ''
               },
               label: (item) => {
-                const point = props.data[item.dataIndex]
+                const s = prepared[item.datasetIndex]
+                const point = s?.pointMap.get(allTs[item.dataIndex])
                 if (point?.tooltipLines?.length) {
                   return point.tooltipLines
                 }
                 const y = item.parsed.y ?? 0
-                return props.formatValue
-                  ? props.formatValue(y)
-                  : formatNumber(y)
+                const val = s?.formatValue ? s.formatValue(y) : formatNumber(y)
+                return isMulti ? `${s?.label}: ${val}` : val
               },
               afterLabel: () => '',
             },
@@ -131,20 +192,7 @@ async function loadChart() {
               maxRotation: 0,
             },
           },
-          y: {
-            reverse: props.invertY ?? false,
-            max: props.yMax,
-            min: props.yMin,
-            grid: { color: gridColor },
-            ticks: {
-              color: textColor,
-              font: { family: 'JetBrains Mono, monospace', size: 10 },
-              callback: (value) =>
-                props.formatValue
-                  ? props.formatValue(value as number)
-                  : formatNumber(value as number),
-            },
-          },
+          ...yScales,
         },
       },
     })
@@ -160,7 +208,7 @@ function destroyChart() {
   }
 }
 
-watch([() => props.data, () => props.accentColor, () => themeStore.theme], () => {
+watch([() => props.data, () => props.series, () => props.accentColor, () => themeStore.theme], () => {
   loadChart()
 }, { immediate: true })
 

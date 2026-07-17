@@ -187,6 +187,15 @@ export interface TimeSeriesPoint {
   tooltipLines?: string[]
 }
 
+export interface ChartSeries {
+  key: string
+  label: string
+  points: TimeSeriesPoint[]
+  color: string
+  invertY?: boolean
+  formatValue?: (v: number) => string
+}
+
 export type TimeRange = '24h' | '7d' | '14d' | '30d' | '90d' | '1y' | 'all'
 
 export type MetricType = 'ap' | 'avgAccuracy' | 'rankedPlays' | 'rank' | 'xpCumulative' | 'xpPerAttempt' | 'newPlayers' | 'totalPlayers' | 'dailyScores' | 'totalScores'
