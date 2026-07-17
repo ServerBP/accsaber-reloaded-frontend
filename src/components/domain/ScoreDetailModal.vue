@@ -1095,5 +1095,22 @@ watch(
   .score-detail__xp {
     margin-left: 0;
   }
+
+  .score-detail__xp-tooltip {
+    left: 0;
+    right: auto;
+    min-width: 0;
+    width: max-content;
+    max-width: calc(100vw - var(--space-md) * 2 - var(--space-lg) * 2);
+  }
+
+  .score-detail__xp-tooltip::after {
+    left: 14px;
+    right: auto;
+  }
+
+  .score-detail__links :deep(.base-button) {
+    flex: 1 1 auto;
+  }
 }
 </style>
