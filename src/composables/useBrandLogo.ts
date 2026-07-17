@@ -1,10 +1,11 @@
 import logoUrl from '@/assets/logo.png'
-import retroLogoUrl from '@/assets/retro-logo.png'
+import reloadedLogoUrl from '@/assets/reloaded-logo.png'
 import { useThemeStore } from '@/stores/theme'
 import { computed, watch, type ComputedRef } from 'vue'
 
 const LOGO_REGISTRY: Record<string, string> = {
-  acc_retro: retroLogoUrl,
+  acc_retro: logoUrl,
+  acc_reloaded: reloadedLogoUrl,
 }
 
 export function useBrandLogo(): ComputedRef<string> {

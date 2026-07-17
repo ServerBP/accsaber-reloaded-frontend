@@ -609,7 +609,7 @@ watch(
         </ol>
         <p class="campaigns-page__rules-note">
           By creating a campaign, you agree to these rules. Breaking them results in an automatic,
-          indefinite suspension from every AccSaber Reloaded feature.
+          indefinite suspension from every AccSaber feature.
         </p>
       </div>
     </BaseModal>

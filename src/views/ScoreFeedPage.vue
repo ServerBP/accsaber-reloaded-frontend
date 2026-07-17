@@ -13,7 +13,7 @@ const { scores, status, connect } = useScoreWebSocket()
 const activeTab = ref('all')
 
 usePageMeta({
-  title: 'Score Feed | AccSaber Reloaded',
+  title: 'Score Feed | AccSaber',
   description: 'Live score feed showing real-time score submissions across AccSaber.',
 })
 

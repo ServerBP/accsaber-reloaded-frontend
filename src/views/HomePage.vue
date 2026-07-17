@@ -25,7 +25,7 @@ const isLoggedIn = computed(() => authStore.isLoggedIn)
 const displayName = computed(() => authStore.userProfile?.name ?? '')
 
 usePageMeta({
-  title: 'AccSaber Reloaded',
+  title: 'AccSaber',
   description: 'Accuracy-based leaderboard platform for Beat Saber.',
 })
 
@@ -255,7 +255,7 @@ onUnmounted(() => {
 
     <footer class="home-footer">
       <p class="home-footer__text">
-        Logo by Brylanbbab and Interz. AccSaber Reloaded takes no credit for any assets used in their platform.
+        Logo by Brylanbbab and Interz. AccSaber takes no credit for any assets used in their platform.
       </p>
       <nav class="home-footer__links" aria-label="Footer links">
         <a href="https://github.com/tikugato/accsaber-reloaded-frontend" target="_blank" rel="noopener noreferrer"

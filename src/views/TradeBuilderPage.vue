@@ -25,7 +25,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 usePageMeta({
-  title: 'New Trade Offer | AccSaber Reloaded',
+  title: 'New Trade Offer | AccSaber',
 })
 
 const authStore = useAuthStore()

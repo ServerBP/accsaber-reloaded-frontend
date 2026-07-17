@@ -14,7 +14,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 usePageMeta({
-  title: 'Market Hub | AccSaber Reloaded',
+  title: 'Market Hub | AccSaber',
   description: 'Trade items with other AccSaber players.',
 })
 

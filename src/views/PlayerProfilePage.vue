@@ -297,7 +297,7 @@ const breadcrumbs = computed(() => [
 
 const metaTitle = computed(() => {
   if (!user.value) return undefined
-  return `${user.value.name} | AccSaber Reloaded`
+  return `${user.value.name} | AccSaber`
 })
 
 usePageMeta({ title: metaTitle })

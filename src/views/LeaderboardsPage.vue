@@ -49,7 +49,7 @@ const isXpMode = computed(() => activeCategory.value === 'xp')
 const metaTitle = computed(() => {
   const info = categoryStore.getCategoryInfo(activeCategory.value)
   const name = info?.name ?? 'Overall'
-  return `${name} Leaderboard | AccSaber Reloaded`
+  return `${name} Leaderboard | AccSaber`
 })
 
 usePageMeta({

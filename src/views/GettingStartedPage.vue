@@ -9,7 +9,7 @@ const themeStore = useThemeStore()
 const { playlistCategories, downloadPlaylist } = usePlaylistDownload()
 
 usePageMeta({
-  title: 'Getting Started | AccSaber Reloaded',
+  title: 'Getting Started | AccSaber',
   description: 'Learn how to get started with AccSaber and start competing on accuracy leaderboards.',
 })
 </script>

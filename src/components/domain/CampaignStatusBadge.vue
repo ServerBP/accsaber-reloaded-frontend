@@ -17,7 +17,7 @@ const variant = computed<'official' | 'curated' | null>(() => {
 })
 
 const title = computed(() =>
-  variant.value === 'official' ? 'Official AccSaber Reloaded campaign' : 'Curated campaign',
+  variant.value === 'official' ? 'Official AccSaber campaign' : 'Curated campaign',
 )
 </script>
 

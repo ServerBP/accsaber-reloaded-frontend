@@ -16,7 +16,7 @@ function toRef(val: Ref<string | undefined> | string | undefined): Ref<string | 
 
 const SITE_URL = window.location.origin
 
-const DEFAULT_TITLE = 'AccSaber Reloaded'
+const DEFAULT_TITLE = 'AccSaber'
 const DEFAULT_DESCRIPTION = 'Accuracy-based leaderboard platform for Beat Saber.'
 const DEFAULT_IMAGE = `${SITE_URL}/icon-512x512.png`
 

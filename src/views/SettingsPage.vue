@@ -17,7 +17,7 @@ import SettingsPicker from './settings/SettingsPicker.vue'
 import ThemeCatalog from './settings/ThemeCatalog.vue'
 
 usePageMeta({
-  title: 'Settings | AccSaber Reloaded',
+  title: 'Settings | AccSaber',
   description: 'Manage appearance, account, and linked accounts.',
 })
 

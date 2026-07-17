@@ -31,7 +31,7 @@ const categoryStore = useCategoryStore()
 const authStore = useAuthStore()
 
 usePageMeta({
-  title: 'Maps | AccSaber Reloaded',
+  title: 'Maps | AccSaber',
   description: 'Browse all ranked maps on AccSaber across categories and difficulties.',
 })
 

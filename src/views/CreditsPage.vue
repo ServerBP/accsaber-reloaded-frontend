@@ -10,8 +10,8 @@ import { SUPPORTER_TIER_DISPLAY, SUPPORTER_TIER_PALETTE } from '@/types/api/supp
 import { computed, onMounted, ref } from 'vue'
 
 usePageMeta({
-  title: 'Credits | AccSaber Reloaded',
-  description: 'The supporters who keep AccSaber Reloaded online.',
+  title: 'Credits | AccSaber',
+  description: 'The supporters who keep AccSaber online.',
 })
 
 const KOFI_URL = 'https://ko-fi.com/accsaberreloaded'
@@ -93,7 +93,7 @@ function tierLabel(tier: SupporterTier): string {
   <div class="credits">
     <header class="credits__header">
       <p class="credits__eyebrow">Credits</p>
-      <h1 class="credits__title">The supporters of AccSaber Reloaded</h1>
+      <h1 class="credits__title">The supporters of AccSaber</h1>
       <p class="credits__subtitle">
         Server bills, domain, assets, dev time. The names below keep this place running.
       </p>
@@ -157,7 +157,7 @@ function tierLabel(tier: SupporterTier): string {
     <footer v-if="!loading && !error" class="credits__footer">
       Recurring tips on
       <a :href="KOFI_URL" target="_blank" rel="noopener" class="credits__footer-link">Ko-fi</a>
-      keep AccSaber Reloaded online.
+      keep AccSaber online.
     </footer>
   </div>
 </template>

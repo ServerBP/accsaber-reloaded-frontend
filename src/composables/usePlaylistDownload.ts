@@ -34,7 +34,7 @@ export function usePlaylistDownload() {
     const baseUrl = import.meta.env.VITE_API_BASE as string
     const a = document.createElement('a')
     a.href = `${baseUrl}/playlists/missing/${userId}/${categoryCode}`
-    a.download = `accsaber-reloaded-missing-${userId}-${categoryCode.replace('_', '-')}.bplist`
+    a.download = `accsaber-missing-${userId}-${categoryCode.replace('_', '-')}.bplist`
     a.click()
   }
 
@@ -42,7 +42,7 @@ export function usePlaylistDownload() {
     const baseUrl = import.meta.env.VITE_API_BASE as string
     const a = document.createElement('a')
     a.href = `${baseUrl}/playlists/batch/${batchId}`
-    a.download = `accsaber-reloaded-${batchName.toLowerCase().replace(/[\s_]+/g, '-')}.bplist`
+    a.download = `accsaber-${batchName.toLowerCase().replace(/[\s_]+/g, '-')}.bplist`
     a.click()
   }
 

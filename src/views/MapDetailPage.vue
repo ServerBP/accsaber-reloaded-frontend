@@ -138,7 +138,7 @@ const breadcrumbs = computed(() => [
 
 const metaTitle = computed(() => {
   if (!map.value) return undefined
-  return `${map.value.songAuthor} - ${map.value.songName} | AccSaber Reloaded`
+  return `${map.value.songAuthor} - ${map.value.songName} | AccSaber`
 })
 
 usePageMeta({ title: metaTitle })

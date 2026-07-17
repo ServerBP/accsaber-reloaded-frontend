@@ -27,7 +27,7 @@ const categoryStore = useCategoryStore()
 const modifierStore = useModifierStore()
 
 usePageMeta({
-  title: 'Stats | AccSaber Reloaded',
+  title: 'Stats | AccSaber',
   description: 'Platform-wide statistics, leaderboards, and score distributions across AccSaber.',
 })
 

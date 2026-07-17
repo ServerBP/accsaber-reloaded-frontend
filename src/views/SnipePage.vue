@@ -201,7 +201,7 @@ const downloadLabel = computed(() => {
 
 const metaTitle = computed(() => {
   if (!target.value) return undefined
-  return `Snipe ${target.value.name} | AccSaber Reloaded`
+  return `Snipe ${target.value.name} | AccSaber`
 })
 
 usePageMeta({ title: metaTitle })

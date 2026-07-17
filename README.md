@@ -1,6 +1,6 @@
 # AccSaber Frontend
 
-Web frontend for the AccSaber Reloaded platform, an accuracy-based leaderboard system for Beat Saber. Built with Vue 3, TypeScript and Vite.
+Web frontend for the AccSaber platform, an accuracy-based leaderboard system for Beat Saber. Built with Vue 3, TypeScript and Vite.
 
 ## Requirements
 
@@ -93,5 +93,5 @@ src/
 | `VITE_WS_BASE` | Vite | No | WebSocket URL (`.env.development` only) |
 
 ### Important Note on AI Usage
-> *AccSaber Reloaded's infrastructure, flow and core features are human-made. Tedious tasks were automated with the help of AI (tests, DTOs, some methods). The codebase is manually reviewed and edited, and all creative input is human-generated. I firmly believe that human creativity and intuition are irreplaceable in software development.*
+> *AccSaber's infrastructure, flow and core features are human-made. Tedious tasks were automated with the help of AI (tests, DTOs, some methods). The codebase is manually reviewed and edited, and all creative input is human-generated. I firmly believe that human creativity and intuition are irreplaceable in software development.*
 > *If you do not agree with this approach and you are a vibe-coder OR you take a firm No-AI stance, please refrain from using or contributing to this project.*

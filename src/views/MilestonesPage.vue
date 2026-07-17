@@ -30,7 +30,7 @@ const viewMode = ref<'chart' | 'list'>('chart')
 const { resolvedGroups, standaloneSets, fetchGroups, resetGroups } = useSetGroups(sets)
 
 usePageMeta({
-  title: 'Milestones | AccSaber Reloaded',
+  title: 'Milestones | AccSaber',
   description: 'Track your milestone progress and earn XP across AccSaber achievement sets.',
 })
 

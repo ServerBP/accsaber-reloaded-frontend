@@ -24,7 +24,7 @@ const router = useRouter()
 const queueCache = useLeaderboardCacheStore()
 
 usePageMeta({
-  title: 'Ranking Queue | AccSaber Reloaded',
+  title: 'Ranking Queue | AccSaber',
   description: 'Maps awaiting ranking review on AccSaber. See community votes and criteria status.',
 })
 
@@ -171,8 +171,8 @@ const emptyMessage = 'No maps currently in the ranking queue. Check back soon.'
         <line x1="12" y1="16" x2="12.01" y2="16" />
       </svg>
       <p class="queue-page__notice-text">
-        Ratings and vote counts are hidden for now. AccSaber Reloaded currently relies on the original
-        AccSaber ranking team and pipeline to rank maps, so the numbers shown here would not reflect
+        Ratings and vote counts are hidden for now. AccSaber currently relies on the original
+        ranking team and pipeline to rank maps, so the numbers shown here would not reflect
         actual ranking activity. This page is informational only.
       </p>
     </aside>
