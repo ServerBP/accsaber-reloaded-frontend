@@ -895,7 +895,10 @@ function unpinTooltip() {
               </div>
             </div>
 
-            <div v-if="displayedBarrier.conditionType !== 'FC'" class="campaign-detail__targets">
+            <div
+              v-if="displayedBarrier.conditionType !== 'FC' && displayedBarrier.conditionType !== 'PASS'"
+              class="campaign-detail__targets"
+            >
               <div class="campaign-detail__target">
                 <span class="campaign-detail__target-label">Goal</span>
                 <span class="campaign-detail__target-value" :style="{ color: barrierAccent }">

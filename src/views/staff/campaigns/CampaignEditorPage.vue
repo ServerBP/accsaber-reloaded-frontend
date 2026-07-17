@@ -24,6 +24,7 @@ import CampaignChatPanel from './CampaignChatPanel.vue'
 import CampaignCollaboratorPicker from './CampaignCollaboratorPicker.vue'
 import CampaignItemPicker from './CampaignItemPicker.vue'
 import CampaignMapPicker from './CampaignMapPicker.vue'
+import CampaignGlobalMapSearch from './CampaignGlobalMapSearch.vue'
 import CampaignTrayRail from './CampaignTrayRail.vue'
 import CampaignTrays from './CampaignTrays.vue'
 import CampaignTutorialModal from './CampaignTutorialModal.vue'
@@ -73,6 +74,12 @@ const {
   handleEdgeSelect,
   openMapPicker,
   handleMapsPicked,
+  submitGlobalAdd,
+  campaignGenreBeatsaverSlugs,
+  unrankedNodes,
+  showRepoint,
+  closeRepoint,
+  submitRepoint,
   removeSelectedNode,
   handleSelect,
   handleSelectMany,
@@ -659,9 +666,21 @@ function peerActivity(p: PresencePeer): string {
       <CampaignMapPicker
         v-if="showMapPicker"
         :loading="actionPending"
+        :global-submit="submitGlobalAdd"
+        :initial-genre-slugs="campaignGenreBeatsaverSlugs"
         @close="closeMapPicker"
         @pick="handleMapsPicked"
       />
+
+      <BaseModal
+        v-if="showRepoint"
+        :open="true"
+        title="Change map / version"
+        max-width="900px"
+        @close="closeRepoint"
+      >
+        <CampaignGlobalMapSearch mode="repoint" :submit="submitRepoint" />
+      </BaseModal>
 
       <CampaignItemPicker
         v-if="itemPickerFor"
@@ -689,13 +708,25 @@ function peerActivity(p: PresencePeer): string {
         <div class="campaign-editor__warn">
           <template v-if="publishConfirm === 'publish'">
             <p>
-              Publishing makes your campaign public. Any player will be able to find it, start it,
-              and earn its rewards.
+              Publishing makes your campaign public. Any player will be able to find it and start it.
             </p>
             <p>
               Make sure everything is final before you go live: maps, goals, rewards, artwork, and
               text.
             </p>
+            <div v-if="unrankedNodes.length" class="campaign-editor__warn-unranked">
+              <p>
+                Heads up: {{ unrankedNodes.length }}
+                {{ unrankedNodes.length === 1 ? 'map is' : 'maps are' }} not ranked
+                (imported campaign maps, or still in the ranking queue). You can publish, but this
+                campaign will be <strong>uncuratable</strong> (it can't become an official curated
+                campaign) while {{ unrankedNodes.length === 1 ? 'it stays' : 'they stay' }} unranked:
+              </p>
+              <ul>
+                <li v-for="n in unrankedNodes" :key="n.id">{{ n.songName }}</li>
+              </ul>
+              <p>Are you OK to proceed?</p>
+            </div>
           </template>
           <template v-else>
             <p>Unpublishing takes your campaign offline and resets every player's progress on it.</p>
@@ -1295,6 +1326,22 @@ function peerActivity(p: PresencePeer): string {
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
+}
+
+.campaign-editor__warn-unranked {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border: 1px solid color-mix(in srgb, var(--warning) 35%, transparent);
+  background: color-mix(in srgb, var(--warning) 8%, transparent);
+  border-radius: var(--radius-card);
+}
+
+.campaign-editor__warn-unranked ul {
+  max-height: 160px;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
 @media (max-width: 860px) {

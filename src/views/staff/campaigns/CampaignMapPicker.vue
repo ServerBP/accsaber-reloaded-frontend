@@ -12,12 +12,19 @@ import DifficultyBadge from '@/components/domain/DifficultyBadge.vue'
 import { pickCoverUrl } from '@/composables/useAvatarFallback'
 import { useDebouncedRef } from '@/composables/useDebouncedRef'
 import { useCategoryStore } from '@/stores/categories'
+import type { ImportCampaignMapRequest } from '@/types/api/campaigns'
 import type { PublicMapDifficultyResponse } from '@/types/api/maps'
+import type { MapDifficultyStatus } from '@/types/enums'
 import type { CategoryCode } from '@/types/display'
 import { computed, onMounted, ref, watch } from 'vue'
 import MapFilterSidebar from '@/views/maps/MapFilterSidebar.vue'
+import CampaignGlobalMapSearch from './CampaignGlobalMapSearch.vue'
 
-const props = defineProps<{ loading?: boolean }>()
+const props = defineProps<{
+  loading?: boolean
+  globalSubmit?: (ids: ImportCampaignMapRequest) => Promise<{ attached: boolean }>
+  initialGenreSlugs?: string[]
+}>()
 
 const emit = defineEmits<{
   close: []
@@ -27,6 +34,15 @@ const emit = defineEmits<{
 const categoryStore = useCategoryStore()
 
 const PAGE_SIZE = 12
+
+const source = ref<'system' | 'global'>('system')
+
+const STATUS_OPTIONS: Array<{ value: MapDifficultyStatus; label: string }> = [
+  { value: 'RANKED', label: 'Ranked' },
+  { value: 'QUEUE', label: 'In queue' },
+  { value: 'QUALIFIED', label: 'Qualified' },
+]
+const statusFilter = ref<MapDifficultyStatus>('RANKED')
 
 const query = ref('')
 const debounced = useDebouncedRef(query, 220)
@@ -52,7 +68,7 @@ const hasActiveFilters = computed(
     complexityRange.value[1] < 20,
 )
 
-watch([debounced, selectedCategories, complexityRange], () => {
+watch([debounced, selectedCategories, complexityRange, statusFilter], () => {
   page.value = 1
 })
 
@@ -63,9 +79,9 @@ async function search() {
     const params: Record<string, unknown> = {
       page: page.value - 1,
       size: PAGE_SIZE,
-      status: 'RANKED',
+      status: statusFilter.value,
       search: debounced.value || undefined,
-      sort: 'rankedAt,desc',
+      sort: statusFilter.value === 'RANKED' ? 'rankedAt,desc' : 'createdAt,desc',
     }
     if (selectedCategories.value.length === 1) {
       params.categoryId = selectedCategories.value[0]
@@ -91,8 +107,8 @@ async function search() {
 
 onMounted(search)
 
-watch([debounced, page, selectedCategories, complexityRange], () => {
-  void search()
+watch([debounced, page, selectedCategories, complexityRange, statusFilter], () => {
+  if (source.value === 'system') void search()
 })
 
 function categoryCodeFor(diff: PublicMapDifficultyResponse): CategoryCode {
@@ -135,7 +151,31 @@ function commit() {
 
 <template>
   <BaseModal :open="true" title="Add nodes" max-width="900px" @close="emit('close')">
-    <div class="map-picker" :class="{ 'map-picker--multi': multi }">
+    <div class="map-picker" :class="{ 'map-picker--multi': multi && source === 'system' }">
+      <div v-if="globalSubmit" class="map-picker__source" role="radiogroup" aria-label="Map source">
+        <button
+          type="button"
+          role="radio"
+          :aria-checked="source === 'system'"
+          class="map-picker__mode-btn"
+          :class="{ 'map-picker__mode-btn--active': source === 'system' }"
+          @click="source = 'system'"
+        >
+          This system
+        </button>
+        <button
+          type="button"
+          role="radio"
+          :aria-checked="source === 'global'"
+          class="map-picker__mode-btn"
+          :class="{ 'map-picker__mode-btn--active': source === 'global' }"
+          @click="source = 'global'"
+        >
+          Global (BeatSaver)
+        </button>
+      </div>
+
+      <template v-if="source === 'system'">
       <div class="map-picker__head">
         <input
           class="map-picker__search"
@@ -171,6 +211,21 @@ function commit() {
             Multiple
           </button>
         </div>
+      </div>
+
+      <div class="map-picker__status" role="radiogroup" aria-label="Map status">
+        <button
+          v-for="s in STATUS_OPTIONS"
+          :key="s.value"
+          type="button"
+          role="radio"
+          :aria-checked="statusFilter === s.value"
+          class="map-picker__status-btn"
+          :class="{ 'map-picker__status-btn--active': statusFilter === s.value }"
+          @click="statusFilter = s.value"
+        >
+          {{ s.label }}
+        </button>
       </div>
 
       <div v-if="filtersOpen" class="map-picker__filters">
@@ -310,9 +365,17 @@ function commit() {
           </p>
         </section>
       </div>
+      </template>
+
+      <CampaignGlobalMapSearch
+        v-else-if="globalSubmit"
+        mode="add"
+        :submit="globalSubmit"
+        :initial-genre-slugs="initialGenreSlugs"
+      />
     </div>
 
-    <template v-if="multi" #footer>
+    <template v-if="multi && source === 'system'" #footer>
       <BaseButton @click="emit('close')">Cancel</BaseButton>
       <BaseButton
         variant="primary"
@@ -347,13 +410,50 @@ function commit() {
   min-width: 0;
 }
 
-.map-picker__mode {
+.map-picker__mode,
+.map-picker__source {
   display: inline-flex;
   gap: 2px;
   padding: 2px;
   background: var(--bg-base);
   border: 1px solid var(--bg-overlay);
   border-radius: 3px;
+}
+
+.map-picker__source {
+  align-self: flex-start;
+}
+
+.map-picker__status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.map-picker__status-btn {
+  padding: 4px 10px;
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-base);
+  border: 1px solid var(--bg-overlay);
+  border-radius: 3px;
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease,
+    background 120ms ease;
+}
+
+.map-picker__status-btn:hover {
+  color: var(--text-primary);
+}
+
+.map-picker__status-btn--active {
+  color: var(--page-accent, var(--accent));
+  border-color: var(--page-accent, var(--accent));
+  background: color-mix(in srgb, var(--page-accent, var(--accent)) 10%, transparent);
 }
 
 .map-picker__mode-btn {

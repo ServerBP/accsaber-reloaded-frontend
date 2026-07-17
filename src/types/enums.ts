@@ -11,7 +11,7 @@ export type StaffRole =
 
 export type StaffUserStatus = 'REQUESTED' | 'ACCEPTED' | 'DENIED'
 
-export type MapDifficultyStatus = 'QUEUE' | 'QUALIFIED' | 'RANKED'
+export type MapDifficultyStatus = 'QUEUE' | 'QUALIFIED' | 'RANKED' | 'CAMPAIGN'
 
 export type BatchStatus = 'DRAFT' | 'RELEASE_READY' | 'RELEASED'
 
@@ -48,7 +48,14 @@ export type CampaignCompletionMode = 'TERMINAL' | 'ALL'
 
 export type CampaignTagKind = 'CATEGORY' | 'DIFFICULTY' | 'THEME' | 'GENRE'
 
-export type CampaignRequirementType = 'ACC' | 'AP' | 'SCORE' | 'STREAK_115' | 'FC' | 'RANK'
+export type CampaignRequirementType =
+  | 'ACC'
+  | 'AP'
+  | 'SCORE'
+  | 'STREAK_115'
+  | 'FC'
+  | 'PASS'
+  | 'RANK'
 
 export type CampaignPrerequisiteMode = 'AND' | 'OR'
 
@@ -62,6 +69,7 @@ export type BarrierConditionType =
   | 'STREAK_115_AVERAGE'
   | 'STREAK_115_MAX'
   | 'FC'
+  | 'PASS'
   | 'AVERAGE_RANK'
   | 'MAX_RANK'
   | 'COMPLETION_COUNT'

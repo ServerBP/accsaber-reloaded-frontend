@@ -14,8 +14,9 @@ import type {
   CampaignResponse,
   CampaignTagResponse,
   CampaignTextResponse,
+  ImportCampaignMapRequest,
 } from '@/types/api/campaigns'
-import { patch, post } from '../client'
+import { patch, post, put } from '../client'
 
 export function createCampaign(req: CreateCampaignRequest): Promise<CampaignResponse> {
   return post<CampaignResponse>('/admin/campaigns', req)
@@ -64,6 +65,16 @@ export function updateCampaignDifficulty(
 ): Promise<CampaignDifficultyResponse> {
   return patch<CampaignDifficultyResponse>(
     `/admin/campaigns/difficulties/${difficultyId}`,
+    req,
+  )
+}
+
+export function updateAdminCampaignDifficultyMap(
+  campaignDifficultyId: string,
+  req: ImportCampaignMapRequest,
+): Promise<CampaignDifficultyResponse> {
+  return put<CampaignDifficultyResponse>(
+    `/admin/campaigns/difficulties/${campaignDifficultyId}/map`,
     req,
   )
 }

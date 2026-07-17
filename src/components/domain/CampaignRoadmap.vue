@@ -623,7 +623,7 @@ const barrierGeometry = computed<BarrierGeom[]>(() => {
       else state = 'blocking'
     }
     const label = barrierConditionLabel(b.conditionType)
-    const isFc = b.conditionType === 'FC'
+    const isFc = b.conditionType === 'FC' || b.conditionType === 'PASS'
     const goal = barrierPairValue(b.conditionType, b.conditionValue)
     let readoutText: string
     if (isFc) {

@@ -42,10 +42,10 @@ const timeRangeParams: Record<TimeRange, { amount: number; unit: 'h' | 'd' | 'mo
 }
 
 const availableMetrics: { key: MetricType; label: string; colorVar: string; invertY?: boolean }[] = [
-  { key: 'ap', label: 'AP', colorVar: '' },
+  { key: 'ap', label: 'AP', colorVar: '--tier-apex' },
   { key: 'avgAccuracy', label: 'Avg Accuracy', colorVar: '--success' },
   { key: 'rankedPlays', label: 'Ranked Plays', colorVar: '--info' },
-  { key: 'rank', label: 'Rank', colorVar: '--warning', invertY: true },
+  { key: 'rank', label: 'Rank', colorVar: '--tier-gold', invertY: true },
 ]
 
 function loadSelectedMetrics(): MetricType[] {
@@ -68,7 +68,6 @@ function metricPercent(metric: MetricType): boolean {
 
 function metricColor(metric: MetricType): string {
   void themeStore.theme
-  if (metric === 'ap') return chartAccent.value
   const colorVar = availableMetrics.find((m) => m.key === metric)?.colorVar
   const resolved = colorVar
     ? getComputedStyle(document.documentElement).getPropertyValue(colorVar).trim()

@@ -10,6 +10,7 @@ import type {
   CampaignStatus,
   CampaignTagKind,
   Difficulty,
+  MapDifficultyStatus,
   UserCampaignStatus,
 } from '../enums'
 import type { PaginationParams } from '../pagination'
@@ -89,6 +90,7 @@ export interface CampaignDifficultyResponse {
   cdnCoverUrl: string | null
   difficulty: string
   characteristic: string
+  status?: MapDifficultyStatus
   requirementType: CampaignRequirementType
   requirementValue: number
   description: string | null
@@ -106,6 +108,11 @@ export interface CampaignDifficultyResponse {
   prerequisites: CampaignPrerequisiteResponse[]
   prerequisiteMode: CampaignPrerequisiteMode
   items: CampaignItemAwardResponse[]
+}
+
+export interface ImportCampaignMapRequest {
+  blLeaderboardId: string
+  ssLeaderboardId?: string
 }
 
 export interface CampaignBarrierResponse {

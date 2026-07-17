@@ -301,6 +301,8 @@ export function formatRequirement(
       return `115×${Math.round(value)}`
     case 'FC':
       return 'FC'
+    case 'PASS':
+      return 'Pass'
     default:
       return String(value)
   }
@@ -323,6 +325,8 @@ export function formatRequirementShort(
       return `×${Math.round(value)}`
     case 'FC':
       return 'FC'
+    case 'PASS':
+      return 'Pass'
     default:
       return String(value)
   }
@@ -344,6 +348,8 @@ export function formatUserValue(
       return `${Math.round(value)}`
     case 'FC':
       return value > 0 ? 'cleared' : 'not yet'
+    case 'PASS':
+      return value > 0 ? 'passed' : 'not yet'
     case 'RANK':
       return `#${Math.round(value)}`
     default:
@@ -371,6 +377,7 @@ const BARRIER_CONDITION_META: Record<BarrierConditionType, BarrierConditionMeta>
   AVERAGE_RANK: { agg: 'avg', metric: 'rank', lowerBetter: true, noValue: false, label: 'Average rank' },
   MAX_RANK: { agg: 'best', metric: 'rank', lowerBetter: true, noValue: false, label: 'Best rank' },
   FC: { agg: '', metric: 'fc', lowerBetter: false, noValue: true, label: 'Full combo' },
+  PASS: { agg: '', metric: 'fc', lowerBetter: false, noValue: true, label: 'Pass (no No-Fail)' },
   COMPLETION_COUNT: {
     agg: 'count',
     metric: 'count',
@@ -394,6 +401,7 @@ const BARRIER_READOUT_LABEL: Record<BarrierConditionType, string> = {
   AVERAGE_RANK: 'Avg Rank',
   MAX_RANK: 'Best Rank',
   FC: 'Full Combo',
+  PASS: 'Pass',
   COMPLETION_COUNT: 'Maps Completed',
 }
 

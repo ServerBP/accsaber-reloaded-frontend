@@ -71,6 +71,10 @@ const {
   doUncurate,
   doDeactivate,
   selectedDifficulty,
+  selectedNodeApRankBlocked,
+  apRankBlockedNodeIds,
+  openRepoint,
+  refreshNodeVersion,
   formNode,
   requirementTypeOptions,
   onRequirementTypeChange,
@@ -141,6 +145,26 @@ const affectedNodeList = computed(() => {
     name: byId.get(id)?.songName ?? 'Unknown node',
   }))
 })
+
+const requirementOptions = computed(() =>
+  selectedNodeApRankBlocked.value
+    ? requirementTypeOptions.filter((o) => o.value !== 'AP' && o.value !== 'RANK')
+    : requirementTypeOptions,
+)
+
+const AP_RANK_BARRIER_TYPES = ['AVERAGE_AP', 'AP_MAX', 'AVERAGE_RANK', 'MAX_RANK']
+
+const barrierAffectsApRankBlocked = computed(() => {
+  const b = selectedBarrier.value
+  if (!b) return false
+  return b.affectedCampaignDifficultyIds.some((id) => apRankBlockedNodeIds.value.has(id))
+})
+
+const barrierConditionOptionsFiltered = computed(() =>
+  barrierAffectsApRankBlocked.value
+    ? barrierConditionOptions.filter((o) => !AP_RANK_BARRIER_TYPES.includes(o.value))
+    : barrierConditionOptions,
+)
 
 const defaultBarrierColor = computed(() => {
   if (typeof document === 'undefined') return '#eab308'
@@ -657,11 +681,17 @@ const connectionSwatch = computed(() => {
       <span>Type</span>
       <BaseSelect
         :model-value="formNode.requirementType"
-        :options="requirementTypeOptions.map((o) => ({ value: o.value, label: o.label }))"
+        :options="requirementOptions.map((o) => ({ value: o.value, label: o.label }))"
         @update:model-value="onRequirementTypeChange"
       />
     </div>
-    <label v-if="formNode.requirementType !== 'FC'" class="campaign-editor__field">
+    <p v-if="selectedNodeApRankBlocked" class="campaign-editor__hint">
+      This map isn't ranked (imported campaign map, or still in the ranking queue). AP and leaderboard-rank requirements are unavailable.
+    </p>
+    <label
+      v-if="formNode.requirementType !== 'FC' && formNode.requirementType !== 'PASS'"
+      class="campaign-editor__field"
+    >
       <span>Target {{ requirementBounds.unit ? `(${requirementBounds.unit})` : '' }}</span>
       <div class="campaign-editor__slider-row">
         <input
@@ -693,10 +723,33 @@ const connectionSwatch = computed(() => {
       Lower is better. Cleared when the player's leaderboard rank on the map is this position or
       better (rank ≤ target).
     </p>
+    <p v-else-if="formNode.requirementType === 'PASS'" class="campaign-editor__hint">
+      Cleared by any legitimate pass - a completion without the No-Fail modifier.
+    </p>
     <label class="campaign-editor__field">
       <span>Description <small>(optional)</small></span>
       <textarea v-model="formNode.description" rows="2" @blur="commitNodeField('description')" />
     </label>
+    <div v-if="editable && selectedDifficulty" class="campaign-editor__field">
+      <div class="campaign-editor__btn-row">
+        <BaseButton
+          v-if="selectedDifficulty.beatsaverCode"
+          size="sm"
+          :loading="actionPending"
+          @click="refreshNodeVersion"
+        >
+          Refresh version
+        </BaseButton>
+        <BaseButton size="sm" @click="openRepoint(selectedDifficulty.id)">
+          Change map / version
+        </BaseButton>
+      </div>
+      <p class="campaign-editor__hint">
+        <strong>Refresh version</strong> re-fetches the latest BeatSaver upload for this same map and
+        repoints to its newest leaderboard IDs. <strong>Change map / version</strong> lets you pick a
+        different map or version by hand. Either way, only this campaign's node changes.
+      </p>
+    </div>
   </fieldset>
 
   <fieldset
@@ -1042,10 +1095,14 @@ const connectionSwatch = computed(() => {
       <span>Condition</span>
       <BaseSelect
         :model-value="formBarrier.conditionType"
-        :options="barrierConditionOptions.map((o) => ({ value: o.value, label: o.label }))"
+        :options="barrierConditionOptionsFiltered.map((o) => ({ value: o.value, label: o.label }))"
         @update:model-value="onBarrierConditionTypeChange"
       />
     </div>
+    <p v-if="barrierAffectsApRankBlocked" class="campaign-editor__hint">
+      This gate affects a map that isn't ranked (campaign import or ranking queue), so AP
+      and rank based conditions are unavailable.
+    </p>
     <label v-if="!barrierMeta.noValue" class="campaign-editor__field">
       <span>Target {{ barrierValueBounds.unit ? `(${barrierValueBounds.unit})` : '' }}</span>
       <div class="campaign-editor__slider-row">
@@ -1067,7 +1124,8 @@ const connectionSwatch = computed(() => {
       </div>
     </label>
     <p v-if="barrierMeta.noValue" class="campaign-editor__hint">
-      Opens once every affected node has been full-comboed.
+      Opens once every affected node has been
+      {{ formBarrier.conditionType === 'PASS' ? 'passed (no No-Fail)' : 'full-comboed' }}.
     </p>
     <p v-else-if="barrierMeta.metric === 'count'" class="campaign-editor__hint">
       Opens once the player has completed this many of the
@@ -1530,6 +1588,12 @@ const connectionSwatch = computed(() => {
 .campaign-editor__field-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  gap: var(--space-sm);
+}
+
+.campaign-editor__btn-row {
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--space-sm);
 }
 

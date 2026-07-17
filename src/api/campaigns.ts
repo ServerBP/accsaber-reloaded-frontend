@@ -26,10 +26,12 @@ import type {
   CampaignTagResponse,
   CampaignTextResponse,
   CampaignVoteResponse,
+  ImportCampaignMapRequest,
   InviteCampaignCollaboratorRequest,
   SendCampaignChatRequest,
   UserCampaignResponse,
 } from '@/types/api/campaigns'
+import type { PublicMapDifficultyResponse } from '@/types/api/maps'
 import type { CampaignVoteDirection } from '@/types/enums'
 import type { PaginationParams } from '@/types/pagination'
 import type { Page } from '@/types/pagination'
@@ -170,6 +172,22 @@ export function publishPlayerCampaign(campaignId: string): Promise<CampaignRespo
 
 export function unpublishPlayerCampaign(campaignId: string): Promise<CampaignResponse> {
   return patch<CampaignResponse>(`/campaigns/${campaignId}/unpublish`)
+}
+
+export function importCampaignMap(
+  req: ImportCampaignMapRequest,
+): Promise<PublicMapDifficultyResponse> {
+  return post<PublicMapDifficultyResponse>('/campaigns/maps/import', req)
+}
+
+export function updateCampaignDifficultyMap(
+  campaignDifficultyId: string,
+  req: ImportCampaignMapRequest,
+): Promise<CampaignDifficultyResponse> {
+  return put<CampaignDifficultyResponse>(
+    `/campaigns/difficulties/${campaignDifficultyId}/map`,
+    req,
+  )
 }
 
 export function addPlayerCampaignDifficulty(

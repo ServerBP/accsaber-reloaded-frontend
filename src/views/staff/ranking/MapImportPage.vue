@@ -12,7 +12,7 @@ import type { Difficulty } from '@/types/enums'
 import {
   type BeatSaverMapResponse,
   difficultyToEnum,
-  fetchBeatLeaderLeaderboards,
+  fetchBeatLeaderMapInfo,
   fetchBeatSaverMap,
   fetchScoreSaberLeaderboards,
   formatBsDifficulty,
@@ -34,8 +34,11 @@ const input = ref('')
 const fetchError = ref('')
 const fetchLoading = ref(false)
 const bsMap = ref<BeatSaverMapResponse | null>(null)
+const blCoverUrl = ref<string | null>(null)
 
-const coverUrl = computed(() => bsMap.value?.versions[0]?.coverURL ?? '')
+const coverUrl = computed(
+  () => blCoverUrl.value ?? bsMap.value?.versions[0]?.coverURL ?? '',
+)
 const { dominantColor } = useColorExtract(coverUrl)
 
 const pageAccent = computed(() => {
@@ -84,6 +87,7 @@ async function handleFetch() {
   fetchLoading.value = true
   fetchError.value = ''
   bsMap.value = null
+  blCoverUrl.value = null
   diffSelections.value = []
 
   try {
@@ -91,10 +95,12 @@ async function handleFetch() {
     bsMap.value = map
 
     const hash = map.versions[0]?.hash ?? ''
-    const [blMap, ssMap] = await Promise.all([
-      fetchBeatLeaderLeaderboards(hash),
+    const [blInfo, ssMap] = await Promise.all([
+      fetchBeatLeaderMapInfo(hash),
       fetchScoreSaberLeaderboards(hash),
     ])
+    blCoverUrl.value = blInfo.coverUrl
+    const blMap = blInfo.leaderboards
 
     const diffs = map.versions[0]?.diffs ?? []
     diffSelections.value = diffs.map((d) => {

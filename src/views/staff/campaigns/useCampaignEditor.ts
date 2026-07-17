@@ -6,6 +6,7 @@ import {
   deactivateCampaignBarrier,
   deactivateCampaignDifficulty,
   deactivateCampaignText,
+  updateAdminCampaignDifficultyMap,
   updateCampaign,
   updateCampaignBarrier,
   updateCampaignDifficulty,
@@ -22,6 +23,8 @@ import {
   getCampaign,
   getCampaignByIdOrSlug,
   getCampaignTags,
+  importCampaignMap,
+  updateCampaignDifficultyMap,
   updatePlayerCampaign,
   updatePlayerCampaignBarrier,
   updatePlayerCampaignDifficulty,
@@ -39,6 +42,11 @@ import { getCurve } from '@/api/curves'
 import { useAuthStore } from '@/stores/auth'
 import { useCategoryStore } from '@/stores/categories'
 import { calculateAp, reverseApToAccuracyByComplexity } from '@/utils/curveEval'
+import {
+  enumToBsDifficulty,
+  fetchBeatSaverMap,
+  fetchMapLeaderboardIndex,
+} from '@/utils/beatsaver'
 import { isAdminSubdomain } from '@/utils/subdomain'
 import type {
   AddCampaignBarrierRequest,
@@ -55,6 +63,7 @@ import type {
   CampaignPrerequisiteResponse,
   CampaignTagResponse,
   CampaignTextResponse,
+  ImportCampaignMapRequest,
 } from '@/types/api/campaigns'
 import type { CurveResponse } from '@/types/api/categories'
 import type { BarrierConditionType, CampaignRequirementType } from '@/types/enums'
@@ -1281,16 +1290,18 @@ export function useCampaignEditor() {
     return cells
   }
 
-  async function handleMapsPicked(picked: PublicMapDifficultyResponse[]) {
-    const mapDifficultyIds = picked.map((d) => d.id)
-    if (mapDifficultyIds.length === 0) return
+  async function addNodesForDifficultyIds(
+    mapDifficultyIds: string[],
+    opts: { keepOpen?: boolean } = {},
+  ): Promise<string[]> {
+    if (mapDifficultyIds.length === 0) return []
     actionPending.value = true
     actionError.value = null
     try {
       let c = campaign.value
       if (!c || c.id === '') {
         c = await ensureCampaign()
-        if (!c) return
+        if (!c) return []
       }
       const cells = allocateCells(mapDifficultyIds.length)
       const createdIds: string[] = []
@@ -1309,21 +1320,160 @@ export function useCampaignEditor() {
           : await addPlayerCampaignDifficulty(c.id, req)
         createdIds.push(created.id)
       }
-      if (createdIds.length === 1) {
-        selectOnly(createdIds[0])
-        activeTray.value = 'requirement'
-      } else if (createdIds.length > 1) {
-        setSelection(createdIds)
-        activeTray.value = 'bulk'
+      if (!opts.keepOpen) {
+        if (createdIds.length === 1) {
+          selectOnly(createdIds[0])
+          activeTray.value = 'requirement'
+        } else if (createdIds.length > 1) {
+          setSelection(createdIds)
+          activeTray.value = 'bulk'
+        }
+        showMapPicker.value = false
       }
-      showMapPicker.value = false
       await load(true)
+      return createdIds
     } catch (err) {
       actionError.value = getApiErrorMessage(err, 'Failed to add nodes')
+      return []
     } finally {
       actionPending.value = false
     }
   }
+
+  async function handleMapsPicked(picked: PublicMapDifficultyResponse[]) {
+    await addNodesForDifficultyIds(picked.map((d) => d.id))
+  }
+
+  async function submitGlobalAdd(
+    ids: ImportCampaignMapRequest,
+  ): Promise<{ attached: boolean }> {
+    const result = await importCampaignMap(ids)
+    await addNodesForDifficultyIds([result.id], { keepOpen: true })
+    return { attached: result.status !== 'CAMPAIGN' }
+  }
+
+  const showRepoint = ref(false)
+  const repointNodeId = ref<string | null>(null)
+
+  function openRepoint(nodeId: string) {
+    if (!editable.value) return
+    repointNodeId.value = nodeId
+    showRepoint.value = true
+  }
+
+  function closeRepoint() {
+    showRepoint.value = false
+    repointNodeId.value = null
+  }
+
+  async function submitRepoint(
+    ids: ImportCampaignMapRequest,
+  ): Promise<{ attached: boolean }> {
+    const nodeId = repointNodeId.value
+    if (!nodeId) throw new Error('No node selected to repoint')
+    actionPending.value = true
+    actionError.value = null
+    try {
+      if (useAdminEndpoint.value) {
+        await updateAdminCampaignDifficultyMap(nodeId, ids)
+      } else {
+        await updateCampaignDifficultyMap(nodeId, ids)
+      }
+      await load(true)
+      closeRepoint()
+      return { attached: false }
+    } finally {
+      actionPending.value = false
+    }
+  }
+
+  function nodeApRankBlocked(d: CampaignDifficultyResponse): boolean {
+    if (d.status != null) return d.status !== 'RANKED'
+    return d.categoryId == null
+  }
+
+  const selectedNodeApRankBlocked = computed(
+    () => selectedDifficulty.value != null && nodeApRankBlocked(selectedDifficulty.value),
+  )
+
+  const apRankBlockedNodeIds = computed(() => {
+    const ids = new Set<string>()
+    for (const d of campaign.value?.difficulties ?? []) {
+      if (nodeApRankBlocked(d)) ids.add(d.id)
+    }
+    return ids
+  })
+
+  const unrankedNodes = computed(() =>
+    (campaign.value?.difficulties ?? [])
+      .filter((d) => nodeApRankBlocked(d))
+      .map((d) => ({ id: d.id, songName: d.songName })),
+  )
+
+  async function refreshNodeVersion() {
+    const d = selectedDifficulty.value
+    if (!editable.value || !d) return
+    if (!d.beatsaverCode) {
+      actionError.value = 'This node has no BeatSaver code to refresh from.'
+      return
+    }
+    if (
+      !window.confirm(
+        `Refresh "${d.songName}" to the latest BeatSaver version? This repoints the node at the newest BeatLeader and ScoreSaber leaderboard IDs for this difficulty.`,
+      )
+    ) {
+      return
+    }
+    actionPending.value = true
+    actionError.value = null
+    try {
+      const map = await fetchBeatSaverMap(d.beatsaverCode)
+      const hash = map.versions[0]?.hash
+      if (!hash) throw new Error('Could not resolve the latest version from BeatSaver.')
+      const index = await fetchMapLeaderboardIndex(hash)
+      const key = `${enumToBsDifficulty(d.difficulty)}-${d.characteristic}`
+      const bl = index.bl.get(key) ?? null
+      const ssRaw = index.ss.get(key)
+      const ss = ssRaw != null ? String(ssRaw) : null
+      if (!bl || !ss) {
+        actionError.value =
+          'The latest version has no BeatLeader or ScoreSaber leaderboard for this difficulty.'
+        return
+      }
+      const ids: ImportCampaignMapRequest = { blLeaderboardId: bl, ssLeaderboardId: ss }
+      if (useAdminEndpoint.value) {
+        await updateAdminCampaignDifficultyMap(d.id, ids)
+      } else {
+        await updateCampaignDifficultyMap(d.id, ids)
+      }
+      await load(true)
+    } catch (err) {
+      actionError.value = getApiErrorMessage(err, 'Failed to refresh version')
+    } finally {
+      actionPending.value = false
+    }
+  }
+
+  const GENRE_SLUG_OVERRIDES: Record<string, string> = {
+    'r&b': 'rnb',
+    'video game': 'video-game',
+  }
+
+  function toBeatsaverGenreSlug(name: string): string {
+    const key = name.toLowerCase()
+    if (GENRE_SLUG_OVERRIDES[key]) return GENRE_SLUG_OVERRIDES[key]
+    return key
+      .replace(/&/g, ' ')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+  }
+
+  const campaignGenreBeatsaverSlugs = computed(() =>
+    (campaign.value?.tags ?? [])
+      .filter((t) => t.kind === 'GENRE')
+      .map((t) => toBeatsaverGenreSlug(t.name))
+      .filter(Boolean),
+  )
 
   async function removeSelectedNode() {
     const d = selectedDifficulty.value
@@ -1435,6 +1585,7 @@ export function useCampaignEditor() {
     { value: 'SCORE', label: 'Score' },
     { value: 'STREAK_115', label: '115 Streak' },
     { value: 'FC', label: 'Full Combo' },
+    { value: 'PASS', label: 'Pass (no No-Fail)' },
     { value: 'RANK', label: 'Leaderboard rank' },
   ]
 
@@ -1475,7 +1626,8 @@ export function useCampaignEditor() {
     if (formNode.value.requirementType === 'AP') return { min: 400, max: 1200, step: 1, unit: 'AP' }
     if (formNode.value.requirementType === 'STREAK_115')
       return { min: 0, max: 30, step: 1, unit: '' }
-    if (formNode.value.requirementType === 'FC') return { min: 1, max: 1, step: 1, unit: '' }
+    if (formNode.value.requirementType === 'FC' || formNode.value.requirementType === 'PASS')
+      return { min: 1, max: 1, step: 1, unit: '' }
     if (formNode.value.requirementType === 'RANK')
       return { min: 1, max: 500, step: 1, unit: 'rank' }
     return { min: 0, max: scoreCap.value, step: 1000, unit: '' }
@@ -1667,6 +1819,14 @@ export function useCampaignEditor() {
       if (editable.value && d) {
         requirementDirtyIds.value.add(d.id)
         void applyNodePatch(d.id, { requirementType: next, requirementValue: 50 })
+        return
+      }
+    }
+    if ((next === 'FC' || next === 'PASS') && formNode.value.requirementValue !== 1) {
+      formNode.value.requirementValue = 1
+      if (editable.value && d) {
+        requirementDirtyIds.value.add(d.id)
+        void applyNodePatch(d.id, { requirementType: next, requirementValue: 1 })
         return
       }
     }
@@ -1885,6 +2045,7 @@ export function useCampaignEditor() {
     { value: 'AVERAGE_RANK', label: 'Average rank' },
     { value: 'MAX_RANK', label: 'Best rank' },
     { value: 'FC', label: 'Full combo (all)' },
+    { value: 'PASS', label: 'Pass all (no No-Fail)' },
     { value: 'COMPLETION_COUNT', label: 'Maps completed' },
   ]
 
@@ -2482,6 +2643,16 @@ export function useCampaignEditor() {
     resetConnectionColor,
     openMapPicker,
     handleMapsPicked,
+    submitGlobalAdd,
+    campaignGenreBeatsaverSlugs,
+    selectedNodeApRankBlocked,
+    apRankBlockedNodeIds,
+    unrankedNodes,
+    showRepoint,
+    openRepoint,
+    closeRepoint,
+    submitRepoint,
+    refreshNodeVersion,
     removeSelectedNode,
     removeSelectedNodes,
     handleSelect,
