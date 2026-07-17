@@ -80,6 +80,13 @@ const activeDifficulty = computed(() =>
 
 const isActiveDifficultyRanked = computed(() => activeDifficulty.value?.status === 'RANKED')
 
+const showApStats = computed(() => {
+  const status = activeDifficulty.value?.status
+  return status !== 'CAMPAIGN' && status !== 'QUEUE'
+})
+
+const hasCategory = computed(() => activeDifficulty.value?.categoryId != null)
+
 const categoryCode = computed(() => {
   if (!activeDifficulty.value) return 'overall'
   return categoryStore.getCategoryCode(activeDifficulty.value.categoryId) ?? 'overall'
@@ -358,9 +365,9 @@ function sameQuery(a: Record<string, string>, b: Record<string, unknown>): boole
             <div class="map-detail__diff-meta">
               <DifficultyBadge :difficulty="activeDifficulty.difficulty" />
               <ComplexityBadge v-if="isActiveDifficultyRanked" :complexity="activeDifficulty.complexity ?? 0" />
-              <span class="map-detail__category-name" :style="{ color: categoryAccent }">{{ categoryName }}</span>
+              <span v-if="hasCategory" class="map-detail__category-name" :style="{ color: categoryAccent }">{{ categoryName }}</span>
             </div>
-            <div class="map-detail__stats">
+            <div v-if="showApStats" class="map-detail__stats">
               <StatBlock label="Max AP" :value="diffStats?.maxAp?.toFixed(2) ?? '-'" />
               <StatBlock label="Min AP" :value="diffStats?.minAp?.toFixed(2) ?? '-'" />
               <StatBlock label="Avg AP" :value="diffStats?.averageAp?.toFixed(2) ?? '-'" />
