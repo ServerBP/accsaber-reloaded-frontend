@@ -20,9 +20,9 @@ Edit `.env` with your target environment:
 
 **Against production API** (default):
 ```
-API_PROXY_TARGET=https://api.accsaberreloaded.com
-VITE_ADMIN_URL=https://admin.accsaberreloaded.com
-VITE_RANKING_URL=https://ranking.accsaberreloaded.com
+API_PROXY_TARGET=https://api.accsaber.com
+VITE_ADMIN_URL=https://admin.accsaber.com
+VITE_RANKING_URL=https://ranking.accsaber.com
 ```
 
 **Against local backend**:
@@ -51,7 +51,7 @@ npm run dev
 Available at `http://localhost:5173`. The dev server proxies API requests based on `VITE_DEV_PROXY_TARGET` in `.env.development`:
 
 ```
-VITE_DEV_PROXY_TARGET=https://api.accsaberreloaded.com
+VITE_DEV_PROXY_TARGET=https://api.accsaber.com
 ```
 
 To proxy against a local backend instead:

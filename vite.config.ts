@@ -79,7 +79,7 @@ function externalProxy(prefix: string, target: string): Plugin {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_')
-  const proxyTarget = env.VITE_DEV_PROXY_TARGET || 'https://api.accsaberreloaded.com'
+  const proxyTarget = env.VITE_DEV_PROXY_TARGET || 'https://api.accsaber.com'
 
   return {
     plugins: [

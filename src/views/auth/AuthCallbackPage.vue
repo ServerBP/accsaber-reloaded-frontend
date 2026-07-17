@@ -59,7 +59,7 @@ onMounted(async () => {
   const pendingLinkToken = hash.get('pendingLinkToken')
   if (pendingLinkToken) {
     if (isRankingSubdomain) {
-      const mainSite = 'https://accsaberreloaded.com'
+      const mainSite = 'https://accsaber.com'
       window.location.href = `${mainSite}/login/finish?pendingLinkToken=${encodeURIComponent(pendingLinkToken)}`
       return
     }
@@ -120,7 +120,7 @@ function goRequestAccess() {
 }
 
 function goMainSite() {
-  window.location.href = 'https://accsaberreloaded.com'
+  window.location.href = 'https://accsaber.com'
 }
 </script>
 
