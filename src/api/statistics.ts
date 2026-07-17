@@ -1,11 +1,20 @@
 import type {
   DistributionEntryResponse,
+  ItemScarcityResponse,
   MapAvgApResponse,
   MapRetryResponse,
   MilestoneCollectorResponse,
+  RarestUnboxedResponse,
   TimeSeriesPointResponse,
+  UserCollectionResponse,
+  UserCrateCountResponse,
+  UserEssenceEarnedResponse,
+  UserFirstEditionResponse,
   UserImprovementsResponse,
+  UserInventoryValueResponse,
+  UserItemCountResponse,
   UserMapImprovementsResponse,
+  UserTraderResponse,
 } from '@/types/api/statistics'
 import type { ScoreResponse } from '@/types/api/users'
 import type { Page, PaginationParams } from '@/types/pagination'
@@ -38,6 +47,42 @@ export function getMostMapImprovements(params?: PaginationParams, categoryId?: s
 
 export function getMilestoneCollectors(params?: PaginationParams, country?: string): Promise<Page<MilestoneCollectorResponse>> {
   return get<Page<MilestoneCollectorResponse>>(`/statistics/leaderboards/milestone-collectors${buildQuery({ ...params, country })}`)
+}
+
+export function getMostItems(params?: PaginationParams, type?: string, modifier?: string, country?: string): Promise<Page<UserItemCountResponse>> {
+  return get<Page<UserItemCountResponse>>(`/statistics/leaderboards/most-items${buildQuery({ ...params, type, modifier, country })}`)
+}
+
+export function getMostCratesOpened(params?: PaginationParams, crateId?: string, country?: string): Promise<Page<UserCrateCountResponse>> {
+  return get<Page<UserCrateCountResponse>>(`/statistics/leaderboards/most-crates-opened${buildQuery({ ...params, crateId, country })}`)
+}
+
+export function getMostValuableInventory(params?: PaginationParams, country?: string): Promise<Page<UserInventoryValueResponse>> {
+  return get<Page<UserInventoryValueResponse>>(`/statistics/leaderboards/most-valuable-inventory${buildQuery({ ...params, country })}`)
+}
+
+export function getFirstEditions(params?: PaginationParams, country?: string): Promise<Page<UserFirstEditionResponse>> {
+  return get<Page<UserFirstEditionResponse>>(`/statistics/leaderboards/first-editions${buildQuery({ ...params, country })}`)
+}
+
+export function getMostCompleteCollection(params?: PaginationParams, country?: string): Promise<Page<UserCollectionResponse>> {
+  return get<Page<UserCollectionResponse>>(`/statistics/leaderboards/most-complete-collection${buildQuery({ ...params, country })}`)
+}
+
+export function getBiggestTraders(params?: PaginationParams, country?: string): Promise<Page<UserTraderResponse>> {
+  return get<Page<UserTraderResponse>>(`/statistics/leaderboards/biggest-traders${buildQuery({ ...params, country })}`)
+}
+
+export function getMostEssenceEarned(params?: PaginationParams, country?: string): Promise<Page<UserEssenceEarnedResponse>> {
+  return get<Page<UserEssenceEarnedResponse>>(`/statistics/leaderboards/most-essence-earned${buildQuery({ ...params, country })}`)
+}
+
+export function getRarestUnboxed(params?: PaginationParams, country?: string): Promise<Page<RarestUnboxedResponse>> {
+  return get<Page<RarestUnboxedResponse>>(`/statistics/leaderboards/rarest-unboxed${buildQuery({ ...params, country })}`)
+}
+
+export function getRarestItems(params?: PaginationParams): Promise<Page<ItemScarcityResponse>> {
+  return get<Page<ItemScarcityResponse>>(`/statistics/leaderboards/rarest-items${buildQuery({ ...params })}`)
 }
 
 export function getNewPlayersPerDay(params?: { amount?: number; unit?: string }): Promise<TimeSeriesPointResponse[]> {

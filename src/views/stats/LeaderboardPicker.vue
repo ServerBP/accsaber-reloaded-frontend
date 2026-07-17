@@ -27,12 +27,16 @@ const emit = defineEmits<{ 'update:modelValue': [value: T] }>()
 
 <style scoped>
 .lb-picker {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: var(--space-sm);
+  max-width: 760px;
+  margin-inline: auto;
 }
 
 .lb-picker__card {
+  flex: 0 0 140px;
   display: flex;
   flex-direction: column;
   align-items: center;

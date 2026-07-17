@@ -2,8 +2,8 @@
 import DataTable from '@/components/common/DataTable.vue'
 import GlowImage from '@/components/common/GlowImage.vue'
 import CountryFlag from '@/components/domain/CountryFlag.vue'
-import PlayerTooltipTrigger from '@/components/domain/PlayerTooltipTrigger.vue'
 import { useCategoryStore } from '@/stores/categories'
+import LeaderboardPlayerCell from './LeaderboardPlayerCell.vue'
 import type { TableColumn } from '@/types/display'
 import { formatRelativeDate } from '@/utils/formatters'
 import { formatDifficulty } from '@/utils/mappers'
@@ -71,17 +71,10 @@ function pushRow(row: Record<string, unknown>) {
     </template>
 
     <template #cell-player="{ row }">
-      <PlayerTooltipTrigger :user-id="(row.userId as string)" :user-name="(row.userName as string)"
+      <LeaderboardPlayerCell :user-id="(row.userId as string)" :user-name="(row.userName as string)"
         :avatar-url="(row.avatarUrl as string)"
         :avatar-fallback-url="(row.avatarFallbackUrl as string | null | undefined) ?? null"
-        :country="(row.country as string)">
-        <div class="player-cell">
-          <GlowImage :src="(row.avatarUrl as string)" :alt="(row.userName as string)" :size="32"
-            :fallback-src="(row.avatarFallbackUrl as string | null | undefined) ?? null" />
-          <span class="player-cell__name">{{ row.userName }}</span>
-          <CountryFlag :country="(row.country as string)" />
-        </div>
-      </PlayerTooltipTrigger>
+        :country="(row.country as string)" />
     </template>
 
     <template #cell-map="{ row }">
@@ -174,22 +167,6 @@ function pushRow(row: Record<string, unknown>) {
 .rank-cell.rank--gold { color: var(--tier-gold); font-weight: 700; }
 .rank-cell.rank--silver { color: var(--tier-silver); font-weight: 700; }
 .rank-cell.rank--bronze { color: var(--tier-bronze); font-weight: 700; }
-
-.player-cell {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  min-width: 0;
-}
-
-.player-cell__name {
-  font-weight: 500;
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-}
 
 .map-cell {
   display: flex;

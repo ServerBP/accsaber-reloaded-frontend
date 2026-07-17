@@ -13,8 +13,10 @@ import type { CategoryCode, ScoreDisplay, TableColumn } from '@/types/display'
 import type { Page } from '@/types/pagination'
 import { COUNTRY_OPTIONS } from '@/utils/countries'
 import { toScoreDisplay } from '@/utils/mappers'
+import { loadStoredCountry, storeCountry } from '@/utils/statsCountry'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import ItemStatsSection from './stats/ItemStatsSection.vue'
 import LeaderboardPicker from './stats/LeaderboardPicker.vue'
 import LeaderboardTable from './stats/LeaderboardTable.vue'
 import PlatformGrowthSection from './stats/PlatformGrowthSection.vue'
@@ -31,7 +33,7 @@ usePageMeta({
   description: 'Platform-wide statistics, leaderboards, and score distributions across AccSaber.',
 })
 
-type SectionKey = 'leaderboards' | 'platform'
+type SectionKey = 'leaderboards' | 'items' | 'platform'
 type LeaderboardTab = 'streaks' | 'max-ap' | 'avg-ap' | 'most-retried' | 'grinders' | 'dedication' | 'collectors'
 
 const leaderboardOptions: { key: LeaderboardTab; label: string; icon: string; description: string }[] = [
@@ -60,26 +62,6 @@ const activeSection = computed<SectionKey>({
     router.push({ query: { section: section === 'leaderboards' ? undefined : section } })
   },
 })
-
-const COUNTRY_STORAGE_KEY = 'accsaber:stats:country'
-
-function loadStoredCountry(): string {
-  try {
-    return localStorage.getItem(COUNTRY_STORAGE_KEY) ?? ''
-  } catch {
-    return ''
-  }
-}
-
-function storeCountry(country: string) {
-  try {
-    if (country) {
-      localStorage.setItem(COUNTRY_STORAGE_KEY, country)
-    } else {
-      localStorage.removeItem(COUNTRY_STORAGE_KEY)
-    }
-  } catch { /* quota exceeded */ }
-}
 
 const activeTab = computed<LeaderboardTab>({
   get: () => (route.query.tab as LeaderboardTab) || 'streaks',
@@ -145,6 +127,13 @@ const { currentPage, paginationParams, setPage } = usePageableRoute({
 
 const accent = computed(() => categoryStore.getAccent(activeCategory.value))
 const isScoreTab = computed(() => activeTab.value === 'streaks' || activeTab.value === 'max-ap')
+
+const SECTION_TITLES: Record<SectionKey, string> = {
+  leaderboards: 'Extra Leaderboards',
+  items: 'Item Stats',
+  platform: 'Platform Stats',
+}
+const sectionTitle = computed(() => SECTION_TITLES[activeSection.value])
 
 const detailColumn: TableColumn = { key: 'detail', label: '', width: '44px', align: 'center', noLink: true }
 
@@ -297,7 +286,7 @@ watch(() => categoryStore.loaded, (loaded, wasLoaded) => {
   <div class="stats" :style="{ '--page-accent': accent }">
     <header class="stats__header">
       <div class="stats__header-content">
-        <h1 class="stats__title">{{ activeSection === 'leaderboards' ? 'Extra Leaderboards' : 'Platform Stats' }}</h1>
+        <h1 class="stats__title">{{ sectionTitle }}</h1>
         <p v-if="activeSection === 'leaderboards' && totalElements > 0" class="stats__subtitle">
           {{ totalElements.toLocaleString() }} records
         </p>
@@ -334,6 +323,8 @@ watch(() => categoryStore.loaded, (loaded, wasLoaded) => {
 
       <ScoreDetailModal :open="detailOpen" :score="detailScore" :user-id="detailUserId" @close="detailOpen = false" />
     </template>
+
+    <ItemStatsSection v-else-if="activeSection === 'items'" :accent="accent" :country-options="countryOptions" />
 
     <PlatformGrowthSection v-else :accent="accent" />
   </div>
