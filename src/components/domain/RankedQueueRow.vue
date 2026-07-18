@@ -23,6 +23,15 @@ const categoryName = computed(() =>
   categoryStore.getCategoryInfo(categoryCode.value)?.name ?? categoryCode.value,
 )
 
+const upvotes = computed(() => props.entry.rankUpvotes ?? 0)
+const downvotes = computed(() => props.entry.rankDownvotes ?? 0)
+const rating = computed(() => upvotes.value - downvotes.value)
+const ratingClass = computed(() => {
+  if (rating.value > 0) return 'queue-row__rating--positive'
+  if (rating.value < 0) return 'queue-row__rating--negative'
+  return 'queue-row__rating--neutral'
+})
+
 const criteriaVerdict = computed<{
   verdict: 'passed' | 'failed' | 'pending' | 'unavailable'
   source: 'staff' | 'auto'
@@ -107,7 +116,9 @@ const dateLabel = computed(() => {
 
     <div class="queue-row__right">
       <div class="queue-row__rating-block">
-        <span class="queue-row__rating queue-row__rating--neutral">-</span>
+        <span class="queue-row__rating" :class="ratingClass">
+          {{ rating > 0 ? '+' : '' }}{{ rating }}
+        </span>
         <span class="queue-row__rating-label">Rating</span>
       </div>
       <div class="queue-row__votes">
@@ -116,14 +127,14 @@ const dateLabel = computed(() => {
             stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <polyline points="18 15 12 9 6 15" />
           </svg>
-          -
+          {{ upvotes }}
         </span>
         <span class="queue-row__vote queue-row__vote--down">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <polyline points="6 9 12 15 18 9" />
           </svg>
-          -
+          {{ downvotes }}
         </span>
       </div>
       <span class="queue-row__date">{{ dateLabel }}</span>
@@ -286,6 +297,14 @@ const dateLabel = computed(() => {
   font-size: 1.5rem;
   font-weight: 600;
   line-height: 1;
+}
+
+.queue-row__rating--positive {
+  color: var(--success);
+}
+
+.queue-row__rating--negative {
+  color: var(--error);
 }
 
 .queue-row__rating--neutral {
