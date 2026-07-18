@@ -158,10 +158,10 @@ onMounted(() => {
     <template #cell-essenceEarned="{ value }"><span class="stat-essence">{{ fmtEssence(value) }}</span></template>
 
     <template #mobile-card="{ row }">
-      <div class="stats-card" @click="pushRow(row)">
-        <span class="stats-card__rank rank-cell" :class="getRankClass(row.rank as number)">#{{ row.rank }}</span>
-
-        <div v-if="isItemBoard" class="stats-card__item">
+      <div v-if="isItemBoard" class="stats-card stats-card--item" :class="{ 'stats-card--static': isScarcity }"
+        @click="pushRow(row)">
+        <div class="stats-card__head">
+          <span class="stats-card__rank rank-cell" :class="getRankClass(row.rank as number)">#{{ row.rank }}</span>
           <span class="item-cell__frame item-cell__frame--sm" :class="rarityClass(row.rarity as ItemRarity)">
             <ItemPreview :item="syntheticItem(row)" />
           </span>
@@ -172,8 +172,46 @@ onMounted(() => {
               <span v-if="row.serialNumber != null" class="item-cell__serial">#{{ row.serialNumber }}</span>
             </span>
           </div>
+          <span v-if="hasOwner" class="stats-card__badge item-cell__name" :class="rarityClass(row.rarity as ItemRarity)">
+            {{ row.rarity }}
+          </span>
         </div>
-        <div v-else class="stats-card__player">
+
+        <div class="stats-card__details">
+          <div v-if="hasOwner" class="stats-card__detail">
+            <span class="stats-card__label">{{ board === 'first-edition-holders' ? 'Holder' : 'Owner' }}</span>
+            <LeaderboardPlayerCell :user-id="(row.ownerUserId as string)" :user-name="(row.ownerUserName as string)"
+              :avatar-url="(row.ownerAvatarUrl as string)"
+              :avatar-fallback-url="(row.ownerAvatarFallbackUrl as string | null | undefined) ?? null"
+              :country="(row.ownerCountry as string)" :size="24" />
+          </div>
+          <div v-if="board === 'rarest-unboxed'" class="stats-card__detail stats-card__detail--stacked">
+            <span class="stats-card__label">Modifiers</span>
+            <div class="modifiers-cell">
+              <template v-if="resolveModifiers(row.modifiers).length || row.unusualEffect">
+                <ModifierChip v-for="mod in resolveModifiers(row.modifiers)" :key="mod.id" :modifier="mod" />
+                <span v-if="row.unusualEffect" class="modifiers-cell__unusual">{{ row.unusualEffect }}</span>
+              </template>
+              <span v-else class="modifiers-cell__none">None</span>
+            </div>
+          </div>
+          <div v-if="isScarcity" class="stats-card__counts">
+            <span class="stats-card__count">
+              <span class="stats-card__label">Owners</span>
+              <span class="stat-accent">{{ fmtInt(row.ownerCount) }}</span>
+            </span>
+            <span class="stats-card__count">
+              <span class="stats-card__label">Copies</span>
+              <span>{{ fmtInt(row.instanceCount) }}</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div v-else class="stats-card" @click="pushRow(row)">
+        <span class="stats-card__rank rank-cell" :class="getRankClass(row.rank as number)">#{{ row.rank }}</span>
+
+        <div class="stats-card__player">
           <LeaderboardPlayerCell :user-id="(row.userId as string)" :user-name="(row.userName as string)"
             :avatar-url="(row.avatarUrl as string)"
             :avatar-fallback-url="(row.avatarFallbackUrl as string | null | undefined) ?? null"
@@ -188,8 +226,6 @@ onMounted(() => {
           <template v-else-if="board === 'most-complete-collection'"><span class="stat-accent">{{ fmtPercent(row.completionPercent) }}</span></template>
           <template v-else-if="board === 'biggest-traders'"><span class="stat-accent">{{ fmtInt(row.tradeCount) }}</span></template>
           <template v-else-if="board === 'most-essence-earned'"><span class="stat-essence">{{ fmtEssence(row.essenceEarned) }}</span></template>
-          <template v-else-if="board === 'rarest-items'"><span class="stat-accent">{{ fmtInt(row.instanceCount) }}</span></template>
-          <template v-else-if="board === 'rarest-unboxed'"><span class="item-cell__name" :class="rarityClass(row.rarity as ItemRarity)">{{ row.rarity }}</span></template>
         </span>
       </div>
     </template>
@@ -332,14 +368,21 @@ onMounted(() => {
   border-left-color: var(--page-accent);
 }
 
+.stats-card--static {
+  cursor: default;
+}
+
+.stats-card--static:hover {
+  border-left-color: transparent;
+}
+
 .stats-card__rank {
   width: 32px;
   text-align: right;
   flex-shrink: 0;
 }
 
-.stats-card__player,
-.stats-card__item {
+.stats-card__player {
   display: flex;
   align-items: center;
   gap: var(--space-xs);
@@ -351,5 +394,73 @@ onMounted(() => {
   font-family: var(--font-mono);
   flex-shrink: 0;
   margin-left: auto;
+}
+
+.stats-card--item {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-sm);
+}
+
+.stats-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.stats-card__head .item-cell__info {
+  flex: 1;
+}
+
+.stats-card__badge {
+  flex-shrink: 0;
+  font-size: var(--text-caption);
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.stats-card__details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--bg-overlay);
+}
+
+.stats-card__detail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  min-width: 0;
+}
+
+.stats-card__detail--stacked {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-xs);
+}
+
+.stats-card__label {
+  font-size: var(--text-caption);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.stats-card__counts {
+  display: flex;
+  gap: var(--space-xl);
+}
+
+.stats-card__count {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: var(--font-mono);
+  font-weight: 600;
 }
 </style>
