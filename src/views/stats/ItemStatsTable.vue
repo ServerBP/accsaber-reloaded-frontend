@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import DataTable from '@/components/common/DataTable.vue'
+import ItemHoldersTooltip from '@/components/domain/ItemHoldersTooltip.vue'
 import ItemPreview from '@/components/domain/ItemPreview.vue'
 import ModifierChip from '@/components/domain/ModifierChip.vue'
 import { useItemModifierStore } from '@/stores/itemModifiers'
-import type { ItemModifierRef, ItemRarity, ItemResponse, ItemTypeKey } from '@/types/api/items'
+import type { ItemRarity, ItemResponse, ItemTypeKey } from '@/types/api/items'
 import type { TableColumn } from '@/types/display'
-import { rarityClass } from '@/utils/items'
+import { rarityClass, resolveModifierRefs } from '@/utils/items'
 import { getRankClass } from '@/utils/ranking'
 import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
@@ -75,15 +76,8 @@ function syntheticItem(row: Record<string, unknown>): ItemResponse {
   }
 }
 
-function resolveModifiers(keys: unknown): ItemModifierRef[] {
-  if (!Array.isArray(keys)) return []
-  return keys.map((key) => {
-    const found = modifierStore.byKey.get(key as string)
-    if (found) {
-      return { id: found.id, key: found.key, name: found.name, colorHex: found.colorHex, effectSpec: found.effectSpec }
-    }
-    return { id: key as string, key: key as string, name: key as string, colorHex: '', effectSpec: null }
-  })
+function resolveModifiers(keys: unknown) {
+  return resolveModifierRefs(keys, modifierStore.byKey)
 }
 
 function typeLabel(typeKey: unknown): string {
@@ -129,6 +123,8 @@ onMounted(() => {
             <span v-if="row.serialNumber != null" class="item-cell__serial">#{{ row.serialNumber }}</span>
           </span>
         </div>
+        <ItemHoldersTooltip v-if="isScarcity" class="item-cell__owners" :item-id="(row.itemId as string)"
+          :item-name="(row.itemName as string)" :owner-count="(row.ownerCount as number)" />
       </div>
     </template>
 
@@ -175,6 +171,8 @@ onMounted(() => {
           <span v-if="hasOwner" class="stats-card__badge item-cell__name" :class="rarityClass(row.rarity as ItemRarity)">
             {{ row.rarity }}
           </span>
+          <ItemHoldersTooltip v-if="isScarcity" :item-id="(row.itemId as string)"
+            :item-name="(row.itemName as string)" :owner-count="(row.ownerCount as number)" />
         </div>
 
         <div class="stats-card__details">
@@ -291,6 +289,11 @@ onMounted(() => {
   flex-direction: column;
   min-width: 0;
   gap: 1px;
+}
+
+.item-cell__owners {
+  flex-shrink: 0;
+  margin-left: var(--space-xs);
 }
 
 .item-cell__name {

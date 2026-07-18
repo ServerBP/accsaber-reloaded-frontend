@@ -645,6 +645,27 @@ export interface InventoryListParams extends PaginationParams {
   search?: string
 }
 
+export type ItemHolderSort = 'RECENT' | 'RANK' | 'FOLLOWING'
+
+export interface ItemHolderListParams extends PaginationParams {
+  sort?: ItemHolderSort
+  modifier?: string | string[]
+}
+
+export interface ItemHolderResponse {
+  userId: string
+  userName: string
+  avatarUrl: string
+  cdnAvatarUrl?: string | null
+  country: string
+  quantity: number
+  lowestSerial: number | null
+  acquiredAt: string
+  modifiers: string[]
+  ranking: number | null
+  following: boolean
+}
+
 export interface CreateItemTypeRequest {
   parentTypeId?: string
   key: string

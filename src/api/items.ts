@@ -4,6 +4,8 @@ import type {
   EquippedItemsResponse,
   EssenceBalance,
   InventoryListParams,
+  ItemHolderListParams,
+  ItemHolderResponse,
   ItemListParams,
   ItemModifierResponse,
   ItemResponse,
@@ -34,6 +36,13 @@ export function getItems(params?: ItemListParams): Promise<ItemResponse[]> {
 
 export function getItem(id: string): Promise<ItemResponse> {
   return get<ItemResponse>(`/items/${id}`)
+}
+
+export function getItemHolders(
+  itemId: string,
+  params?: ItemHolderListParams,
+): Promise<Page<ItemHolderResponse>> {
+  return get<Page<ItemHolderResponse>>(`/items/${itemId}/holders${buildQuery(params)}`)
 }
 
 export function getUserItems(

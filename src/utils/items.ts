@@ -11,6 +11,7 @@ import type {
   Gradient,
   GradientStop,
   ItemModifierRef,
+  ItemModifierResponse,
   ItemRarity,
   ItemResponse,
   ItemTypeKey,
@@ -98,6 +99,20 @@ export function modifierAccentHex(
 
 export function sortModifiersByKey<T extends { key: string }>(modifiers: T[]): T[] {
   return [...modifiers].sort((a, b) => a.key.localeCompare(b.key))
+}
+
+export function resolveModifierRefs(
+  keys: unknown,
+  byKey: Map<string, ItemModifierResponse>,
+): ItemModifierRef[] {
+  if (!Array.isArray(keys)) return []
+  return keys.map((key) => {
+    const found = byKey.get(key as string)
+    if (found) {
+      return { id: found.id, key: found.key, name: found.name, colorHex: found.colorHex, effectSpec: found.effectSpec }
+    }
+    return { id: key as string, key: key as string, name: key as string, colorHex: '', effectSpec: null }
+  })
 }
 
 export function visibleModifiers<T extends { key: string }>(modifiers: T[]): T[] {
