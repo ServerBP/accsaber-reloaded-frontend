@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import BaseButton from '@/components/common/BaseButton.vue'
 import BaseModal from '@/components/common/BaseModal.vue'
+import EventNavPill from '@/components/layout/EventNavPill.vue'
 import GlobalSearchModal from '@/components/domain/GlobalSearchModal.vue'
 import MissionsDropdown from '@/components/domain/MissionsDropdown.vue'
 import PseudoLoginModal from '@/components/domain/PseudoLoginModal.vue'
 import { useAuthStore } from '@/stores/auth'
 import { onAvatarError } from '@/composables/useAvatarFallback'
 import { useBrandLogo } from '@/composables/useBrandLogo'
+import { useCurrentEvent } from '@/composables/useCurrentEvent'
 import { isAdminSubdomain, isCreativesSubdomain, isRankingSubdomain, isStaffSubdomain, playerProfileHref } from '@/utils/subdomain'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -16,6 +18,13 @@ const route = useRoute()
 const router = useRouter()
 
 const logoSrc = useBrandLogo()
+
+const {
+  event: currentEvent,
+  visible: eventVisible,
+  verb: eventVerb,
+  countdown: eventCountdown,
+} = useCurrentEvent()
 
 const loginModalOpen = ref(false)
 const searchModalOpen = ref(false)
@@ -214,6 +223,14 @@ onUnmounted(() => {
       </nav>
 
       <div class="navbar__actions">
+        <EventNavPill
+          v-if="showNewsAction && eventVisible && currentEvent"
+          :event="currentEvent"
+          :verb="eventVerb"
+          :countdown="eventCountdown"
+          variant="bar"
+        />
+
         <router-link
           v-if="showNewsAction"
           to="/news"
@@ -292,6 +309,16 @@ onUnmounted(() => {
   <div v-if="mobileDrawerOpen" class="navbar__backdrop" @click="mobileDrawerOpen = false"></div>
 
   <div class="navbar__drawer" :class="{ 'navbar__drawer--open': mobileDrawerOpen }">
+    <section v-if="showNewsAction && eventVisible && currentEvent" class="navbar__drawer-section">
+      <EventNavPill
+        :event="currentEvent"
+        :verb="eventVerb"
+        :countdown="eventCountdown"
+        variant="drawer"
+        @navigate="mobileDrawerOpen = false"
+      />
+    </section>
+
     <section class="navbar__drawer-section">
       <button type="button" class="navbar__drawer-search" @click="openSearch">
         <svg class="navbar__search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
