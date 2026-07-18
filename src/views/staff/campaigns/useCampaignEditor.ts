@@ -2038,6 +2038,20 @@ export function useCampaignEditor() {
     void applyBarrierPatch(b.id, { [field]: send } as UpdateCampaignBarrierRequest)
   }
 
+  function commitBarrierValue() {
+    const b = selectedBarrier.value
+    if (!editable.value || !b) return
+    const m = barrierMeta.value
+    let value = formBarrier.value.conditionValue
+    if (m.metric === 'count') {
+      value = Math.max(1, Math.min(barrierCountMax.value, Math.round(Number(value) || 1)))
+    }
+    formBarrier.value = { ...formBarrier.value, conditionValue: value }
+    if (value === b.conditionValue) return
+    requirementDirtyIds.value.add(b.id)
+    void applyBarrierPatch(b.id, { conditionValue: value })
+  }
+
   function resetBarrierColor() {
     formBarrier.value.borderColor = ''
     commitBarrierField('borderColor')
@@ -2716,6 +2730,7 @@ export function useCampaignEditor() {
     barrierValueBounds,
     onBarrierConditionTypeChange,
     commitBarrierField,
+    commitBarrierValue,
     resetBarrierColor,
     selectBarrierLabelPosition,
     hasConnections,

@@ -103,6 +103,7 @@ export interface ScoreDisplay {
   accuracy: number
   ap: number
   weightedAp: number
+  complexity: number | null
   modifiers: string[]
   date: string
   misses?: number

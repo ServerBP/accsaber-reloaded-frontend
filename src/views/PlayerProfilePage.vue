@@ -691,7 +691,7 @@ watch(activeCategory, (newCategory) => {
 
 .profile-page>*:not(.profile-page__bg) {
   width: 100%;
-  max-width: 1140px;
+  max-width: 1280px;
   position: relative;
   z-index: 1;
 }

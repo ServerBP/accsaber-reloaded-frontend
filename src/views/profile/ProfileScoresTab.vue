@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import GlowImage from '@/components/common/GlowImage.vue'
 import ApTweaker from '@/components/domain/ApTweaker.vue'
+import ComplexityBadge from '@/components/domain/ComplexityBadge.vue'
 import ScoreDetailModal from '@/components/domain/ScoreDetailModal.vue'
 import ScoreTable from '@/components/domain/ScoreTable.vue'
 import { usePageableRoute } from '@/composables/usePageableRoute'
@@ -114,6 +115,7 @@ const rows = computed(() =>
     ap: s.ap,
     accuracy: s.accuracy,
     weighted: s.weightedAp,
+    complexity: s.complexity,
     streak115: s.streak115,
     date: s.date,
     leaderboardRank: s.leaderboardRank,
@@ -165,6 +167,7 @@ const allColumns: TableColumn[] = [
   { key: 'accuracy', label: 'Acc', sortable: true, align: 'right', mono: true, width: '80px' },
   { key: 'ap', label: 'AP', sortable: true, align: 'right', mono: true, width: '100px' },
   { key: 'weighted', label: 'Weighted', sortable: true, align: 'right', mono: true, width: '80px' },
+  { key: 'complexity', label: 'COMP', sortable: true, align: 'center', mono: true, width: '70px' },
   { key: 'category', label: 'Category', align: 'center', width: '100px' },
   { key: 'streak115', label: '115s', sortable: true, align: 'right', mono: true, width: '60px' },
   { key: 'date', label: 'Date', sortable: true, align: 'right', width: '80px' },
@@ -270,6 +273,11 @@ watch(
         </span>
       </template>
 
+      <template #cell-complexity="{ value }">
+        <ComplexityBadge v-if="value != null" :complexity="(value as number)" />
+        <span v-else class="scores-tab__streak scores-tab__streak--empty">&ndash;</span>
+      </template>
+
       <template #cell-category="{ row }">
         <span class="scores-tab__category"
           :style="{ '--cat-accent': categoryStore.getAccent(row.categoryCode as string) }">
@@ -339,6 +347,10 @@ watch(
               <span class="ps-card__dot"
                 :style="{ background: categoryStore.getAccent(row.categoryCode as string) }" />
               <span class="ps-card__category">{{ row.category }}</span>
+              <template v-if="(row.complexity as number | null) != null">
+                <span class="ps-card__sep">·</span>
+                <span class="ps-card__cx">{{ (row.complexity as number).toFixed(1) }}</span>
+              </template>
               <span class="ps-card__sep">·</span>
               <span class="ps-card__date">{{ formatRelativeDate(row.date as string) }}</span>
             </span>
@@ -588,6 +600,12 @@ watch(
 }
 
 .ps-card__category {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.ps-card__cx {
+  font-family: var(--font-mono);
   color: var(--text-secondary);
   flex-shrink: 0;
 }

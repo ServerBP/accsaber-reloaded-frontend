@@ -74,6 +74,7 @@ export interface ScoreResponse {
   rankWhenSet: number
   ap: number
   weightedAp: number
+  complexity: number | null
   blScoreId: number | null
   ssScoreId: number | null
   maxCombo: number

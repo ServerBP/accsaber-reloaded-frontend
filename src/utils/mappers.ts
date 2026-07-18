@@ -74,6 +74,7 @@ export function toScoreDisplay(
     accuracy: score.accuracy,
     ap: score.ap,
     weightedAp: score.weightedAp,
+    complexity: score.complexity ?? null,
     modifiers: modifierNames,
     date: score.timeSet,
     misses: score.misses ?? undefined,

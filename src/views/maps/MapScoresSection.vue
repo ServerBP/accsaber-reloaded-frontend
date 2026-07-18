@@ -168,6 +168,7 @@ function openDetail(userId: string, event: Event) {
     accuracy: s.accuracy,
     ap: s.ap,
     weightedAp: s.weightedAp,
+    complexity: null,
     modifiers: s.modifiers,
     date: s.date,
     misses: s.misses,

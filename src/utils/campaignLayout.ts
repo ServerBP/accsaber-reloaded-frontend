@@ -303,6 +303,8 @@ export function formatRequirement(
       return 'FC'
     case 'PASS':
       return 'Pass'
+    case 'RANK':
+      return `Rank ${Math.round(value)}`
     default:
       return String(value)
   }
@@ -327,6 +329,8 @@ export function formatRequirementShort(
       return 'FC'
     case 'PASS':
       return 'Pass'
+    case 'RANK':
+      return `Rank ${Math.round(value)}`
     default:
       return String(value)
   }
@@ -422,4 +426,10 @@ export function barrierPairValue(type: BarrierConditionType, value: number | nul
     default:
       return ''
   }
+}
+
+export function barrierGoalValue(type: BarrierConditionType, value: number | null): string {
+  const base = barrierPairValue(type, value)
+  if (value == null) return base
+  return BARRIER_CONDITION_META[type].metric === 'rank' ? `Rank ${base}` : base
 }

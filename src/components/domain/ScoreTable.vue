@@ -42,6 +42,7 @@ const SHORT_LABEL_MAP: Record<string, string> = {
   'AP': 'AP',
   '115s': '115 streak',
   'Diff': 'Difficulty',
+  'COMP': 'Complexity',
 }
 
 const sortOptions = computed(() =>

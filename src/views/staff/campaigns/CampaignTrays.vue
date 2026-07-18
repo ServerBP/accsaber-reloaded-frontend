@@ -112,6 +112,7 @@ const {
   barrierValueBounds,
   onBarrierConditionTypeChange,
   commitBarrierField,
+  commitBarrierValue,
   affectedPickMode,
   toggleAffectedPickMode,
   toggleAffected,
@@ -1103,23 +1104,34 @@ const connectionSwatch = computed(() => {
       This gate affects a map that isn't ranked (campaign import or ranking queue), so AP
       and rank based conditions are unavailable.
     </p>
-    <label v-if="!barrierMeta.noValue" class="campaign-editor__field">
-      <span>Target {{ barrierValueBounds.unit ? `(${barrierValueBounds.unit})` : '' }}</span>
+    <label
+      v-if="!barrierMeta.noValue"
+      class="campaign-editor__field"
+      :class="{ 'campaign-editor__field--disabled': barrierMeta.metric === 'count' && barrierValueBounds.max <= 1 }"
+    >
+      <span>
+        Target {{ barrierValueBounds.unit ? `(${barrierValueBounds.unit})` : '' }}
+        <small v-if="barrierMeta.metric === 'count'">of {{ barrierValueBounds.max }}</small>
+      </span>
       <div class="campaign-editor__slider-row">
         <input
           type="range"
           :min="barrierValueBounds.min"
           :max="barrierValueBounds.max"
           :step="barrierValueBounds.step"
+          :disabled="barrierMeta.metric === 'count' && barrierValueBounds.max <= 1"
           v-model.number="barrierValueDisplay"
-          @change="commitBarrierField('conditionValue')"
+          @change="commitBarrierValue"
         />
         <input
           type="number"
           :min="barrierValueBounds.min"
+          :max="barrierValueBounds.max"
           :step="barrierValueBounds.step"
+          :disabled="barrierMeta.metric === 'count' && barrierValueBounds.max <= 1"
           v-model.number.lazy="barrierValueDisplay"
-          @blur="commitBarrierField('conditionValue')"
+          @change="commitBarrierValue"
+          @blur="commitBarrierValue"
         />
       </div>
     </label>
@@ -1127,11 +1139,16 @@ const connectionSwatch = computed(() => {
       Opens once every affected node has been
       {{ formBarrier.conditionType === 'PASS' ? 'passed (no No-Fail)' : 'full-comboed' }}.
     </p>
+    <p v-else-if="barrierMeta.metric === 'count' && affectedNodeList.length <= 1" class="campaign-editor__hint">
+      This gate only measures
+      {{ affectedNodeList.length }}
+      {{ affectedNodeList.length === 1 ? 'node' : 'nodes' }}, so the target is locked at
+      {{ affectedNodeList.length || 1 }}. Add more affected nodes (Affected tab) to raise the cap.
+    </p>
     <p v-else-if="barrierMeta.metric === 'count'" class="campaign-editor__hint">
       Opens once the player has completed this many of the
-      {{ affectedNodeList.length }}
-      {{ affectedNodeList.length === 1 ? 'affected node' : 'affected nodes' }}, each cleared by its
-      own requirement. Add more affected nodes to raise the cap.
+      {{ affectedNodeList.length }} affected nodes, each cleared by its own requirement. The cap is
+      the number of affected nodes.
     </p>
     <p v-else-if="barrierMeta.lowerBetter" class="campaign-editor__hint">
       Lower is better. Opens when the {{ barrierMeta.agg }} leaderboard rank across the affected
@@ -1550,6 +1567,10 @@ const connectionSwatch = computed(() => {
   text-transform: none;
   letter-spacing: 0;
   margin-left: 4px;
+}
+
+.campaign-editor__field--disabled {
+  opacity: 0.55;
 }
 
 .campaign-editor__field input,

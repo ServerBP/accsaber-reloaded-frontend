@@ -56,6 +56,7 @@ function toScoreDisplay(entry: ScoreFeedEntry): ScoreDisplay {
     accuracy: entry.accuracy,
     ap: entry.ap,
     weightedAp: entry.weightedAp,
+    complexity: null,
     modifiers: entry.modifiers,
     date: entry.timeSet,
     misses: entry.misses,

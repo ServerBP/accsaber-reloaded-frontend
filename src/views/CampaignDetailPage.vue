@@ -40,7 +40,7 @@ import {
 } from '@/utils/campaignDifficulty'
 import {
   barrierConditionLabel,
-  barrierPairValue,
+  barrierGoalValue,
   formatRequirement,
   formatUserValue,
 } from '@/utils/campaignLayout'
@@ -902,13 +902,13 @@ function unpinTooltip() {
               <div class="campaign-detail__target">
                 <span class="campaign-detail__target-label">Goal</span>
                 <span class="campaign-detail__target-value" :style="{ color: barrierAccent }">
-                  {{ barrierPairValue(displayedBarrier.conditionType, displayedBarrier.conditionValue) }}
+                  {{ barrierGoalValue(displayedBarrier.conditionType, displayedBarrier.conditionValue) }}
                 </span>
               </div>
               <div v-if="displayedBarrierProgress" class="campaign-detail__target">
                 <span class="campaign-detail__target-label">{{ barrierProgressLabel }}</span>
                 <span class="campaign-detail__target-value">
-                  {{ barrierPairValue(displayedBarrier.conditionType, displayedBarrierProgress.currentValue) }}
+                  {{ barrierGoalValue(displayedBarrier.conditionType, displayedBarrierProgress.currentValue) }}
                 </span>
               </div>
             </div>
