@@ -20,6 +20,7 @@ const props = defineProps<{
   loadHistory: () => Promise<MissionResponse[]>
   hideTitle?: boolean
   selfView?: boolean
+  hideEventPool?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -58,7 +59,10 @@ let nowTimer: number | null = null
 
 const errorMessage = computed(() => activeError.value ?? historyError.value)
 
-const allMissions = computed(() => Array.from(missionsById.value.values()))
+const allMissions = computed(() => {
+  const list = Array.from(missionsById.value.values())
+  return props.hideEventPool ? list.filter((m) => m.pool !== 'event') : list
+})
 
 const activeList = computed(() =>
   allMissions.value.filter((m) => isWithinWindow(m, now.value)),

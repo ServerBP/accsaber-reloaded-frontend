@@ -101,6 +101,7 @@ function handleNavigate() {
           :load-active="loadActive"
           :load-history="loadHistory"
           self-view
+          hide-event-pool
           @navigate="handleNavigate"
         />
       </div>
