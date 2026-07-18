@@ -435,6 +435,7 @@ onUnmounted(() => {
   padding: 0 var(--space-md);
   font-size: var(--text-body);
   font-weight: 500;
+  white-space: nowrap;
   color: var(--navbar-text);
   text-decoration: none;
   border-radius: var(--radius-btn);
