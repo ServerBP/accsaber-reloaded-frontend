@@ -13,6 +13,7 @@ const props = defineProps<{
   stackIndex?: number
   measureSelector?: string
   contentMask?: string | null
+  hideStatCounters?: boolean
 }>()
 
 const compositions = computed<Composition[]>(() => props.spec?.compositions ?? [])
@@ -40,6 +41,7 @@ interface EffectLayer {
 const layers = computed<EffectLayer[]>(() => {
   const out: EffectLayer[] = []
   compositions.value.forEach((composition, index) => {
+    if (props.hideStatCounters && composition.type === 'stat_counter') return
     const renderer = EFFECT_REGISTRY[composition.type]
     if (renderer) out.push({ index, composition, renderer })
   })

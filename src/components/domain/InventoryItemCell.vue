@@ -88,6 +88,7 @@ onMounted(() => {
         :type-key="item.typeKey"
         measure-selector=".title-renderer, .item-preview > *"
         :content-mask="shapeMask"
+        hide-stat-counters
       />
 
       <span v-if="equipped && !locked" class="inventory-cell__equipped" aria-hidden="true">EQUIPPED</span>
