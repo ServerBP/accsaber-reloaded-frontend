@@ -7,7 +7,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useItemModifierStore } from '@/stores/itemModifiers'
 import type { ItemHolderResponse, ItemHolderSort } from '@/types/api/items'
 import { resolveModifierRefs } from '@/utils/items'
-import { computed, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 
 const props = defineProps<{
   itemId: string
@@ -102,6 +102,7 @@ async function load(reset: boolean) {
     if (id === requestId) {
       loading.value = false
       loadingMore.value = false
+      if (reset) repositionAfterRender()
     }
   }
 }
@@ -123,12 +124,26 @@ function updatePosition() {
   const rect = el.getBoundingClientRect()
   const margin = 8
   const maxLeft = window.innerWidth - POPUP_WIDTH - margin
-  popupStyle.value = {
+  const popupHeight = popupRef.value?.offsetHeight ?? 0
+  const spaceBelow = window.innerHeight - rect.bottom - margin
+  const spaceAbove = rect.top - margin
+  const flipUp = popupHeight > 0
+    ? spaceBelow < popupHeight && spaceAbove > spaceBelow
+    : spaceBelow < spaceAbove
+  const style: Record<string, string> = {
     position: 'fixed',
-    top: `${rect.bottom + margin}px`,
     left: `${Math.max(margin, Math.min(rect.left, maxLeft))}px`,
     width: `${POPUP_WIDTH}px`,
   }
+  if (flipUp) style.bottom = `${window.innerHeight - rect.top + margin}px`
+  else style.top = `${rect.bottom + margin}px`
+  popupStyle.value = style
+}
+
+function repositionAfterRender() {
+  nextTick(() => {
+    if (visible.value) updatePosition()
+  })
 }
 
 function onScrollOrResize() {
@@ -168,6 +183,7 @@ function openHover() {
   updatePosition()
   mode.value = 'hover'
   attachListeners()
+  repositionAfterRender()
   modifierStore.fetchModifiers()
   ensureLoaded()
 }
@@ -186,6 +202,7 @@ function lock() {
   activeLock = closeThis
   mode.value = 'locked'
   attachListeners()
+  repositionAfterRender()
   modifierStore.fetchModifiers()
   ensureLoaded()
 }
