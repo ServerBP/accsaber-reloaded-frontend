@@ -14,8 +14,8 @@ import { useDebouncedRef } from '@/composables/useDebouncedRef'
 import { useCategoryStore } from '@/stores/categories'
 import type { ImportCampaignMapRequest } from '@/types/api/campaigns'
 import type { PublicMapDifficultyResponse } from '@/types/api/maps'
-import type { MapDifficultyStatus } from '@/types/enums'
 import type { CategoryCode } from '@/types/display'
+import { QUEUE_STATUSES } from '@/utils/constants'
 import { computed, onMounted, ref, watch } from 'vue'
 import MapFilterSidebar from '@/views/maps/MapFilterSidebar.vue'
 import CampaignGlobalMapSearch from './CampaignGlobalMapSearch.vue'
@@ -37,12 +37,12 @@ const PAGE_SIZE = 12
 
 const source = ref<'system' | 'global'>('system')
 
-const STATUS_OPTIONS: Array<{ value: MapDifficultyStatus; label: string }> = [
+type StatusFilterKey = 'RANKED' | 'QUEUE'
+const STATUS_OPTIONS: Array<{ value: StatusFilterKey; label: string }> = [
   { value: 'RANKED', label: 'Ranked' },
   { value: 'QUEUE', label: 'In queue' },
-  { value: 'QUALIFIED', label: 'Qualified' },
 ]
-const statusFilter = ref<MapDifficultyStatus>('RANKED')
+const statusFilter = ref<StatusFilterKey>('RANKED')
 
 const query = ref('')
 const debounced = useDebouncedRef(query, 220)
@@ -79,7 +79,7 @@ async function search() {
     const params: Record<string, unknown> = {
       page: page.value - 1,
       size: PAGE_SIZE,
-      status: statusFilter.value,
+      status: statusFilter.value === 'RANKED' ? 'RANKED' : QUEUE_STATUSES,
       search: debounced.value || undefined,
       sort: statusFilter.value === 'RANKED' ? 'rankedAt,desc' : 'createdAt,desc',
     }

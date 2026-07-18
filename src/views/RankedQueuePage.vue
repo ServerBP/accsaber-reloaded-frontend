@@ -14,7 +14,7 @@ import { usePageableRoute } from '@/composables/usePageableRoute'
 import { useLeaderboardCacheStore } from '@/stores/leaderboardCache'
 import type { PublicMapDifficultyResponse } from '@/types/api/maps'
 import type { Page } from '@/types/pagination'
-import { MAP_STATUS_ACCENT } from '@/utils/constants'
+import { MAP_STATUS_ACCENT, QUEUE_STATUSES } from '@/utils/constants'
 import { buildMapRoute } from '@/utils/mapRoute'
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -87,7 +87,7 @@ function buildCacheKey(): Record<string, unknown> {
   return {
     _type: 'ranked-queue',
     ...paginationParams.value,
-    status: 'QUEUE',
+    status: QUEUE_STATUSES.join(','),
     categoryId: selectedCategories.value.length === 1 ? selectedCategories.value[0] : undefined,
     search: searchQuery.value.trim() || undefined,
   }
@@ -102,7 +102,7 @@ function applyPage(res: Page<PublicMapDifficultyResponse>) {
 async function fetchFromApi(cacheKey: Record<string, unknown>) {
   const params: Record<string, unknown> = {
     ...paginationParams.value,
-    status: 'QUEUE',
+    status: QUEUE_STATUSES,
   }
   if (selectedCategories.value.length === 1) {
     params.categoryId = selectedCategories.value[0]

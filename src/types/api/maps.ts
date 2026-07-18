@@ -180,7 +180,7 @@ export interface MapListParams extends PaginationParams {
 
 export interface DifficultyListParams extends PaginationParams {
   categoryId?: string
-  status?: MapDifficultyStatus
+  status?: MapDifficultyStatus | MapDifficultyStatus[]
   complexityMin?: number
   complexityMax?: number
   search?: string

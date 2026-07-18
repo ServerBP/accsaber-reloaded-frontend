@@ -26,6 +26,10 @@ export const MAP_STATUS_ACCENT: Record<string, string> = {
   RANKED: 'var(--accent-standard-acc)',
 }
 
+import type { MapDifficultyStatus } from '@/types/enums'
+
+export const QUEUE_STATUSES: MapDifficultyStatus[] = ['QUEUE', 'QUALIFIED']
+
 import type { NewsType } from '@/types/enums'
 
 export const NEWS_TYPE_LABELS: Record<NewsType, string> = {
