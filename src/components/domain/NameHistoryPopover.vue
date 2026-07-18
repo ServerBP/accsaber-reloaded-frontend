@@ -119,6 +119,13 @@ watch(open, (isOpen) => {
   gap: var(--space-xs);
 }
 
+@media (max-width: 380px) {
+  .name-history__panel {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
 .name-history__header {
   font-size: 0.6875rem;
   letter-spacing: 0.1em;
