@@ -58,9 +58,9 @@ type Selection = { kind: 'event'; id: string } | { kind: 'news'; slug: string } 
 const activeSelection = computed<Selection>(() => {
   if (selectedNewsSlug.value) return { kind: 'news', slug: selectedNewsSlug.value }
   if (selectedEventId.value) return { kind: 'event', id: selectedEventId.value }
+  if (news.value.length) return { kind: 'news', slug: news.value[0].slug }
   if (currentEvent.value) return { kind: 'event', id: currentEvent.value.slug }
   if (events.value.length) return { kind: 'event', id: events.value[0].slug }
-  if (news.value.length) return { kind: 'news', slug: news.value[0].slug }
   return null
 })
 

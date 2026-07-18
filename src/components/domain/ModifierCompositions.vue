@@ -48,11 +48,12 @@ const layers = computed<EffectLayer[]>(() => {
   return out
 })
 
+const isUnmasked = (type: string) => BLEED_TYPES.has(type) || type === 'stat_counter'
 const maskedLayers = computed(() =>
-  props.contentMask ? layers.value.filter((l) => !BLEED_TYPES.has(l.composition.type)) : layers.value,
+  props.contentMask ? layers.value.filter((l) => !isUnmasked(l.composition.type)) : layers.value,
 )
 const unmaskedLayers = computed(() =>
-  props.contentMask ? layers.value.filter((l) => BLEED_TYPES.has(l.composition.type)) : [],
+  props.contentMask ? layers.value.filter((l) => isUnmasked(l.composition.type)) : [],
 )
 
 const maskStyle = computed<Record<string, string> | undefined>(() => {

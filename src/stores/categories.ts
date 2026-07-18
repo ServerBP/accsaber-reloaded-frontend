@@ -100,6 +100,8 @@ export const useCategoryStore = defineStore('categories', () => {
   }
 
   function getAccent(code: string): string {
+    void themeStore.theme
+    void themeStore.activeTokens
     return readCssToken('accent', code)
   }
 

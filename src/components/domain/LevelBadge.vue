@@ -138,6 +138,7 @@ const fallbackTitleStyle = computed(() => {
         :spec="layer.spec"
         :stack-index="layer.stackIndex"
         :content-mask="borderFxMask"
+        hide-stat-counters
       />
     </div>
 
@@ -152,6 +153,7 @@ const fallbackTitleStyle = computed(() => {
             :spec="layer.spec"
             type-key="title"
             :stack-index="layer.stackIndex"
+            hide-stat-counters
           />
           <span class="level-badge__title-fx-text">
             <FragmentedContent
