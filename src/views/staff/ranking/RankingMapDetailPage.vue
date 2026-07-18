@@ -201,10 +201,6 @@ const voteCriteriaOverride = ref(false)
 const voteSubmitting = ref(false)
 const voteError = ref('')
 
-const showStatusModal = ref(false)
-const statusTarget = ref<string>('')
-const statusLoading = ref(false)
-
 const showComplexityModal = ref(false)
 const complexityValue = ref<number>(0)
 const complexityLoading = ref(false)
@@ -361,22 +357,6 @@ async function deactivateVote(voteId: string) {
     await deactivate(difficultyId.value, voteId)
     await fetchVotes()
   } catch {
-  }
-}
-
-async function handleStatusChange() {
-  if (!statusTarget.value) return
-  statusLoading.value = true
-  try {
-    const { updateMapStatus } = await import('@/api/ranking/maps')
-    await updateMapStatus(difficultyId.value, { status: statusTarget.value as never })
-    showStatusModal.value = false
-    statusTarget.value = ''
-    await fetchDifficulty()
-    await fetchVotes()
-  } catch {
-  } finally {
-    statusLoading.value = false
   }
 }
 
@@ -570,13 +550,6 @@ watch(availableActions, (actions) => {
   prefillFromExistingVote()
 }, { immediate: true })
 
-const statusTransitions = computed<{ value: string; label: string }[]>(() => {
-  if (!difficulty.value) return []
-  const s = difficulty.value.status
-  const opts: { value: string; label: string }[] = []
-  if (s === 'QUALIFIED') opts.push({ value: 'RANKED', label: 'Move to Ranked' })
-  return opts
-})
 </script>
 
 <template>
@@ -783,10 +756,6 @@ const statusTransitions = computed<{ value: string; label: string }[]>(() => {
             </svg>
           </button>
           <div v-if="managementOpen" class="rank-detail__action-row">
-            <BaseButton v-for="transition in statusTransitions" :key="transition.value" variant="primary" size="sm"
-              @click="statusTarget = transition.value; showStatusModal = true">
-              {{ transition.label }}
-            </BaseButton>
             <BaseSelect v-if="batchOptions.length" :options="[{ value: '', label: 'Add to Batch...' }, ...batchOptions]"
               model-value="" @update:model-value="(v: string) => v && addToBatch(v)" />
             <BaseButton v-if="canRefreshFromBeatSaver" size="sm" :disabled="!driftInfo || refreshChecking"
@@ -970,18 +939,6 @@ const statusTransitions = computed<{ value: string; label: string }[]>(() => {
         <BaseButton @click="goBackToQueue">Back to Queue</BaseButton>
       </div>
     </template>
-
-    <BaseModal :open="showStatusModal" title="Change Status" max-width="400px" @close="showStatusModal = false">
-      <p style="color: var(--text-secondary); margin: 0 0 var(--space-md)">
-        Move this difficulty to <strong>{{ statusTarget }}</strong>?
-      </p>
-      <template #footer>
-        <div style="display: flex; gap: var(--space-sm); justify-content: flex-end">
-          <BaseButton @click="showStatusModal = false">Cancel</BaseButton>
-          <BaseButton variant="primary" :loading="statusLoading" @click="handleStatusChange">Confirm</BaseButton>
-        </div>
-      </template>
-    </BaseModal>
 
     <BaseModal :open="showComplexityModal" title="Set Complexity" max-width="400px"
       @close="showComplexityModal = false">
