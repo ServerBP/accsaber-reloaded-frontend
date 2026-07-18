@@ -108,7 +108,8 @@ const emit = defineEmits<{
   }
 
   .event-pill--bar .event-pill__title,
-  .event-pill--bar .event-pill__sep--time {
+  .event-pill--bar .event-pill__sep,
+  .event-pill--bar .event-pill__time {
     display: none;
   }
 }
