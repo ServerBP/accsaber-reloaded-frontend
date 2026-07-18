@@ -276,6 +276,7 @@ function peerActivity(p: PresencePeer): string {
           :active-tray="activeTray"
           :presence-peers="presencePeers"
           :editable="editable"
+          :flag-missing-rewards="true"
           :mode="canvasMode"
           @cursormove="onCursorMove"
           @cursoroff="sendCursorOff"

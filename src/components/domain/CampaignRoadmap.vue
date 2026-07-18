@@ -59,6 +59,7 @@ const props = withDefaults(
     followFocus?: boolean
     presencePeers?: PresencePeer[]
     editable?: boolean
+    flagMissingRewards?: boolean
     mode?: 'drag' | 'connect' | 'select'
     unit?: number
     markNext?: boolean
@@ -85,6 +86,7 @@ const props = withDefaults(
     followFocus: true,
     presencePeers: () => [],
     editable: false,
+    flagMissingRewards: false,
     mode: 'drag',
     unit: 48,
     markNext: false,
@@ -191,6 +193,25 @@ const difficultyById = computed(() => {
   for (const d of props.difficulties) map.set(d.id, d)
   return map
 })
+
+function nodeUnranked(d: CampaignDifficultyResponse): boolean {
+  if (d.status != null) return d.status !== 'RANKED'
+  return d.categoryId == null
+}
+
+const missingRewardIds = computed(() => {
+  const set = new Set<string>()
+  if (!props.flagMissingRewards) return set
+  if (props.difficulties.some(nodeUnranked)) return set
+  for (const d of props.difficulties) {
+    if ((d.xp ?? 0) <= 0 && (d.items?.length ?? 0) === 0) set.add(d.id)
+  }
+  return set
+})
+
+function nodeSizeFor(id: string): number {
+  return resolveSize(difficultyById.value.get(id)?.size, props.unit)
+}
 
 const barrierLayout = computed(() => layoutNodes(props.barriers, props.unit))
 
@@ -1659,6 +1680,20 @@ const arrowDecorations = computed(() =>
             :label-placement="labelLayout.get(n.id) ?? null"
             @select="emit('select', $event)"
           />
+          <g
+            v-if="missingRewardIds.has(n.id)"
+            class="campaign-roadmap__reward-warn"
+            :transform="`translate(${n.cx + nodeSizeFor(n.id) * 0.72}, ${n.cy - nodeSizeFor(n.id) * 0.72})`"
+            aria-hidden="true"
+          >
+            <title>This node has no rewards set - 0 XP and no items.</title>
+            <circle class="campaign-roadmap__reward-warn-bg" :r="Math.max(unit * 0.13, 7)" />
+            <path
+              class="campaign-roadmap__reward-warn-mark"
+              :d="`M0 ${-unit * 0.06} V ${unit * 0.02} M0 ${unit * 0.055} v0.01`"
+              :stroke-width="Math.max(unit * 0.03, 1.7)"
+            />
+          </g>
         </g>
 
         <g v-if="affectedHighlight" class="campaign-roadmap__affected" aria-hidden="true">
@@ -1944,6 +1979,23 @@ const arrowDecorations = computed(() =>
   stroke-width: 1;
   stroke-dasharray: 5 4;
   pointer-events: none;
+}
+
+.campaign-roadmap__reward-warn {
+  pointer-events: auto;
+  cursor: help;
+}
+
+.campaign-roadmap__reward-warn-bg {
+  fill: var(--warning);
+  stroke: var(--bg-base);
+  stroke-width: 1.5;
+}
+
+.campaign-roadmap__reward-warn-mark {
+  stroke: var(--bg-base);
+  stroke-linecap: round;
+  fill: none;
 }
 
 .campaign-roadmap__node--editable {
