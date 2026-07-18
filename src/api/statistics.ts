@@ -1,5 +1,6 @@
 import type {
   DistributionEntryResponse,
+  FirstEditionHolderResponse,
   ItemScarcityResponse,
   MapAvgApResponse,
   MapRetryResponse,
@@ -79,6 +80,10 @@ export function getMostEssenceEarned(params?: PaginationParams, country?: string
 
 export function getRarestUnboxed(params?: PaginationParams, country?: string): Promise<Page<RarestUnboxedResponse>> {
   return get<Page<RarestUnboxedResponse>>(`/statistics/leaderboards/rarest-unboxed${buildQuery({ ...params, country })}`)
+}
+
+export function getFirstEditionHolders(params?: PaginationParams, country?: string): Promise<Page<FirstEditionHolderResponse>> {
+  return get<Page<FirstEditionHolderResponse>>(`/statistics/leaderboards/first-edition-holders${buildQuery({ ...params, country })}`)
 }
 
 export function getRarestItems(params?: PaginationParams): Promise<Page<ItemScarcityResponse>> {

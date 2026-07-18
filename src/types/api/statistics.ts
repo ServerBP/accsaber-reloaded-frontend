@@ -119,18 +119,27 @@ export interface UserEssenceEarnedResponse extends ItemStatsPlayerRef {
   essenceEarned: number
 }
 
-export interface RarestUnboxedResponse {
+export interface RarestUnboxedResponse extends ItemStatsPlayerRef {
   linkId: string
-  owner: ItemStatsPlayerRef
   itemId: string
   itemName: string
-  iconUrl: string | null
+  iconUrl?: string | null
   rarity: ItemRarity
   typeKey: ItemTypeKey
   serialNumber: number | null
   modifierCount: number
   modifiers: string[]
-  unusualEffect: string | null
+  unusualEffect?: string | null
+}
+
+export interface FirstEditionHolderResponse extends ItemStatsPlayerRef {
+  linkId: string
+  itemId: string
+  itemName: string
+  iconUrl?: string | null
+  rarity: ItemRarity
+  typeKey: ItemTypeKey
+  serialNumber: number | null
 }
 
 export interface ItemScarcityResponse {
@@ -140,6 +149,7 @@ export interface ItemScarcityResponse {
   rarity: ItemRarity
   typeKey: ItemTypeKey
   ownerCount: number
+  instanceCount: number
 }
 
 export interface TimeSeriesPointResponse {

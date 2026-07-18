@@ -22,12 +22,12 @@ const router = useRouter()
 const modifierStore = useItemModifierStore()
 
 const isScarcity = computed(() => props.board === 'rarest-items')
-const isUnboxed = computed(() => props.board === 'rarest-unboxed')
-const isItemBoard = computed(() => isScarcity.value || isUnboxed.value)
+const hasOwner = computed(() => props.board === 'rarest-unboxed' || props.board === 'first-edition-holders')
+const isItemBoard = computed(() => isScarcity.value || hasOwner.value)
 
 function rowTo(row: Record<string, unknown>) {
   if (isScarcity.value) return undefined
-  const userId = (isUnboxed.value ? row.ownerUserId : row.userId) as string | undefined
+  const userId = (hasOwner.value ? row.ownerUserId : row.userId) as string | undefined
   if (userId) return { name: 'player-profile', params: { userId } }
   return undefined
 }
@@ -91,7 +91,7 @@ function typeLabel(typeKey: unknown): string {
 }
 
 onMounted(() => {
-  if (isUnboxed.value) modifierStore.fetchModifiers()
+  if (props.board === 'rarest-unboxed') modifierStore.fetchModifiers()
 })
 </script>
 
@@ -151,6 +151,7 @@ onMounted(() => {
     <template #cell-catalogTotal="{ value }">{{ fmtInt(value) }}</template>
     <template #cell-completionPercent="{ value }"><span class="stat-accent">{{ fmtPercent(value) }}</span></template>
     <template #cell-ownerCount="{ value }"><span class="stat-accent">{{ fmtInt(value) }}</span></template>
+    <template #cell-instanceCount="{ value }">{{ fmtInt(value) }}</template>
     <template #cell-itemsValue="{ value }">{{ fmtEssence(value) }}</template>
     <template #cell-essenceBalance="{ value }">{{ fmtEssence(value) }}</template>
     <template #cell-totalValue="{ value }"><span class="stat-essence">{{ fmtEssence(value) }}</span></template>
@@ -187,7 +188,7 @@ onMounted(() => {
           <template v-else-if="board === 'most-complete-collection'"><span class="stat-accent">{{ fmtPercent(row.completionPercent) }}</span></template>
           <template v-else-if="board === 'biggest-traders'"><span class="stat-accent">{{ fmtInt(row.tradeCount) }}</span></template>
           <template v-else-if="board === 'most-essence-earned'"><span class="stat-essence">{{ fmtEssence(row.essenceEarned) }}</span></template>
-          <template v-else-if="board === 'rarest-items'"><span class="stat-accent">{{ fmtInt(row.ownerCount) }}</span></template>
+          <template v-else-if="board === 'rarest-items'"><span class="stat-accent">{{ fmtInt(row.instanceCount) }}</span></template>
           <template v-else-if="board === 'rarest-unboxed'"><span class="item-cell__name" :class="rarityClass(row.rarity as ItemRarity)">{{ row.rarity }}</span></template>
         </span>
       </div>

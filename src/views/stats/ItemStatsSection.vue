@@ -28,6 +28,7 @@ type ItemStatsBoard =
   | 'biggest-traders'
   | 'most-essence-earned'
   | 'rarest-unboxed'
+  | 'first-edition-holders'
   | 'rarest-items'
 
 type BoardFilter = 'type' | 'modifier' | 'crate'
@@ -107,9 +108,18 @@ const BOARDS: BoardDef[] = [
     country: true, filters: [],
   },
   {
-    key: 'rarest-items', label: 'Item Scarcity', icon: 'gauge', description: 'Fewest owners',
-    columns: [rankCol, itemCol, { key: 'ownerCount', label: 'Owners', align: 'right', mono: true, width: '120px' }],
-    sort: 'ownerCount,asc', country: false, filters: [],
+    key: 'first-edition-holders', label: 'First Edition Holders', icon: 'medal', description: 'Who holds serial #1',
+    columns: [rankCol, itemCol, { key: 'owner', label: 'Holder', align: 'left', width: '220px' }],
+    country: true, filters: [],
+  },
+  {
+    key: 'rarest-items', label: 'Item Scarcity', icon: 'gauge', description: 'Fewest copies',
+    columns: [
+      rankCol, itemCol,
+      { key: 'ownerCount', label: 'Owners', align: 'right', mono: true, width: '110px' },
+      { key: 'instanceCount', label: 'Count', align: 'right', mono: true, width: '110px' },
+    ],
+    sort: 'instanceCount,asc', country: false, filters: [],
   },
 ]
 
@@ -250,15 +260,15 @@ const rows = computed<Record<string, unknown>[]>(() => {
     if (activeBoard.value === 'rarest-items') {
       return withRank(enrichItem(item), i)
     }
-    if (activeBoard.value === 'rarest-unboxed') {
-      const owner = item.owner as ItemStatsPlayerRef
+    if (activeBoard.value === 'rarest-unboxed' || activeBoard.value === 'first-edition-holders') {
+      const owner = item as unknown as ItemStatsPlayerRef
       return withRank(enrichItem({
         ...item,
-        ownerUserId: owner?.userId,
-        ownerUserName: owner?.userName,
+        ownerUserId: owner.userId,
+        ownerUserName: owner.userName,
         ownerAvatarUrl: pickAvatarUrl(owner),
         ownerAvatarFallbackUrl: pickAvatarFallback(owner),
-        ownerCountry: owner?.country,
+        ownerCountry: owner.country,
       }), i)
     }
     const player = item as unknown as ItemStatsPlayerRef
@@ -306,6 +316,9 @@ async function fetchData() {
         break
       case 'rarest-unboxed':
         result = await api.getRarestUnboxed(params, country)
+        break
+      case 'first-edition-holders':
+        result = await api.getFirstEditionHolders(params, country)
         break
       case 'rarest-items':
         result = await api.getRarestItems(params)
