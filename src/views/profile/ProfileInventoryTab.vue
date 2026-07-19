@@ -247,7 +247,11 @@ const { contents: crateContents, loading: crateContentsLoading } = useCrateConte
 
 const { modifiers: crateModifiers, loading: crateModifiersLoading } = useCrateModifiers(crateItem)
 
-const { effects: crateEffects, load: loadCrateEffects } = useCrateUnusualEffects(
+const {
+  effects: crateEffects,
+  loading: crateEffectsLoading,
+  load: loadCrateEffects,
+} = useCrateUnusualEffects(
   () => (crateItem.value?.typeKey === 'crate' ? crateItem.value.id : null),
 )
 
@@ -751,7 +755,10 @@ onUnmounted(() => {
           :crate-contents-loading="crateContentsLoading"
           :crate-modifiers="crateModifiers"
           :crate-modifiers-loading="crateModifiersLoading"
+          :crate-effects="crateEffects"
+          :crate-effects-loading="crateEffectsLoading"
           :owned-item-ids="ownedIds"
+          @load-crate-effects="loadCrateEffects"
           @equip="handleEquip"
           @apply-theme-mode="handleApplyThemeMode"
           @select-variant="handleSelectVariant"
@@ -777,7 +784,10 @@ onUnmounted(() => {
         :crate-contents-loading="crateContentsLoading"
         :crate-modifiers="crateModifiers"
         :crate-modifiers-loading="crateModifiersLoading"
+        :crate-effects="crateEffects"
+        :crate-effects-loading="crateEffectsLoading"
         :owned-item-ids="ownedIds"
+        @load-crate-effects="loadCrateEffects"
         @equip="handleEquip"
         @apply-theme-mode="handleApplyThemeMode"
         @select-variant="handleSelectVariant"

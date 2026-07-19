@@ -3,6 +3,7 @@ import BaseButton from '@/components/common/BaseButton.vue'
 import BorderCompositionPreview from '@/components/domain/BorderCompositionPreview.vue'
 import CrateContentsList from '@/components/domain/CrateContentsList.vue'
 import CrateModifierList from '@/components/domain/CrateModifierList.vue'
+import CratePreviewModal from '@/components/domain/CratePreviewModal.vue'
 import FragmentedItem from '@/components/domain/FragmentedItem.vue'
 import ItemPreview from '@/components/domain/ItemPreview.vue'
 import ModifierChip from '@/components/domain/ModifierChip.vue'
@@ -11,7 +12,7 @@ import { useModifierColor } from '@/composables/useModifierColor'
 import { useItemModifierStore } from '@/stores/itemModifiers'
 import { useItemTypeStore } from '@/stores/itemTypes'
 import { useThemeStore } from '@/stores/theme'
-import type { BorderColorValue, BorderShapeValue, CrateContentResponse, CrateModifierResponse, ItemModifierRef, ItemResponse, ItemVariant, UserItemResponse } from '@/types/api/items'
+import type { BorderColorValue, BorderShapeValue, CrateContentResponse, CrateModifierResponse, ItemModifierRef, ItemResponse, ItemVariant, UnusualEffectResponse, UserItemResponse } from '@/types/api/items'
 import { formatEssence } from '@/utils/essence'
 import { formatRelativeDate } from '@/utils/formatters'
 import { shapeSilhouetteMask } from '@/utils/shapeSilhouette'
@@ -42,19 +43,22 @@ const props = defineProps<{
   crateContentsLoading?: boolean
   crateModifiers?: CrateModifierResponse[]
   crateModifiersLoading?: boolean
+  crateEffects?: UnusualEffectResponse[]
+  crateEffectsLoading?: boolean
   ownedItemIds?: Set<string>
   equippedBorderShape?: BorderShapeValue | null
   equippedBorderColor?: BorderColorValue | null
   avatarUrl?: string | null
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   equip: [linkId: string]
   unequip: [typeKey: string]
   disintegrate: [linkId: string]
   openCrate: [linkId: string]
   applyThemeMode: [linkId: string, alt: boolean]
   selectVariant: [linkId: string, variantKey: string]
+  loadCrateEffects: []
 }>()
 
 const itemTypeStore = useItemTypeStore()
@@ -164,6 +168,13 @@ const showOpenCrate = computed(
   () => isCrate.value && props.isOwnProfile && !props.locked && !!item.value?.active && !item.value.deprecated,
 )
 
+const previewOpen = ref(false)
+
+function openPreview() {
+  previewOpen.value = true
+  emit('loadCrateEffects')
+}
+
 const CRATE_UNLOCK_MS = Date.UTC(2026, 6, 17, 15, 0, 0)
 const CRATE_UNLOCK_MESSAGE = 'Crate opening unlocks Friday, July 17 at 3:00 PM UTC.'
 const crateLocked = ref(Date.now() < CRATE_UNLOCK_MS)
@@ -243,8 +254,9 @@ onUnmounted(() => {
 
     <p v-if="item.description" class="inv-detail__description">{{ item.description }}</p>
 
-    <div v-if="showOpenCrate" class="inv-detail__crate-open-row">
+    <div v-if="isCrate" class="inv-detail__crate-open-row">
       <span
+        v-if="showOpenCrate"
         class="inv-detail__crate-open"
         :title="crateLocked ? CRATE_UNLOCK_MESSAGE : undefined"
       >
@@ -258,6 +270,8 @@ onUnmounted(() => {
           Open crate
         </BaseButton>
       </span>
+
+      <BaseButton size="md" @click="openPreview">Preview</BaseButton>
     </div>
 
     <CrateContentsList
@@ -272,6 +286,20 @@ onUnmounted(() => {
       :modifiers="crateModifiers ?? []"
       :crate-id="item.id"
       :loading="crateModifiersLoading"
+    />
+
+    <CratePreviewModal
+      v-if="isCrate"
+      :open="previewOpen"
+      :crate="item"
+      :contents="crateContents ?? []"
+      :contents-loading="crateContentsLoading"
+      :modifiers="crateModifiers ?? []"
+      :modifiers-loading="crateModifiersLoading"
+      :effects="crateEffects ?? []"
+      :effects-loading="crateEffectsLoading"
+      :owned-item-ids="ownedItemIds"
+      @close="previewOpen = false"
     />
 
     <div
@@ -598,6 +626,9 @@ onUnmounted(() => {
 
 .inv-detail__crate-open-row {
   display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
 }
 
 .inv-detail__crate-open {
