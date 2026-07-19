@@ -98,9 +98,9 @@ onUnmounted(() => {
 
         <div class="hero__cta">
           <div v-if="isLoggedIn" class="hero__mini-stats">
-            <span class="hero__mini-stat"><strong>124K+</strong> Players</span>
+            <span class="hero__mini-stat"><strong>128K+</strong> Players</span>
             <span class="hero__mini-sep" aria-hidden="true">·</span>
-            <span class="hero__mini-stat"><strong>450+</strong> Ranked Maps</span>
+            <span class="hero__mini-stat"><strong>540+</strong> Ranked Maps</span>
           </div>
           <div class="hero__cta-buttons">
             <div class="hero__actions">
@@ -158,11 +158,11 @@ onUnmounted(() => {
       <template v-if="!isLoggedIn">
         <div class="hero__stats">
           <div class="hero__stat">
-            <span class="hero__stat-value">124K+</span>
+            <span class="hero__stat-value">128K+</span>
             <span class="hero__stat-label">Total Players</span>
           </div>
           <div class="hero__stat">
-            <span class="hero__stat-value">450+</span>
+            <span class="hero__stat-value">540+</span>
             <span class="hero__stat-label">Ranked Maps</span>
           </div>
         </div>

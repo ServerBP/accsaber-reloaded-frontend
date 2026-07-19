@@ -54,13 +54,15 @@ const skyStyle = computed((): Record<string, string> => {
   const overlay = props.measure.overlayBox
   const clipW = overlay.w || box.x + box.w
   const clipH = overlay.h || box.y + box.h
-  const left = Math.max(box.x - box.w * 0.04, 0)
-  const top = Math.max(box.y - box.h * 0.03, 0)
+  const left = Math.max(box.x, 0)
+  const top = Math.max(box.y, 0)
+  const minD = Math.min(box.w, box.h)
   return {
     left: `${left}px`,
     top: `${top}px`,
-    width: `${Math.min(box.w * 1.08, clipW - left)}px`,
+    width: `${Math.min(box.w, clipW - left)}px`,
     height: `${Math.min(box.h * (c.sizePct / 100), clipH - top)}px`,
+    borderRadius: `${minD * 0.08}px`,
     '--ndrift': `${c.driftMs / 1000}s`,
     '--nstar': c.starColor,
     '--nmoon': c.moonColor,
@@ -74,7 +76,7 @@ const veil = computed(() => {
   if (isWide(props.measure.box)) {
     return `linear-gradient(to bottom, transparent 0%, ${strongC} 28%, ${strongC} 72%, transparent 100%)`
   }
-  return `linear-gradient(to bottom, transparent 0%, ${strongC} 14%, ${midC} 60%, transparent 100%)`
+  return `linear-gradient(to bottom, ${strongC} 0%, ${strongC} 30%, ${midC} 62%, transparent 100%)`
 })
 
 interface NightStar {
@@ -124,41 +126,43 @@ const moons = computed<Array<{ x: number, y: number, sizePx: number }>>(() => {
 <template>
   <div class="comp-fx-region">
     <div class="comp-fx-night-sky" :style="skyStyle">
-      <div class="comp-fx-night-veil" :style="{ background: veil }"></div>
-      <span
-        v-for="(st, j) in stars"
-        :key="j"
-        class="comp-fx-night-star"
-        :class="{ 'comp-fx-night-star--spark': st.spark }"
-        :style="{
-          left: `${st.x}%`,
-          top: `${st.y}%`,
-          width: `${st.size}px`,
-          height: `${st.size}px`,
-          '--ndur': `${st.duration}s`,
-          '--ndelay': `-${st.delay}s`,
-        }"
-      ></span>
-      <template v-for="(moon, j) in moons" :key="`moon-${j}`">
+      <div class="comp-fx-night-fade">
+        <div class="comp-fx-night-veil" :style="{ background: veil }"></div>
         <span
-          class="comp-fx-night-moon-glow"
+          v-for="(st, j) in stars"
+          :key="j"
+          class="comp-fx-night-star"
+          :class="{ 'comp-fx-night-star--spark': st.spark }"
           :style="{
-            width: `${moon.sizePx * 2.6}px`,
-            height: `${moon.sizePx * 2.6}px`,
-            left: `calc(${moon.x}% - ${moon.sizePx * 1.3}px)`,
-            top: `calc(${moon.y}% - ${moon.sizePx * 1.3}px)`,
+            left: `${st.x}%`,
+            top: `${st.y}%`,
+            width: `${st.size}px`,
+            height: `${st.size}px`,
+            '--ndur': `${st.duration}s`,
+            '--ndelay': `-${st.delay}s`,
           }"
         ></span>
-        <span
-          class="comp-fx-night-moon"
-          :style="{
-            width: `${moon.sizePx}px`,
-            height: `${moon.sizePx}px`,
-            left: `calc(${moon.x}% - ${moon.sizePx / 2}px)`,
-            top: `calc(${moon.y}% - ${moon.sizePx / 2}px)`,
-          }"
-        ></span>
-      </template>
+        <template v-for="(moon, j) in moons" :key="`moon-${j}`">
+          <span
+            class="comp-fx-night-moon-glow"
+            :style="{
+              width: `${moon.sizePx * 2.6}px`,
+              height: `${moon.sizePx * 2.6}px`,
+              left: `calc(${moon.x}% - ${moon.sizePx * 1.3}px)`,
+              top: `calc(${moon.y}% - ${moon.sizePx * 1.3}px)`,
+            }"
+          ></span>
+          <span
+            class="comp-fx-night-moon"
+            :style="{
+              width: `${moon.sizePx}px`,
+              height: `${moon.sizePx}px`,
+              left: `calc(${moon.x}% - ${moon.sizePx / 2}px)`,
+              top: `calc(${moon.y}% - ${moon.sizePx / 2}px)`,
+            }"
+          ></span>
+        </template>
+      </div>
     </div>
   </div>
 </template>
@@ -173,9 +177,17 @@ const moons = computed<Array<{ x: number, y: number, sizePx: number }>>(() => {
 
 .comp-fx-night-sky {
   position: absolute;
-  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 10%, #000 90%, transparent 100%);
-  mask-image: linear-gradient(to right, transparent 0%, #000 10%, #000 90%, transparent 100%);
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 12%, #000 88%, transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0%, #000 12%, #000 88%, transparent 100%);
   animation: comp-fx-night-drift var(--ndrift, 11s) ease-in-out infinite;
+}
+
+.comp-fx-night-fade {
+  position: absolute;
+  inset: 0;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 14%, #000 86%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 14%, #000 86%, transparent 100%);
 }
 
 .comp-fx-night-veil {

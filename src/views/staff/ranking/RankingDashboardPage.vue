@@ -287,6 +287,13 @@ async function fetchDifficulties() {
 }
 
 watch(
+  () => searchQuery.value,
+  () => {
+    if (currentPage.value !== 1) setPage(1)
+  },
+)
+
+watch(
   [() => activeStatus.value, () => reweightScope.value, selectedCategories, complexityRange, paginationParams, () => searchQuery.value],
   fetchDifficulties,
   { immediate: true },

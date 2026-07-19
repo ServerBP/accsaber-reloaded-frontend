@@ -41,6 +41,29 @@ const referenceAccuracy = ref(0)
 const decimalMax = computed(() => wholeValue.value >= 100 ? 0 : 99)
 const combinedAccuracy = computed(() => (wholeValue.value + decimalValue.value / 100) / 100)
 
+const WHOLE_STOPS = [0, 50, 80, 90, 100]
+const WHOLE_TRACK = 1000
+
+function trackToWhole(pos: number): number {
+  const t = Math.max(0, Math.min(1, pos / WHOLE_TRACK)) * (WHOLE_STOPS.length - 1)
+  const seg = Math.min(WHOLE_STOPS.length - 2, Math.floor(t))
+  return Math.round(WHOLE_STOPS[seg] + (WHOLE_STOPS[seg + 1] - WHOLE_STOPS[seg]) * (t - seg))
+}
+
+function wholeToTrack(whole: number): number {
+  const v = Math.max(0, Math.min(100, whole))
+  let seg = 0
+  while (seg < WHOLE_STOPS.length - 2 && v > WHOLE_STOPS[seg + 1]) seg++
+  const span = WHOLE_STOPS[seg + 1] - WHOLE_STOPS[seg]
+  const frac = span > 0 ? (v - WHOLE_STOPS[seg]) / span : 0
+  return Math.round(((seg + frac) / (WHOLE_STOPS.length - 1)) * WHOLE_TRACK)
+}
+
+const wholeTrack = computed({
+  get: () => wholeToTrack(wholeValue.value),
+  set: (pos: number) => { wholeValue.value = trackToWhole(pos) },
+})
+
 function splitAccuracy(acc: number) {
   const pct = Math.round(acc * 10000) / 100
   wholeValue.value = Math.floor(pct)
@@ -235,7 +258,8 @@ function diffColor(val: number): string {
           <div class="ap-tweaker__slider-group">
             <div class="ap-tweaker__slider-row">
               <label class="ap-tweaker__label">Whole %</label>
-              <input v-model.number="wholeValue" type="range" class="ap-tweaker__slider" min="0" max="100" step="1" />
+              <input v-model.number="wholeTrack" type="range" class="ap-tweaker__slider ap-tweaker__slider--warped"
+                min="0" :max="WHOLE_TRACK" step="1" />
             </div>
             <div class="ap-tweaker__slider-row">
               <label class="ap-tweaker__label">Decimal</label>
@@ -390,6 +414,13 @@ function diffColor(val: number): string {
   border-radius: 2px;
   outline: none;
   cursor: pointer;
+}
+
+.ap-tweaker__slider--warped {
+  background-image: linear-gradient(to right,
+    transparent calc(25% - 1px), var(--bg-base) calc(25% - 1px), var(--bg-base) 25%, transparent 25%,
+    transparent calc(50% - 1px), var(--bg-base) calc(50% - 1px), var(--bg-base) 50%, transparent 50%,
+    transparent calc(75% - 1px), var(--bg-base) calc(75% - 1px), var(--bg-base) 75%, transparent 75%);
 }
 
 .ap-tweaker__slider:disabled {
