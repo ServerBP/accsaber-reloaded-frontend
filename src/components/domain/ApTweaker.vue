@@ -41,27 +41,51 @@ const referenceAccuracy = ref(0)
 const decimalMax = computed(() => wholeValue.value >= 100 ? 0 : 99)
 const combinedAccuracy = computed(() => (wholeValue.value + decimalValue.value / 100) / 100)
 
-const WHOLE_STOPS = [0, 50, 80, 90, 100]
+const WHOLE_STOPS: Array<{ at: number, value: number }> = [
+  { at: 0, value: 0 },
+  { at: 1 / 6, value: 50 },
+  { at: 2 / 6, value: 80 },
+  { at: 3 / 6, value: 90 },
+  { at: 1, value: 100 },
+]
 const WHOLE_TRACK = 1000
 
+function segmentFor(pick: (stop: { at: number, value: number }) => number, target: number) {
+  let seg = 0
+  while (seg < WHOLE_STOPS.length - 2 && target > pick(WHOLE_STOPS[seg + 1])) seg++
+  return { a: WHOLE_STOPS[seg], b: WHOLE_STOPS[seg + 1] }
+}
+
 function trackToWhole(pos: number): number {
-  const t = Math.max(0, Math.min(1, pos / WHOLE_TRACK)) * (WHOLE_STOPS.length - 1)
-  const seg = Math.min(WHOLE_STOPS.length - 2, Math.floor(t))
-  return Math.round(WHOLE_STOPS[seg] + (WHOLE_STOPS[seg + 1] - WHOLE_STOPS[seg]) * (t - seg))
+  const t = Math.max(0, Math.min(1, pos / WHOLE_TRACK))
+  const { a, b } = segmentFor((s) => s.at, t)
+  const frac = b.at > a.at ? (t - a.at) / (b.at - a.at) : 0
+  return Math.round(a.value + (b.value - a.value) * frac)
 }
 
 function wholeToTrack(whole: number): number {
   const v = Math.max(0, Math.min(100, whole))
-  let seg = 0
-  while (seg < WHOLE_STOPS.length - 2 && v > WHOLE_STOPS[seg + 1]) seg++
-  const span = WHOLE_STOPS[seg + 1] - WHOLE_STOPS[seg]
-  const frac = span > 0 ? (v - WHOLE_STOPS[seg]) / span : 0
-  return Math.round(((seg + frac) / (WHOLE_STOPS.length - 1)) * WHOLE_TRACK)
+  const { a, b } = segmentFor((s) => s.value, v)
+  const frac = b.value > a.value ? (v - a.value) / (b.value - a.value) : 0
+  return Math.round((a.at + (b.at - a.at) * frac) * WHOLE_TRACK)
 }
 
 const wholeTrack = computed({
   get: () => wholeToTrack(wholeValue.value),
   set: (pos: number) => { wholeValue.value = trackToWhole(pos) },
+})
+
+const wholeTicks = computed(() => {
+  const stops = WHOLE_STOPS.slice(1, -1).flatMap(({ at }) => {
+    const mark = `${(at * 100).toFixed(4)}%`
+    return [
+      `transparent calc(${mark} - 1px)`,
+      `var(--bg-base) calc(${mark} - 1px)`,
+      `var(--bg-base) ${mark}`,
+      `transparent ${mark}`,
+    ]
+  })
+  return `linear-gradient(to right, ${stops.join(', ')})`
 })
 
 function splitAccuracy(acc: number) {
@@ -258,8 +282,8 @@ function diffColor(val: number): string {
           <div class="ap-tweaker__slider-group">
             <div class="ap-tweaker__slider-row">
               <label class="ap-tweaker__label">Whole %</label>
-              <input v-model.number="wholeTrack" type="range" class="ap-tweaker__slider ap-tweaker__slider--warped"
-                min="0" :max="WHOLE_TRACK" step="1" />
+              <input v-model.number="wholeTrack" type="range" class="ap-tweaker__slider"
+                :style="{ backgroundImage: wholeTicks }" min="0" :max="WHOLE_TRACK" step="1" />
             </div>
             <div class="ap-tweaker__slider-row">
               <label class="ap-tweaker__label">Decimal</label>
@@ -414,13 +438,6 @@ function diffColor(val: number): string {
   border-radius: 2px;
   outline: none;
   cursor: pointer;
-}
-
-.ap-tweaker__slider--warped {
-  background-image: linear-gradient(to right,
-    transparent calc(25% - 1px), var(--bg-base) calc(25% - 1px), var(--bg-base) 25%, transparent 25%,
-    transparent calc(50% - 1px), var(--bg-base) calc(50% - 1px), var(--bg-base) 50%, transparent 50%,
-    transparent calc(75% - 1px), var(--bg-base) calc(75% - 1px), var(--bg-base) 75%, transparent 75%);
 }
 
 .ap-tweaker__slider:disabled {
