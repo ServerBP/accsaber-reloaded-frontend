@@ -152,6 +152,7 @@ const fallbackTitleStyle = computed(() => {
             class="level-badge__title-fx-layer"
             :spec="layer.spec"
             type-key="title"
+            measure-selector=".title-renderer"
             :stack-index="layer.stackIndex"
             hide-stat-counters
           />
