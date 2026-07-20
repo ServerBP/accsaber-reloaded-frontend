@@ -38,7 +38,7 @@ function handleClick(event: MouseEvent) {
       <span class="map-card__song">{{ map.songName }}</span>
       <div class="map-card__primary">
         <DifficultyBadge :difficulty="map.difficulty" />
-        <ComplexityBadge :complexity="map.complexity" bar />
+        <ComplexityBadge :complexity="map.complexity" />
       </div>
       <div class="map-card__secondary">
         <span class="map-card__artist">{{ map.artistName }}</span>

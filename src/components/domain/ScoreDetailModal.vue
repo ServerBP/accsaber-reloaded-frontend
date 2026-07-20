@@ -376,7 +376,7 @@ watch(
           </p>
           <div class="score-detail__chips">
             <DifficultyBadge v-if="difficultyRaw" :difficulty="difficultyRaw" />
-            <ComplexityBadge v-if="complexity != null" :complexity="complexity" bar />
+            <ComplexityBadge v-if="complexity != null" :complexity="complexity" />
             <span v-if="characteristic && characteristic !== 'Standard'" class="score-detail__char">
               {{ characteristic }}
             </span>

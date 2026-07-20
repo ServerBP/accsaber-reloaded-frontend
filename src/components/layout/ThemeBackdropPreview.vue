@@ -10,6 +10,7 @@ const props = defineProps<{
 const PREVIEW_ZOOM: Record<ThemeBackdropType, number> = {
   starfield: 2,
   pixel_field: 4,
+  forest: 4,
 }
 
 const config = computed(() => readBackdropConfig(props.tokens))

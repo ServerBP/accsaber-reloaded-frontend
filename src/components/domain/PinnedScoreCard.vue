@@ -197,7 +197,7 @@ function onReplayClick(e: MouseEvent) {
         <h3 class="pin-card__song" :title="score.songName">{{ score.songName }}</h3>
         <div class="pin-card__badges">
           <DifficultyBadge :difficulty="score.difficulty" />
-          <ComplexityBadge v-if="complexity != null" :complexity="complexity" bar />
+          <ComplexityBadge v-if="complexity != null" :complexity="complexity" />
         </div>
       </div>
       <dl class="pin-card__stats">

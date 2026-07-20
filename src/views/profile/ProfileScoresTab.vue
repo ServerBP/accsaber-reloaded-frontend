@@ -297,7 +297,7 @@ watch(
       </template>
 
       <template #cell-complexity="{ value }">
-        <ComplexityBadge v-if="value != null" :complexity="(value as number)" bar />
+        <ComplexityBadge v-if="value != null" :complexity="(value as number)" />
         <span v-else class="scores-tab__streak scores-tab__streak--empty">&ndash;</span>
       </template>
 

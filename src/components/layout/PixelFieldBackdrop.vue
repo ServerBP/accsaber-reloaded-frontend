@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useBackdropCanvas } from '@/composables/useBackdropCanvas'
 import { darken, lighten } from '@/utils/color'
+import { cell, drawDitheredBands } from '@/utils/pixelScene'
 import { randBetween as rand } from '@/utils/random'
 import type { PixelFieldBackdropConfig } from '@/utils/themeBackdrop'
 import { useTemplateRef } from 'vue'
@@ -49,11 +50,6 @@ let horizonRow = 0
 let sunCore = ''
 let sunMid = ''
 let sunGlow = ''
-
-function cell(ctx: CanvasRenderingContext2D, col: number, row: number, ps: number, color: string) {
-  ctx.fillStyle = color
-  ctx.fillRect(col * ps, row * ps, ps, ps)
-}
 
 function initField(w: number, h: number) {
   const ps = props.config.pixelSize
@@ -121,29 +117,12 @@ function spawnFlock(now: number, w: number, h: number) {
   }
 }
 
-function drawSky(ctx: CanvasRenderingContext2D, cols: number, ps: number) {
-  const bands = props.config.skyColors
-  const bandRows = horizonRow / bands.length
-  for (let b = 0; b < bands.length; b++) {
-    const y0 = Math.floor(b * bandRows)
-    const y1 = b === bands.length - 1 ? horizonRow + 5 : Math.floor((b + 1) * bandRows)
-    ctx.fillStyle = bands[b]
-    ctx.fillRect(0, y0 * ps, cols * ps, (y1 - y0) * ps)
-    if (b > 0) {
-      for (let col = 0; col < cols; col++) {
-        if ((col * 7 + y0 * 13) % 19 < 8) cell(ctx, col, y0, ps, bands[b - 1])
-        if ((col * 11 + y0 * 5) % 19 < 8) cell(ctx, col, y0 + 1, ps, bands[b - 1])
-      }
-    }
-  }
-}
-
 function drawScene(ctx: CanvasRenderingContext2D, w: number, h: number, elapsed: number, reduced: boolean) {
   const ps = props.config.pixelSize
   const cols = Math.ceil(w / ps)
   const rows = Math.ceil(h / ps)
 
-  drawSky(ctx, cols, ps)
+  drawDitheredBands(ctx, cols, ps, props.config.skyColors, 0, horizonRow)
 
   const sunCol = Math.floor(cols * 0.72)
   const sunRadius = 9

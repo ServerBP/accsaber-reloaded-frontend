@@ -32,7 +32,30 @@ export interface PixelFieldBackdropConfig {
   windSpeed: number
 }
 
-export type ThemeBackdropConfig = StarfieldBackdropConfig | PixelFieldBackdropConfig
+export interface ForestBackdropConfig {
+  type: 'forest'
+  opacity: number
+  pixelSize: number
+  canopyColors: string[]
+  treeColors: string[]
+  groundColors: string[]
+  pathColor: string
+  mushroomColors: string[]
+  wisps: boolean
+  wispColors: string[]
+  fireflies: boolean
+  fireflyColor: string
+  eyes: boolean
+  eyeColors: string[]
+  spores: boolean
+  bloom: boolean
+  driftSpeed: number
+}
+
+export type ThemeBackdropConfig =
+  | StarfieldBackdropConfig
+  | PixelFieldBackdropConfig
+  | ForestBackdropConfig
 
 export type ThemeBackdropType = ThemeBackdropConfig['type']
 
@@ -104,9 +127,32 @@ function parsePixelField(tokens: Record<string, string>): PixelFieldBackdropConf
   }
 }
 
+function parseForest(tokens: Record<string, string>): ForestBackdropConfig {
+  return {
+    type: 'forest',
+    opacity: readOpacity(tokens),
+    pixelSize: readNumber(tokens, 'fx-forest-pixel-size', 5),
+    canopyColors: readHexList(tokens, 'fx-forest-canopy-colors', ['#04060a', '#050b11', '#071118', '#08171c']),
+    treeColors: readHexList(tokens, 'fx-forest-tree-colors', ['#1c2624', '#231710', '#120a06']),
+    groundColors: readHexList(tokens, 'fx-forest-ground-colors', ['#081410', '#0a1c16', '#0d231b']),
+    pathColor: readHex(tokens, 'fx-forest-path-color', '#1a382b'),
+    mushroomColors: readHexList(tokens, 'fx-forest-mushroom-colors', ['#60a5fa', '#5eead4', '#c084fc']),
+    wisps: readFlag(tokens, 'fx-forest-wisps', false),
+    wispColors: readHexList(tokens, 'fx-forest-wisp-colors', ['#93c5fd', '#a5f3fc', '#ddd6fe']),
+    fireflies: readFlag(tokens, 'fx-forest-fireflies', false),
+    fireflyColor: readHex(tokens, 'fx-forest-firefly-color', '#d9f99d'),
+    eyes: readFlag(tokens, 'fx-forest-eyes', false),
+    eyeColors: readHexList(tokens, 'fx-forest-eye-colors', ['#fbbf24', '#5eead4', '#f472b6']),
+    spores: readFlag(tokens, 'fx-forest-spores', false),
+    bloom: readFlag(tokens, 'fx-forest-bloom', false),
+    driftSpeed: readNumber(tokens, 'fx-forest-drift', 1),
+  }
+}
+
 const BACKDROP_PARSERS: Record<string, (tokens: Record<string, string>) => ThemeBackdropConfig> = {
   starfield: parseStarfield,
   pixel_field: parsePixelField,
+  forest: parseForest,
 }
 
 export function readBackdropConfig(

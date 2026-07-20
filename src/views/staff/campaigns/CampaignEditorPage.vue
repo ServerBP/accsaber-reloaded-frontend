@@ -7,6 +7,7 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import CampaignPresenceActionGlyph from '@/components/domain/CampaignPresenceActionGlyph.vue'
 import CampaignRoadmap from '@/components/domain/CampaignRoadmap.vue'
+import ComplexityBadge from '@/components/domain/ComplexityBadge.vue'
 import { formatDifficulty } from '@/utils/mappers'
 import {
   colorForUser,
@@ -527,9 +528,9 @@ function peerActivity(p: PresencePeer): string {
               <p>{{ selectedDifficulty.songAuthor }} · {{ selectedDifficulty.mapAuthor }}</p>
               <p class="campaign-editor__node-diff">
                 {{ formatDifficulty(selectedDifficulty.difficulty) }}
-                <span v-if="selectedDifficulty.complexity != null"
-                  >· complexity {{ selectedDifficulty.complexity.toFixed(1) }}</span
-                >
+                <span v-if="selectedDifficulty.complexity != null">·</span>
+                <ComplexityBadge v-if="selectedDifficulty.complexity != null"
+                  :complexity="selectedDifficulty.complexity" />
                 <span class="campaign-editor__node-grid">
                   · grid
                   <code>{{ selectedDifficulty.positionX }},{{ selectedDifficulty.positionY }}</code>

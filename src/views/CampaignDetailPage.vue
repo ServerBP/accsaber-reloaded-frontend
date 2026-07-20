@@ -131,10 +131,20 @@ watch(() => auth.isLoggedIn, (next, prev) => {
   if (next !== prev) void load()
 })
 
-const categoryTag = computed(() => campaign.value?.tags.find((t) => t.kind === 'CATEGORY') ?? null)
+const categoryTags = computed(
+  () => campaign.value?.tags.filter((t) => t.kind === 'CATEGORY') ?? [],
+)
+
+const categoryLabel = computed(() => {
+  const cats = categoryTags.value
+  if (!cats.length) return null
+  return cats.length === 1 ? cats[0].name : `${cats[0].name} (+${cats.length - 1})`
+})
+
+const categoryTitle = computed(() => categoryTags.value.map((t) => t.name).join(', '))
 
 const accent = computed(() => {
-  const cats = campaign.value?.tags.filter((t) => t.kind === 'CATEGORY') ?? []
+  const cats = categoryTags.value
   if (cats.length !== 1 || !cats[0].categoryId) return 'var(--accent-overall)'
   const code = categoryStore.getCategoryCode(cats[0].categoryId)
   if (!code) return 'var(--accent-overall)'
@@ -523,8 +533,9 @@ function unpinTooltip() {
         <aside class="campaign-detail__rail campaign-detail__rail--left" aria-label="Campaign overview">
           <header class="campaign-detail__title-block">
             <div class="campaign-detail__eyebrow">
-              <span v-if="categoryTag" class="campaign-detail__category" :style="{ color: accent }">
-                {{ categoryTag.name }}
+              <span v-if="categoryLabel" class="campaign-detail__category" :style="{ color: accent }"
+                :title="categoryTitle">
+                {{ categoryLabel }}
               </span>
               <span v-if="difficultyLabel"
                 class="campaign-detail__chip campaign-detail__chip--difficulty"

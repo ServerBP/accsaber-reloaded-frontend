@@ -8,19 +8,13 @@ import {
   complexityPercent,
 } from '@/utils/complexity'
 
-const props = withDefaults(
-  defineProps<{
-    complexity: number
-    bar?: boolean
-  }>(),
-  { bar: false },
-)
+const props = defineProps<{
+  complexity: number
+}>()
 
-const { complexityNumberStyle, complexityBar } = useAppearance()
+const { complexityNumberStyle, complexityBar: showBar } = useAppearance()
 
 const formatted = computed(() => props.complexity.toFixed(1))
-
-const showBar = computed(() => props.bar && complexityBar.value)
 
 const styles = computed(() => ({
   '--complexity-percent': Math.max(complexityPercent(props.complexity), 0.5).toFixed(2),
