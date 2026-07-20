@@ -11,6 +11,7 @@ import BaseButton from '@/components/common/BaseButton.vue'
 import Breadcrumbs, { type Crumb } from '@/components/common/Breadcrumbs.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
+import CampaignCategoryTags from '@/components/domain/CampaignCategoryTags.vue'
 import CampaignRoadmap from '@/components/domain/CampaignRoadmap.vue'
 import CampaignRewardItem from '@/components/domain/CampaignRewardItem.vue'
 import CampaignStatusBadge from '@/components/domain/CampaignStatusBadge.vue'
@@ -131,20 +132,8 @@ watch(() => auth.isLoggedIn, (next, prev) => {
   if (next !== prev) void load()
 })
 
-const categoryTags = computed(
-  () => campaign.value?.tags.filter((t) => t.kind === 'CATEGORY') ?? [],
-)
-
-const categoryLabel = computed(() => {
-  const cats = categoryTags.value
-  if (!cats.length) return null
-  return cats.length === 1 ? cats[0].name : `${cats[0].name} (+${cats.length - 1})`
-})
-
-const categoryTitle = computed(() => categoryTags.value.map((t) => t.name).join(', '))
-
 const accent = computed(() => {
-  const cats = categoryTags.value
+  const cats = campaign.value?.tags.filter((t) => t.kind === 'CATEGORY') ?? []
   if (cats.length !== 1 || !cats[0].categoryId) return 'var(--accent-overall)'
   const code = categoryStore.getCategoryCode(cats[0].categoryId)
   if (!code) return 'var(--accent-overall)'
@@ -533,10 +522,7 @@ function unpinTooltip() {
         <aside class="campaign-detail__rail campaign-detail__rail--left" aria-label="Campaign overview">
           <header class="campaign-detail__title-block">
             <div class="campaign-detail__eyebrow">
-              <span v-if="categoryLabel" class="campaign-detail__category" :style="{ color: accent }"
-                :title="categoryTitle">
-                {{ categoryLabel }}
-              </span>
+              <CampaignCategoryTags :tags="campaign.tags" />
               <span v-if="difficultyLabel"
                 class="campaign-detail__chip campaign-detail__chip--difficulty"
                 :class="{ 'campaign-detail__chip--fade': difficultyGradient }"
@@ -1150,14 +1136,6 @@ function unpinTooltip() {
   gap: 8px;
   align-items: center;
   margin-bottom: var(--space-xs);
-}
-
-.campaign-detail__category {
-  font-family: var(--font-sans);
-  font-size: 0.5625rem;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
 }
 
 .campaign-detail__chip {

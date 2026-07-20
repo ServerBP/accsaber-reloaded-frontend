@@ -475,9 +475,11 @@ function onReplayClick(e: MouseEvent) {
 }
 
 .pin-card__body {
+  flex: 1;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) minmax(140px, 1fr);
   align-items: center;
+  align-content: center;
   gap: var(--space-lg);
 }
 

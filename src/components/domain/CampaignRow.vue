@@ -1,12 +1,9 @@
 <script setup lang="ts">
+import CampaignCategoryTags from '@/components/domain/CampaignCategoryTags.vue'
 import CampaignStatusBadge from '@/components/domain/CampaignStatusBadge.vue'
 import CampaignVoteControl from '@/components/domain/CampaignVoteControl.vue'
 import { useCategoryStore } from '@/stores/categories'
-import type {
-  CampaignProgressSummary,
-  CampaignResponse,
-  CampaignTagResponse,
-} from '@/types/api/campaigns'
+import type { CampaignProgressSummary, CampaignResponse } from '@/types/api/campaigns'
 import {
   campaignDifficultyColor,
   campaignDifficultyGradient,
@@ -29,10 +26,6 @@ const cardTo = computed<RouteLocationRaw>(() =>
 )
 
 const categoryStore = useCategoryStore()
-
-const categoryTag = computed<CampaignTagResponse | null>(
-  () => props.campaign.tags.find((t) => t.kind === 'CATEGORY') ?? null,
-)
 
 const difficultyLabel = computed<string | null>(() => campaignDifficultyLabel(props.campaign.tags))
 
@@ -141,10 +134,7 @@ const hasCover = computed(() => !!coverUrl.value)
       <p v-if="campaign.summary" class="campaign-card__summary">{{ campaign.summary }}</p>
 
       <div class="campaign-card__meta">
-        <span v-if="categoryTag" class="campaign-card__chip campaign-card__chip--category"
-          :style="{ color: accent }">
-          {{ categoryTag.name }}
-        </span>
+        <CampaignCategoryTags :tags="campaign.tags" collapse />
         <span class="campaign-card__chip campaign-card__chip--mode">{{ completionLabel }}</span>
         <span v-if="campaign.legacy" class="campaign-card__chip campaign-card__chip--legacy">
           Retroactive
@@ -325,10 +315,6 @@ const hasCover = computed(() => !!coverUrl.value)
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--text-tertiary);
-}
-
-.campaign-card__chip--category {
-  letter-spacing: 0.16em;
 }
 
 .campaign-card__chip--mode,

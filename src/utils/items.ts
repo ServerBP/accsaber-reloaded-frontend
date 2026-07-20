@@ -82,6 +82,8 @@ export function groupCrateContentsByRarity(contents: CrateContentResponse[]): Cr
     })
 }
 
+export const UNUSUAL_MODIFIER_KEY = 'unusual'
+
 const SUBTLE_MODIFIER_KEYS = new Set<string>(['normal', 'unique', 'standard'])
 
 function isSubtleModifierKey(key: string | null | undefined): boolean {
@@ -134,8 +136,10 @@ export function buildEffectLayers(
   modifiers: ItemModifierRef[] | null | undefined,
   unusualEffect?: UnusualEffectRef | null,
 ): EffectLayer[] {
+  const hasRolledEffect = !!unusualEffect?.effectSpec
   const layers: EffectLayer[] = []
   for (const m of sortModifiersByKey(modifiers ?? [])) {
+    if (hasRolledEffect && m.key === UNUSUAL_MODIFIER_KEY) continue
     if (m.effectSpec) layers.push({ key: `m:${m.id}`, spec: m.effectSpec })
   }
   if (unusualEffect?.effectSpec) {
