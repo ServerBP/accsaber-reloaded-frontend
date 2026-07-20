@@ -364,7 +364,7 @@ function sameQuery(a: Record<string, string>, b: Record<string, unknown>): boole
           <div v-if="activeDifficulty" class="map-detail__stats-strip">
             <div class="map-detail__diff-meta">
               <DifficultyBadge :difficulty="activeDifficulty.difficulty" />
-              <ComplexityBadge v-if="isActiveDifficultyRanked" :complexity="activeDifficulty.complexity ?? 0" />
+              <ComplexityBadge v-if="isActiveDifficultyRanked" :complexity="activeDifficulty.complexity ?? 0" bar />
               <span v-if="hasCategory" class="map-detail__category-name" :style="{ color: categoryAccent }">{{ categoryName }}</span>
             </div>
             <div v-if="showApStats" class="map-detail__stats">
@@ -385,6 +385,7 @@ function sameQuery(a: Record<string, string>, b: Record<string, unknown>): boole
             :map-name="map?.songName" :artist-name="map?.songAuthor" :map-author="map?.mapAuthor"
             :cover-url="coverUrl" :cover-fallback-url="coverFallbackUrl" :category-code="categoryCode"
             :difficulty="activeDifficulty ? formatDifficulty(activeDifficulty.difficulty) : undefined"
+            :complexity="activeDifficulty?.complexity ?? null"
             :accent-color="resolvedAccent" @top-scores-loaded="onTopScoresLoaded" />
         </div>
 

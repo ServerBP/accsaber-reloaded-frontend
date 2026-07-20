@@ -35,6 +35,14 @@
   --diff-expert: #ef4444;
   --diff-expert-plus: #8b5cf6;
 
+  /* --- Complexity Scale (0 -> 14, stop positions live in utils/complexity.ts) --- */
+  --complexity-0: #4a90d9;
+  --complexity-3: #22c55e;
+  --complexity-6: #eab308;
+  --complexity-8: #f97316;
+  --complexity-10: #ef4444;
+  --complexity-14: #a855f7;
+
   /* --- Campaign Difficulty Tiers (easy -> impossible) --- */
   --campaign-tier-beginner: #22c55e;
   --campaign-tier-apprentice: #3b82f6;
@@ -154,6 +162,14 @@
 
   --skeleton-base: var(--bg-elevated);
   --skeleton-highlight: color-mix(in srgb, var(--text-tertiary) 35%, var(--bg-elevated));
+
+  /* Complexity scale (light) - darkened for AA legibility on the light background */
+  --complexity-0: #1a5fc4;
+  --complexity-3: #146c34;
+  --complexity-6: #7a5c05;
+  --complexity-8: #a3450a;
+  --complexity-10: #c02222;
+  --complexity-14: #7c3aed;
 
   /* XP source colors (light) — darkened for AA legibility on the light background */
   --xp-score: #a3450a;

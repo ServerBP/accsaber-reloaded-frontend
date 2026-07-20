@@ -8,7 +8,16 @@ import { useNameSyncSetting } from '@/composables/useNameSyncSetting'
 import { usePageMeta } from '@/composables/usePageMeta'
 import { useAuthStore } from '@/stores/auth'
 import { useSettingsStore } from '@/stores/settings'
-import type { PrivacySettings, ReplayService, Visibility } from '@/types/api/settings'
+import type {
+  AppearanceSettings,
+  ComplexityNumberStyle,
+  PrivacySettings,
+  ReplayService,
+  ScoreRowField,
+  Visibility,
+} from '@/types/api/settings'
+import { useAppearance } from '@/composables/useAppearance'
+import ScoreFieldEditor from './settings/ScoreFieldEditor.vue'
 import { isRankingSubdomain } from '@/utils/subdomain'
 import { onAvatarError, pickAvatarFallback, pickAvatarUrl } from '@/composables/useAvatarFallback'
 import { computed, onMounted, ref, watch } from 'vue'
@@ -54,12 +63,20 @@ const PRIVACY_CONTROLS: { key: keyof PrivacySettings; title: string; hint: strin
 const REPLAY_SERVICE_OPTIONS = [
   { value: 'beatleader' as const, label: 'BeatLeader', description: 'Open replays in BeatLeader.' },
   { value: 'arcviewer' as const, label: 'ArcViewer', description: 'Open replays in ArcViewer.' },
+  { value: 'scoresaber' as const, label: 'ScoreSaber', description: 'Open replays in ScoreSaber.' },
 ]
 
-const NAME_SYNC_OPTIONS = [
+const COMPLEXITY_STYLE_OPTIONS = [
+  { value: 'colored' as const, label: 'Colored', description: 'Tint the number by complexity tier.' },
+  { value: 'plain' as const, label: 'Plain', description: 'Render the number in body text.' },
+]
+
+const ON_OFF_OPTIONS = [
   { value: true, label: 'On' },
   { value: false, label: 'Off' },
 ]
+
+const NAME_SYNC_OPTIONS = ON_OFF_OPTIONS
 
 const me = computed(() => authStore.authMe)
 const meAvatarUrl = computed(() => pickAvatarUrl(me.value))
@@ -174,17 +191,53 @@ async function setVisibility(key: keyof PrivacySettings, value: Visibility) {
   await settingsStore.updatePrivacy(key, value)
 }
 
-const primaryReplayService = computed(
-  () => settingsStore.appearance['appearance.primaryReplayService'],
+const {
+  primaryReplayService,
+  complexityNumberStyle,
+  complexityBar,
+  scoreRowFields,
+  hideReloadedProfileFeatures,
+  showStatisticsChart,
+} = useAppearance()
+
+const rawFallbackReplayService = computed(
+  () => settingsStore.appearance['appearance.fallbackReplayService'],
 )
 
-async function setReplayService(value: ReplayService) {
+const fallbackReplayOptions = computed(() => [
+  { value: '' as const, label: 'None', description: 'Do not retry with another viewer.' },
+  ...REPLAY_SERVICE_OPTIONS.filter((o) => o.value !== primaryReplayService.value),
+])
+
+async function setAppearance<K extends keyof AppearanceSettings>(
+  key: K,
+  value: AppearanceSettings[K],
+) {
   if (!isLoggedIn.value) {
     loginModalOpen.value = true
     return
   }
-  if (primaryReplayService.value === value || settingsStore.appearanceSaving) return
-  await settingsStore.setPrimaryReplayService(value)
+  if (settingsStore.appearance[key] === value || settingsStore.appearanceSaving) return
+  await settingsStore.updateAppearance(key, value)
+}
+
+async function setReplayService(value: ReplayService) {
+  if (rawFallbackReplayService.value === value) {
+    await setAppearance('appearance.fallbackReplayService', null)
+  }
+  await setAppearance('appearance.primaryReplayService', value)
+}
+
+async function setFallbackReplayService(value: ReplayService | '') {
+  await setAppearance('appearance.fallbackReplayService', value === '' ? null : value)
+}
+
+async function setScoreRowFields(value: ScoreRowField[]) {
+  if (!isLoggedIn.value) {
+    loginModalOpen.value = true
+    return
+  }
+  await settingsStore.updateAppearance('appearance.scoreRowFields', value)
 }
 
 onMounted(() => {
@@ -259,12 +312,101 @@ watch(activeSection, (section) => {
               </div>
               <SettingsPicker :model-value="primaryReplayService" :options="REPLAY_SERVICE_OPTIONS"
                 aria-label="Primary replay service" :disabled="settingsStore.appearanceSaving"
-                @update:model-value="setReplayService" />
+                @update:model-value="(v) => setReplayService(v as ReplayService)" />
+            </div>
+
+            <div class="settings-row">
+              <div class="settings-row__label">
+                <span class="settings-row__title">Fallback replay service</span>
+                <span class="settings-row__hint">
+                  Tried once when the primary service cannot open a replay.
+                </span>
+              </div>
+              <SettingsPicker :model-value="rawFallbackReplayService ?? ''" :options="fallbackReplayOptions"
+                aria-label="Fallback replay service" :disabled="settingsStore.appearanceSaving"
+                @update:model-value="(v) => setFallbackReplayService(v as ReplayService | '')" />
             </div>
 
             <p v-if="settingsStore.appearanceError" class="settings-card__error">
               {{ settingsStore.appearanceError }}
             </p>
+          </section>
+
+          <section class="settings-card">
+            <header class="settings-card__header">
+              <h2 class="settings-card__title">Complexity</h2>
+              <p class="settings-card__desc">
+                How map complexity is rendered everywhere it appears.
+              </p>
+            </header>
+
+            <div class="settings-row">
+              <div class="settings-row__label">
+                <span class="settings-row__title">Number style</span>
+                <span class="settings-row__hint">The value itself is always shown.</span>
+              </div>
+              <SettingsPicker :model-value="complexityNumberStyle" :options="COMPLEXITY_STYLE_OPTIONS"
+                aria-label="Complexity number style" :disabled="settingsStore.appearanceSaving"
+                @update:model-value="(v) => setAppearance('appearance.complexityNumberStyle', v as ComplexityNumberStyle)" />
+            </div>
+
+            <div class="settings-row">
+              <div class="settings-row__label">
+                <span class="settings-row__title">Complexity bar</span>
+                <span class="settings-row__hint">The gradient scale bar under the number.</span>
+              </div>
+              <SettingsPicker :model-value="complexityBar" :options="ON_OFF_OPTIONS"
+                aria-label="Complexity bar" :disabled="settingsStore.appearanceSaving"
+                @update:model-value="(v) => setAppearance('appearance.complexityBar', v as boolean)" />
+            </div>
+          </section>
+
+          <section class="settings-card">
+            <header class="settings-card__header">
+              <h2 class="settings-card__title">Score rows</h2>
+              <p class="settings-card__desc">
+                Pick which fields score rows show and in what order, on profiles and map
+                leaderboards. Drag a row or use the arrows to reorder.
+              </p>
+            </header>
+
+            <ScoreFieldEditor :model-value="scoreRowFields" :disabled="settingsStore.appearanceSaving"
+              @update:model-value="setScoreRowFields" />
+          </section>
+
+          <section class="settings-card">
+            <header class="settings-card__header">
+              <h2 class="settings-card__title">Profiles</h2>
+              <p class="settings-card__desc">
+                How other players' profiles render for you. These apply to every profile,
+                including your own.
+              </p>
+            </header>
+
+            <div class="settings-row">
+              <div class="settings-row__label">
+                <span class="settings-row__title">Hide profile extras</span>
+                <span class="settings-row__hint">
+                  Hides the about section, pinned scores and level badge, and renders avatar
+                  borders as a plain gray shape.
+                </span>
+              </div>
+              <SettingsPicker :model-value="hideReloadedProfileFeatures" :options="ON_OFF_OPTIONS"
+                aria-label="Hide profile extras" :disabled="settingsStore.appearanceSaving"
+                @update:model-value="(v) => setAppearance('appearance.hideReloadedProfileFeatures', v as boolean)" />
+            </div>
+
+            <div class="settings-row">
+              <div class="settings-row__label">
+                <span class="settings-row__title">Statistics chart on profile</span>
+                <span class="settings-row__hint">
+                  Shows the history chart inline on the profile, not just under Statistics.
+                </span>
+              </div>
+              <SettingsPicker :model-value="showStatisticsChart" :options="ON_OFF_OPTIONS"
+                aria-label="Statistics chart on profile" :disabled="settingsStore.appearanceSaving"
+                @update:model-value="(v) => setAppearance('appearance.showStatisticsChart', v as boolean)" />
+            </div>
           </section>
 
           <section v-if="!canAccessAccount" class="settings-card settings-card--gated">
@@ -293,9 +435,10 @@ watch(activeSection, (section) => {
                 <span class="settings-row__title">{{ control.title }}</span>
                 <span class="settings-row__hint">{{ control.hint }}</span>
               </div>
-              <SettingsPicker :model-value="settingsStore.privacy[control.key]" :options="VISIBILITY_OPTIONS"
+              <SettingsPicker :model-value="settingsStore.privacy[control.key] as Visibility"
+                :options="VISIBILITY_OPTIONS"
                 :aria-label="control.title" :disabled="settingsStore.privacySaving"
-                @update:model-value="(v) => setVisibility(control.key, v)" />
+                @update:model-value="(v) => setVisibility(control.key, v as Visibility)" />
             </div>
 
             <p v-if="settingsStore.privacyError" class="settings-card__error">
@@ -335,7 +478,8 @@ watch(activeSection, (section) => {
                 </span>
               </div>
               <SettingsPicker :model-value="syncEnabled" :options="NAME_SYNC_OPTIONS" aria-label="Name sync"
-                :disabled="syncSaving || syncEnabled === null" @update:model-value="setSyncName" />
+                :disabled="syncSaving || syncEnabled === null"
+                @update:model-value="(v) => setSyncName(v as boolean)" />
             </div>
 
             <div v-if="isLoggedIn" class="settings-row">
@@ -352,7 +496,7 @@ watch(activeSection, (section) => {
               <SettingsPicker :model-value="avatarSyncEnabled" :options="NAME_SYNC_OPTIONS"
                 aria-label="Avatar sync"
                 :disabled="avatarSyncSaving || avatarSyncEnabled === null"
-                @update:model-value="setSyncAvatar" />
+                @update:model-value="(v) => setSyncAvatar(v as boolean)" />
             </div>
 
             <div class="settings-row settings-row--danger">

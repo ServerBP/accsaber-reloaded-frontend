@@ -27,6 +27,7 @@ const emit = defineEmits<{
 const router = useRouter()
 const slots = useSlots()
 const skeletonCount = computed(() => props.loadingRows ?? 5)
+const dense = computed(() => props.columns.length >= 13)
 
 function resolveRowKey(row: Record<string, unknown>, index: number): string | number {
   if (!props.rowKey) return index
@@ -66,7 +67,7 @@ function sortIcon(col: TableColumn): string {
 <template>
   <div class="data-table-wrapper">
     <div class="data-table-scroll">
-      <table class="data-table">
+      <table class="data-table" :class="{ 'data-table--dense': dense }">
         <thead>
           <tr>
             <th v-for="col in columns" :key="col.key" class="data-table__th" :class="{
@@ -235,6 +236,16 @@ function sortIcon(col: TableColumn): string {
 
 .data-table__td--linked {
   padding: 0;
+}
+
+.data-table--dense .data-table__th,
+.data-table--dense .data-table__td,
+.data-table--dense .data-table__cell-link {
+  padding-inline: calc(var(--space-sm) * 1.5);
+}
+
+.data-table--dense .data-table__td--linked {
+  padding-inline: 0;
 }
 
 .data-table__cell-link {

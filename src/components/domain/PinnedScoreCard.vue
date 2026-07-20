@@ -5,12 +5,12 @@ import ComplexityBadge from '@/components/domain/ComplexityBadge.vue'
 import DifficultyBadge from '@/components/domain/DifficultyBadge.vue'
 import { useCategoryStore } from '@/stores/categories'
 import { useModifierStore } from '@/stores/modifiers'
-import { useSettingsStore } from '@/stores/settings'
+import { useAppearance } from '@/composables/useAppearance'
 import type { ScoreResponse } from '@/types/api/users'
 import { formatRelativeDate } from '@/utils/formatters'
 import { buildMapRoute } from '@/utils/mapRoute'
 import { getRankClass } from '@/utils/ranking'
-import { resolveReplay } from '@/utils/replay'
+import { openReplay, resolveReplayChain } from '@/utils/replay'
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
@@ -93,19 +93,20 @@ function onTextareaKeydown(e: KeyboardEvent) {
 const router = useRouter()
 const categoryStore = useCategoryStore()
 const modifierStore = useModifierStore()
-const settingsStore = useSettingsStore()
+const { primaryReplayService, fallbackReplayService } = useAppearance()
 
-const replayService = computed(() => settingsStore.appearance['appearance.primaryReplayService'])
-const replay = computed(() =>
-  resolveReplay(
+const replayChain = computed(() =>
+  resolveReplayChain(
     {
       blScoreId: props.score.blScoreId,
       ssScoreId: props.score.ssScoreId,
       date: props.score.timeSet,
     },
-    replayService.value,
+    primaryReplayService.value,
+    fallbackReplayService.value,
   ),
 )
+const replay = computed(() => replayChain.value[0] ?? null)
 
 const categoryCode = computed(() => categoryStore.getCategoryCode(props.score.categoryId))
 const categoryAccent = computed(() => categoryCode.value
@@ -153,8 +154,7 @@ function onUnpinClick(e: MouseEvent) {
 function onReplayClick(e: MouseEvent) {
   e.preventDefault()
   e.stopPropagation()
-  if (!replay.value) return
-  window.open(replay.value.url, '_blank', 'noopener,noreferrer')
+  openReplay(replayChain.value)
 }
 </script>
 
@@ -197,7 +197,7 @@ function onReplayClick(e: MouseEvent) {
         <h3 class="pin-card__song" :title="score.songName">{{ score.songName }}</h3>
         <div class="pin-card__badges">
           <DifficultyBadge :difficulty="score.difficulty" />
-          <ComplexityBadge v-if="complexity != null" :complexity="complexity" />
+          <ComplexityBadge v-if="complexity != null" :complexity="complexity" bar />
         </div>
       </div>
       <dl class="pin-card__stats">

@@ -19,6 +19,7 @@ import RelationCountsBar from '@/components/domain/RelationCountsBar.vue'
 import SupporterProfileSection from '@/components/domain/SupporterProfileSection.vue'
 import { useSupporter } from '@/composables/useSupporter'
 import PageHeader from '@/components/layout/PageHeader.vue'
+import { useAppearance } from '@/composables/useAppearance'
 import { useNameSyncSetting } from '@/composables/useNameSyncSetting'
 import { usePageMeta } from '@/composables/usePageMeta'
 import { useAuthStore } from '@/stores/auth'
@@ -37,6 +38,7 @@ import ProfileInventoryTab from './profile/ProfileInventoryTab.vue'
 import ProfileMilestonesTab from './profile/ProfileMilestonesTab.vue'
 import ProfileScoresTab from './profile/ProfileScoresTab.vue'
 import ProfileStatisticsTab from './profile/ProfileStatisticsTab.vue'
+import ProfileStatsChart from './profile/ProfileStatsChart.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -44,6 +46,7 @@ const categoryStore = useCategoryStore()
 const authStore = useAuthStore()
 const relationsStore = useRelationsStore()
 const inventoryStore = useInventoryStore()
+const { hideReloadedProfileFeatures, showStatisticsChart } = useAppearance()
 
 const userId = computed(() => route.params.userId as string)
 
@@ -486,13 +489,14 @@ watch(activeCategory, (newCategory) => {
         <div class="profile-hero__level-col">
           <LevelBadge :level="level?.level ?? 0" :current-xp="level?.xpForCurrentLevel ?? 0"
             :required-xp="level?.xpForNextLevel ?? 1" :avatar-url="userAvatarUrl"
+            :plain="hideReloadedProfileFeatures"
             :fallback-title="level?.title"
             :equipped-title="equippedTitleValue"
             :equipped-border-shape="equippedBorderShapeValue"
             :equipped-border-color="equippedBorderColorValue"
             :title-effects="equippedTitleEffects"
             :border-effects="equippedBorderEffects" />
-          <ProfileXpTrend v-if="!user.banned" :stats-diff="statsDiff" />
+          <ProfileXpTrend v-if="!user.banned && !hideReloadedProfileFeatures" :stats-diff="statsDiff" />
         </div>
 
         <div class="profile-hero__details">
@@ -647,17 +651,24 @@ watch(activeCategory, (newCategory) => {
       </div>
 
       <template v-if="!user.banned && !isBlockedByMe">
-        <section v-if="editMode && isSelfProfile" class="profile-page__bio" aria-label="Edit bio">
-          <h2 class="profile-page__bio-label">About</h2>
-          <ProfileBioEditor :initial-bio="user.bio ?? ''" :max-chars="bioCharLimit" :can-use-effects="isProfileOwnerSupporter" @saved="onBioSaved" @cancel="exitEditMode" />
-        </section>
-        <section v-else-if="user.bio" class="profile-page__bio" aria-label="About this player">
-          <h2 class="profile-page__bio-label">About</h2>
-          <div class="profile-page__bio-body" v-html="user.bio" />
+        <template v-if="!hideReloadedProfileFeatures">
+          <section v-if="editMode && isSelfProfile" class="profile-page__bio" aria-label="Edit bio">
+            <h2 class="profile-page__bio-label">About</h2>
+            <ProfileBioEditor :initial-bio="user.bio ?? ''" :max-chars="bioCharLimit" :can-use-effects="isProfileOwnerSupporter" @saved="onBioSaved" @cancel="exitEditMode" />
+          </section>
+          <section v-else-if="user.bio" class="profile-page__bio" aria-label="About this player">
+            <h2 class="profile-page__bio-label">About</h2>
+            <div class="profile-page__bio-body" v-html="user.bio" />
+          </section>
+        </template>
+
+        <section v-if="showStatisticsChart" class="profile-page__inline-chart" aria-label="Statistics history">
+          <h2 class="profile-page__bio-label">History</h2>
+          <ProfileStatsChart :user-id="userId" :category="activeCategory" />
         </section>
 
-        <PinnedScoresSection :user-id="userId" :pinned="pinnedScores" :loading="pinnedLoading"
-          :is-self-profile="isSelfProfile" :max-slots="pinnedSlotLimit"
+        <PinnedScoresSection v-if="!hideReloadedProfileFeatures" :user-id="userId" :pinned="pinnedScores"
+          :loading="pinnedLoading" :is-self-profile="isSelfProfile" :max-slots="pinnedSlotLimit"
           @unpin="onUnpinFromCard" @update-comment="onUpdateComment" />
 
         <div class="profile-page__tabs-row">
@@ -1055,6 +1066,14 @@ watch(activeCategory, (newCategory) => {
   flex-direction: column;
   gap: var(--space-sm);
   padding-block: var(--space-sm) var(--space-md);
+}
+
+.profile-page__inline-chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding-block: var(--space-sm) var(--space-md);
+  min-width: 0;
 }
 
 .profile-page__bio-label {

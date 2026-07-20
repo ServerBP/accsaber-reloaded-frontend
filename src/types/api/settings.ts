@@ -2,7 +2,21 @@ export type Visibility = 'public' | 'followers_only' | 'private'
 
 export type SettingGroup = 'privacy' | 'appearance'
 
-export type ReplayService = 'beatleader' | 'arcviewer'
+export type ReplayService = 'beatleader' | 'scoresaber' | 'arcviewer'
+
+export type ComplexityNumberStyle = 'colored' | 'plain'
+
+export type ScoreRowField =
+  | 'difficulty'
+  | 'accuracy'
+  | 'ap'
+  | 'weighted_ap'
+  | 'complexity'
+  | 'category'
+  | 'streak_115'
+  | 'pauses'
+  | 'play_count'
+  | 'date'
 
 export type SettingKey =
   | 'privacy.followingVisibility'
@@ -10,6 +24,12 @@ export type SettingKey =
   | 'appearance.theme'
   | 'appearance.colorScheme'
   | 'appearance.primaryReplayService'
+  | 'appearance.fallbackReplayService'
+  | 'appearance.complexityNumberStyle'
+  | 'appearance.complexityBar'
+  | 'appearance.scoreRowFields'
+  | 'appearance.hideReloadedProfileFeatures'
+  | 'appearance.showStatisticsChart'
 
 export type SettingsBag = Record<string, unknown>
 
@@ -22,4 +42,10 @@ export interface AppearanceSettings extends SettingsBag {
   'appearance.theme': string
   'appearance.colorScheme': string
   'appearance.primaryReplayService': ReplayService
+  'appearance.fallbackReplayService': ReplayService | null
+  'appearance.complexityNumberStyle': ComplexityNumberStyle
+  'appearance.complexityBar': boolean
+  'appearance.scoreRowFields': ScoreRowField[]
+  'appearance.hideReloadedProfileFeatures': boolean
+  'appearance.showStatisticsChart': boolean
 }

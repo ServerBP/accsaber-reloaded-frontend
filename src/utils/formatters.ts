@@ -26,6 +26,15 @@ export function truncate(str: string, max: number): string {
   return str.length > max ? str.slice(0, max) + '...' : str
 }
 
+/**
+ * A recorded score is itself a play, so an unreported or zero play count still
+ * means at least one attempt.
+ */
+export function formatPlayCount(value: unknown): number {
+  const plays = typeof value === 'number' && Number.isFinite(value) ? value : 0
+  return plays > 0 ? plays : 1
+}
+
 export function parseNullableNumber(value: string): number | null {
   const trimmed = value.trim()
   if (trimmed === '') return null

@@ -8,18 +8,20 @@ import RelationFilter from '@/components/domain/RelationFilter.vue'
 import ScoreDetailModal from '@/components/domain/ScoreDetailModal.vue'
 import ScoreTable from '@/components/domain/ScoreTable.vue'
 import SupporterTierIcon from '@/components/domain/SupporterTierIcon.vue'
+import { useAppearance } from '@/composables/useAppearance'
 import { usePageableRoute } from '@/composables/usePageableRoute'
 import { useAuthStore } from '@/stores/auth'
 import { useModifierStore } from '@/stores/modifiers'
-import { useSettingsStore } from '@/stores/settings'
+import type { ScoreRowField } from '@/types/api/settings'
 import type { UserRelationType } from '@/types/api/relations'
 import type { SupporterTier } from '@/types/api/supporters'
 import type { CategoryCode, DifficultyScoreDisplay, ScoreDisplay, TableColumn } from '@/types/display'
 import { COUNTRY_OPTIONS } from '@/utils/countries'
-import { formatRelativeDate } from '@/utils/formatters'
+import { formatPlayCount, formatRelativeDate } from '@/utils/formatters'
 import { toDifficultyScoreDisplay } from '@/utils/mappers'
 import { getRankClass } from '@/utils/ranking'
 import { resolveReplay, type ResolvedReplay } from '@/utils/replay'
+import { buildScoreColumns } from '@/utils/scoreRowFields'
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
@@ -32,6 +34,7 @@ const props = defineProps<{
   coverFallbackUrl?: string | null
   categoryCode?: CategoryCode
   difficulty?: string
+  complexity?: number | null
   accentColor?: string
   mapAuthor?: string
 }>()
@@ -43,9 +46,14 @@ const emit = defineEmits<{
 const router = useRouter()
 const authStore = useAuthStore()
 const modifierStore = useModifierStore()
-const settingsStore = useSettingsStore()
 
-const replayService = computed(() => settingsStore.appearance['appearance.primaryReplayService'])
+const {
+  primaryReplayService,
+  fallbackReplayService,
+  scoreRowFields,
+  isScoreFieldVisible,
+} = useAppearance()
+
 function rowReplay(row: Record<string, unknown>): ResolvedReplay | null {
   return (row.replay as ResolvedReplay | null) ?? null
 }
@@ -76,22 +84,35 @@ const showStreak115 = computed(() =>
   sortState.value.key === 'streak115' || scores.value.some((s) => s.streak115 != null && s.streak115 > 0),
 )
 
-const allColumns: TableColumn[] = [
+const LEADING_COLUMNS: TableColumn[] = [
   { key: 'rank', label: '#', sortable: true, align: 'right', mono: true, width: '80px' },
-  { key: 'player', label: 'Player', align: 'left' },
-  { key: 'accuracy', label: 'Acc', sortable: true, align: 'right', mono: true, width: '80px' },
+  { key: 'player', label: 'Player', align: 'left', width: '100%' },
   { key: 'score', label: 'Score', sortable: true, align: 'right', mono: true, width: '80px' },
-  { key: 'ap', label: 'AP', sortable: true, align: 'right', mono: true, width: '80px' },
-  { key: 'weighted', label: 'Weighted', sortable: true, align: 'right', mono: true, width: '80px' },
-  { key: 'streak115', label: '115s', sortable: true, align: 'right', mono: true, width: '60px' },
-  { key: 'date', label: 'Date', sortable: true, align: 'right', width: '80px' },
+]
+
+const TRAILING_COLUMNS: TableColumn[] = [
   { key: 'detail', label: '', align: 'center', width: '76px', noLink: true },
 ]
 
+const FIELD_COLUMNS: Partial<Record<ScoreRowField, TableColumn>> = {
+  accuracy: { key: 'accuracy', label: 'Acc', sortable: true, align: 'right', mono: true, width: '80px' },
+  ap: { key: 'ap', label: 'AP', sortable: true, align: 'right', mono: true, width: '80px' },
+  weighted_ap: { key: 'weighted', label: 'Weighted', sortable: true, align: 'right', mono: true, width: '80px' },
+  streak_115: { key: 'streak115', label: '115s', sortable: true, align: 'right', mono: true, width: '60px' },
+  pauses: { key: 'pauses', label: 'Pauses', sortable: true, align: 'right', mono: true, width: '70px' },
+  play_count: { key: 'playCount', label: 'Plays', sortable: true, align: 'right', mono: true, width: '70px' },
+  date: { key: 'date', label: 'Date', sortable: true, align: 'right', width: '80px' },
+}
+
 const columns = computed(() =>
-  showStreak115.value
-    ? allColumns
-    : allColumns.filter((c) => c.key !== 'streak115'),
+  buildScoreColumns(scoreRowFields.value, {
+    leading: LEADING_COLUMNS,
+    trailing: TRAILING_COLUMNS,
+    fields: {
+      ...FIELD_COLUMNS,
+      streak_115: showStreak115.value ? FIELD_COLUMNS.streak_115 : null,
+    },
+  }),
 )
 
 const rows = computed(() => {
@@ -113,10 +134,13 @@ const rows = computed(() => {
       ap: s.ap,
       weighted: s.weightedAp,
       streak115: s.streak115,
+      pauses: s.pauses,
+      playCount: s.playCount,
       date: s.date,
       replay: resolveReplay(
         { blScoreId: s.blScoreId, ssScoreId: s.ssScoreId, date: s.date },
-        replayService.value,
+        primaryReplayService.value,
+        fallbackReplayService.value,
       ),
     }
   })
@@ -154,6 +178,7 @@ function openDetail(userId: string, event: Event) {
   if (!s) return
   detailUserId.value = s.userId
   detailScore.value = {
+    scoreId: s.id,
     mapId: props.mapId,
     mapDifficultyId: props.difficultyId,
     mapName: props.mapName ?? 'Unknown Map',
@@ -168,7 +193,7 @@ function openDetail(userId: string, event: Event) {
     accuracy: s.accuracy,
     ap: s.ap,
     weightedAp: s.weightedAp,
-    complexity: null,
+    complexity: props.complexity ?? null,
     modifiers: s.modifiers,
     date: s.date,
     misses: s.misses,
@@ -274,6 +299,14 @@ watch(
         <span v-else class="map-scores__muted">&ndash;</span>
       </template>
 
+      <template #cell-pauses="{ value }">
+        <span v-if="value != null">{{ value }}</span>
+      </template>
+
+      <template #cell-playCount="{ value }">
+        <span>{{ formatPlayCount(value) }}</span>
+      </template>
+
       <template #cell-detail="{ row }">
         <div class="map-scores__actions">
           <a v-if="rowReplay(row)" class="map-scores__detail-btn"
@@ -306,16 +339,22 @@ watch(
               <CountryFlag :country="(row.country as string)" />
               <SupporterTierIcon v-if="row.supporterTier" :tier="(row.supporterTier as SupporterTier)" />
             </span>
-            <span class="ms-card__acc">{{ ((row.accuracy as number) * 100).toFixed(2) }}%</span>
+            <span v-if="isScoreFieldVisible('accuracy')" class="ms-card__acc">
+              {{ ((row.accuracy as number) * 100).toFixed(2) }}%
+            </span>
 
-            <span class="ms-card__date">{{ formatRelativeDate(row.date as string) }}</span>
-            <span class="ms-card__ap">{{ (row.ap as number).toFixed(2) }}</span>
+            <span v-if="isScoreFieldVisible('date')" class="ms-card__date">
+              {{ formatRelativeDate(row.date as string) }}
+            </span>
+            <span v-if="isScoreFieldVisible('ap')" class="ms-card__ap">{{ (row.ap as number).toFixed(2) }}</span>
 
-            <span class="ms-card__streak-cell">
+            <span v-if="isScoreFieldVisible('streak_115')" class="ms-card__streak-cell">
               <template v-if="(row.streak115 as number | null) != null && (row.streak115 as number) > 0">{{ row.streak115 }} 115s</template>
               <span v-else class="ms-card__sep">&ndash;</span>
             </span>
-            <span class="ms-card__weighted">/ {{ (row.weighted as number).toFixed(2) }}</span>
+            <span v-if="isScoreFieldVisible('weighted_ap')" class="ms-card__weighted">
+              / {{ (row.weighted as number).toFixed(2) }}
+            </span>
           </div>
           <a v-if="rowReplay(row)" class="ms-card__detail-btn"
             :href="rowReplay(row)!.url" target="_blank" rel="noopener noreferrer"

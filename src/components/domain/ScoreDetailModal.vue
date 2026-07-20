@@ -9,7 +9,7 @@ import LevelBadge from '@/components/domain/LevelBadge.vue'
 import SupporterTierIcon from '@/components/domain/SupporterTierIcon.vue'
 import TimeSeriesChart from '@/components/domain/TimeSeriesChart.vue'
 import { useColorExtract } from '@/composables/useColorExtract'
-import { useSettingsStore } from '@/stores/settings'
+import { useAppearance } from '@/composables/useAppearance'
 import { useThemeStore } from '@/stores/theme'
 import type {
   EquippedItemsResponse,
@@ -26,7 +26,7 @@ import { SCORE_DETAIL_METRICS, TIME_RANGE_PARAMS } from '@/utils/constants'
 import { formatRelativeDate } from '@/utils/formatters'
 import { useEquippedRenderProps } from '@/composables/useEquippedRenderProps'
 import { buildMapRoute } from '@/utils/mapRoute'
-import { scoreSaberReplayUrl } from '@/utils/replay'
+import { resolveReplayChain } from '@/utils/replay'
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
@@ -44,16 +44,17 @@ type ScoreMetric = 'accuracy' | 'ap' | 'xpCumulative' | 'xpPerAttempt'
 
 const router = useRouter()
 const themeStore = useThemeStore()
-const settingsStore = useSettingsStore()
-const beatLeaderFirst = computed(
-  () => settingsStore.appearance['appearance.primaryReplayService'] !== 'arcviewer',
-)
-const scoreSaberReplay = computed(() =>
-  scoreSaberReplayUrl({
-    blScoreId: props.score?.blScoreId,
-    ssScoreId: props.score?.ssScoreId,
-    date: props.score?.date,
-  }),
+const { primaryReplayService, fallbackReplayService } = useAppearance()
+const replayChain = computed(() =>
+  resolveReplayChain(
+    {
+      blScoreId: props.score?.blScoreId,
+      ssScoreId: props.score?.ssScoreId,
+      date: props.score?.date,
+    },
+    primaryReplayService.value,
+    fallbackReplayService.value,
+  ),
 )
 const coverUrl = computed(() => props.score?.coverUrl ?? '')
 const { dominantColor } = useColorExtract(coverUrl)
@@ -375,7 +376,7 @@ watch(
           </p>
           <div class="score-detail__chips">
             <DifficultyBadge v-if="difficultyRaw" :difficulty="difficultyRaw" />
-            <ComplexityBadge v-if="complexity != null" :complexity="complexity" />
+            <ComplexityBadge v-if="complexity != null" :complexity="complexity" bar />
             <span v-if="characteristic && characteristic !== 'Standard'" class="score-detail__char">
               {{ characteristic }}
             </span>
@@ -477,39 +478,19 @@ watch(
           </svg>
           Map
         </BaseButton>
-        <template v-if="score.blScoreId">
-          <BaseButton v-if="beatLeaderFirst" size="sm"
-            :href="`https://replay.beatleader.com/?scoreId=${score.blScoreId}`">
-            <img src="https://beatleader.com/assets/bs-pepe.gif" alt="Replay" width="20" height="20"
-              style="border-radius: 3px;" loading="lazy" decoding="async" />
-            Replay
-          </BaseButton>
-          <BaseButton size="sm"
-            :href="`https://allpoland.github.io/ArcViewer/?scoreID=${score.blScoreId}`">
-            <img src="https://beatleader.com/assets/ArcViewerIcon.webp" alt="ArcViewer" width="20" height="20"
-              style="border-radius: 3px;" loading="lazy" decoding="async" />
-            ArcViewer
-          </BaseButton>
-          <BaseButton v-if="!beatLeaderFirst" size="sm"
-            :href="`https://replay.beatleader.com/?scoreId=${score.blScoreId}`">
-            <img src="https://beatleader.com/assets/bs-pepe.gif" alt="Replay" width="20" height="20"
-              style="border-radius: 3px;" loading="lazy" decoding="async" />
-            Replay
-          </BaseButton>
-          <BaseButton size="sm" :href="`https://beatleader.com/score/${score.blScoreId}`">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round">
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-              <polyline points="15 3 21 3 21 9" />
-              <line x1="10" y1="14" x2="21" y2="3" />
-            </svg>
-            BeatLeader
-          </BaseButton>
-        </template>
-        <BaseButton v-if="scoreSaberReplay" size="sm" :href="scoreSaberReplay">
-          <img src="https://scoresaber.com/favicon-32x32.png" alt="ScoreSaber" width="20" height="20"
-            style="border-radius: 3px;" loading="lazy" decoding="async" />
-          Replay
+        <BaseButton v-for="replay in replayChain" :key="replay.provider" size="sm" :href="replay.url">
+          <img :src="replay.icon" :alt="replay.name" width="20" height="20" style="border-radius: 3px;"
+            loading="lazy" decoding="async" />
+          {{ replay.name }}
+        </BaseButton>
+        <BaseButton v-if="score.blScoreId" size="sm" :href="`https://beatleader.com/score/${score.blScoreId}`">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+            <polyline points="15 3 21 3 21 9" />
+            <line x1="10" y1="14" x2="21" y2="3" />
+          </svg>
+          BeatLeader
         </BaseButton>
       </div>
 

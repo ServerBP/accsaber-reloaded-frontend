@@ -4,18 +4,20 @@ import ApTweaker from '@/components/domain/ApTweaker.vue'
 import ComplexityBadge from '@/components/domain/ComplexityBadge.vue'
 import ScoreDetailModal from '@/components/domain/ScoreDetailModal.vue'
 import ScoreTable from '@/components/domain/ScoreTable.vue'
+import { useAppearance } from '@/composables/useAppearance'
 import { usePageableRoute } from '@/composables/usePageableRoute'
 import { useCategoryStore } from '@/stores/categories'
 import { useModifierStore } from '@/stores/modifiers'
-import { useSettingsStore } from '@/stores/settings'
+import type { ScoreRowField } from '@/types/api/settings'
 import type { ScoreResponse } from '@/types/api/users'
 import type { CategoryCode, ScoreDisplay, TableColumn } from '@/types/display'
 import type { Page } from '@/types/pagination'
-import { formatRelativeDate } from '@/utils/formatters'
+import { formatPlayCount, formatRelativeDate } from '@/utils/formatters'
 import { toScoreDisplay } from '@/utils/mappers'
 import { buildMapRoute } from '@/utils/mapRoute'
 import { getRankClass } from '@/utils/ranking'
 import { resolveReplay, type ResolvedReplay } from '@/utils/replay'
+import { buildScoreColumns } from '@/utils/scoreRowFields'
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
@@ -40,9 +42,14 @@ const emit = defineEmits<{
 const router = useRouter()
 const categoryStore = useCategoryStore()
 const modifierStore = useModifierStore()
-const settingsStore = useSettingsStore()
 
-const replayService = computed(() => settingsStore.appearance['appearance.primaryReplayService'])
+const {
+  primaryReplayService,
+  fallbackReplayService,
+  scoreRowFields,
+  isScoreFieldVisible,
+} = useAppearance()
+
 function rowReplay(row: Record<string, unknown>): ResolvedReplay | null {
   return (row.replay as ResolvedReplay | null) ?? null
 }
@@ -117,11 +124,14 @@ const rows = computed(() =>
     weighted: s.weightedAp,
     complexity: s.complexity,
     streak115: s.streak115,
+    pauses: s.pauses,
+    playCount: s.playCount,
     date: s.date,
     leaderboardRank: s.leaderboardRank,
     replay: resolveReplay(
       { blScoreId: s.blScoreId, ssScoreId: s.ssScoreId, date: s.date },
-      replayService.value,
+      primaryReplayService.value,
+      fallbackReplayService.value,
     ),
   })),
 )
@@ -159,25 +169,38 @@ const showStreak115 = computed(() =>
   sortState.value.key === 'streak115' || scores.value.some((s) => s.streak115 != null),
 )
 
-const allColumns: TableColumn[] = [
-  { key: 'leaderboardRank', label: '#', sortable: true, align: 'right', mono: true, width: '50px' },
+const LEADING_COLUMNS: TableColumn[] = [
+  { key: 'leaderboardRank', label: '#', sortable: true, align: 'right', mono: true, width: '46px' },
   { key: 'cover', label: '', width: '44px' },
-  { key: 'mapName', label: 'Map', align: 'left' },
-  { key: 'difficulty', label: 'Diff', align: 'center', width: '70px' },
-  { key: 'accuracy', label: 'Acc', sortable: true, align: 'right', mono: true, width: '80px' },
-  { key: 'ap', label: 'AP', sortable: true, align: 'right', mono: true, width: '100px' },
-  { key: 'weighted', label: 'Weighted', sortable: true, align: 'right', mono: true, width: '80px' },
-  { key: 'complexity', label: 'COMP', sortable: true, align: 'center', mono: true, width: '70px' },
-  { key: 'category', label: 'Category', align: 'center', width: '100px' },
-  { key: 'streak115', label: '115s', sortable: true, align: 'right', mono: true, width: '60px' },
-  { key: 'date', label: 'Date', sortable: true, align: 'right', width: '80px' },
-  { key: 'actions', label: '', align: 'center', width: '108px', noLink: true },
+  { key: 'mapName', label: 'Map', align: 'left', width: '100%' },
 ]
 
+const TRAILING_COLUMNS: TableColumn[] = [
+  { key: 'actions', label: '', align: 'center', width: '96px', noLink: true },
+]
+
+const FIELD_COLUMNS: Record<ScoreRowField, TableColumn> = {
+  difficulty: { key: 'difficulty', label: 'Diff', align: 'center', width: '64px' },
+  accuracy: { key: 'accuracy', label: 'Acc', sortable: true, align: 'right', mono: true, width: '76px' },
+  ap: { key: 'ap', label: 'AP', sortable: true, align: 'right', mono: true, width: '88px' },
+  weighted_ap: { key: 'weighted', label: 'Weighted', sortable: true, align: 'right', mono: true, width: '76px' },
+  complexity: { key: 'complexity', label: 'COMP', sortable: true, align: 'center', mono: true, width: '64px' },
+  category: { key: 'category', label: 'Category', align: 'center', width: '80px' },
+  streak_115: { key: 'streak115', label: '115s', sortable: true, align: 'right', mono: true, width: '56px' },
+  pauses: { key: 'pauses', label: 'Pauses', sortable: true, align: 'right', mono: true, width: '58px' },
+  play_count: { key: 'playCount', label: 'Plays', sortable: true, align: 'right', mono: true, width: '58px' },
+  date: { key: 'date', label: 'Date', sortable: true, align: 'right', width: '72px' },
+}
+
 const columns = computed(() =>
-  showStreak115.value
-    ? allColumns
-    : allColumns.filter((c) => c.key !== 'streak115'),
+  buildScoreColumns(scoreRowFields.value, {
+    leading: LEADING_COLUMNS,
+    trailing: TRAILING_COLUMNS,
+    fields: {
+      ...FIELD_COLUMNS,
+      streak_115: showStreak115.value ? FIELD_COLUMNS.streak_115 : null,
+    },
+  }),
 )
 
 async function fetchScores() {
@@ -274,7 +297,7 @@ watch(
       </template>
 
       <template #cell-complexity="{ value }">
-        <ComplexityBadge v-if="value != null" :complexity="(value as number)" />
+        <ComplexityBadge v-if="value != null" :complexity="(value as number)" bar />
         <span v-else class="scores-tab__streak scores-tab__streak--empty">&ndash;</span>
       </template>
 
@@ -292,6 +315,14 @@ watch(
       <template #cell-streak115="{ value }">
         <span v-if="value != null" class="scores-tab__streak">{{ value }}</span>
         <span v-else class="scores-tab__streak scores-tab__streak--empty">&ndash;</span>
+      </template>
+
+      <template #cell-pauses="{ value }">
+        <span v-if="value != null">{{ value }}</span>
+      </template>
+
+      <template #cell-playCount="{ value }">
+        <span>{{ formatPlayCount(value) }}</span>
       </template>
 
       <template #cell-actions="{ row }">
@@ -339,28 +370,36 @@ watch(
             <span class="ps-card__name-cell">
               <span class="ps-card__rank" :class="getRankClass(row.leaderboardRank as number)">#{{ row.leaderboardRank }}</span>
               <span class="ps-card__name" :title="(row.mapName as string)">{{ row.mapName }}</span>
-              <span class="ps-card__diff">{{ row.difficulty }}</span>
+              <span v-if="isScoreFieldVisible('difficulty')" class="ps-card__diff">{{ row.difficulty }}</span>
             </span>
-            <span class="ps-card__acc">{{ ((row.accuracy as number) * 100).toFixed(2) }}%</span>
+            <span v-if="isScoreFieldVisible('accuracy')" class="ps-card__acc">
+              {{ ((row.accuracy as number) * 100).toFixed(2) }}%
+            </span>
 
             <span class="ps-card__meta-cell">
-              <span class="ps-card__dot"
-                :style="{ background: categoryStore.getAccent(row.categoryCode as string) }" />
-              <span class="ps-card__category">{{ row.category }}</span>
-              <template v-if="(row.complexity as number | null) != null">
+              <template v-if="isScoreFieldVisible('category')">
+                <span class="ps-card__dot"
+                  :style="{ background: categoryStore.getAccent(row.categoryCode as string) }" />
+                <span class="ps-card__category">{{ row.category }}</span>
+              </template>
+              <template v-if="isScoreFieldVisible('complexity') && (row.complexity as number | null) != null">
                 <span class="ps-card__sep">·</span>
                 <span class="ps-card__cx">{{ (row.complexity as number).toFixed(1) }}</span>
               </template>
-              <span class="ps-card__sep">·</span>
-              <span class="ps-card__date">{{ formatRelativeDate(row.date as string) }}</span>
+              <template v-if="isScoreFieldVisible('date')">
+                <span class="ps-card__sep">·</span>
+                <span class="ps-card__date">{{ formatRelativeDate(row.date as string) }}</span>
+              </template>
             </span>
-            <span class="ps-card__ap">{{ (row.ap as number).toFixed(2) }}</span>
+            <span v-if="isScoreFieldVisible('ap')" class="ps-card__ap">{{ (row.ap as number).toFixed(2) }}</span>
 
-            <span class="ps-card__streak-cell">
+            <span v-if="isScoreFieldVisible('streak_115')" class="ps-card__streak-cell">
               <template v-if="(row.streak115 as number | null) != null">{{ row.streak115 }} 115s</template>
               <span v-else class="ps-card__sep">&ndash;</span>
             </span>
-            <span class="ps-card__weighted">/ {{ (row.weighted as number).toFixed(2) }}</span>
+            <span v-if="isScoreFieldVisible('weighted_ap')" class="ps-card__weighted">
+              / {{ (row.weighted as number).toFixed(2) }}
+            </span>
           </div>
           <div class="ps-card__actions">
             <button v-if="isSelfProfile" class="ps-card__action-btn"

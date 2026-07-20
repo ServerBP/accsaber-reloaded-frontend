@@ -5,11 +5,11 @@ import {
 import type {
   AppearanceSettings,
   PrivacySettings,
-  ReplayService,
   SettingGroup,
   SettingsBag,
   Visibility,
 } from '@/types/api/settings'
+import { DEFAULT_SCORE_ROW_FIELDS } from '@/utils/scoreRowFields'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
@@ -22,6 +22,12 @@ const APPEARANCE_DEFAULTS: AppearanceSettings = {
   'appearance.theme': '',
   'appearance.colorScheme': '',
   'appearance.primaryReplayService': 'beatleader',
+  'appearance.fallbackReplayService': null,
+  'appearance.complexityNumberStyle': 'colored',
+  'appearance.complexityBar': true,
+  'appearance.scoreRowFields': [...DEFAULT_SCORE_ROW_FIELDS],
+  'appearance.hideReloadedProfileFeatures': false,
+  'appearance.showStatisticsChart': false,
 }
 
 export const useSettingsStore = defineStore('settings', () => {
@@ -76,10 +82,12 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
-  async function setPrimaryReplayService(value: ReplayService): Promise<boolean> {
-    const key = 'appearance.primaryReplayService' as const
+  async function updateAppearance<K extends keyof AppearanceSettings>(
+    key: K,
+    value: AppearanceSettings[K],
+  ): Promise<boolean> {
     const previous = appearance.value[key]
-    if (previous === value || appearanceSaving.value) return false
+    if (appearanceSaving.value) return false
     appearance.value = { ...appearance.value, [key]: value }
     appearanceSaving.value = true
     appearanceError.value = null
@@ -125,7 +133,7 @@ export const useSettingsStore = defineStore('settings', () => {
     appearanceSaving,
     appearanceError,
     fetchAppearance,
-    setPrimaryReplayService,
+    updateAppearance,
     fetchGroup,
     reset,
   }

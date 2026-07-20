@@ -30,6 +30,7 @@ const props = defineProps<{
   fallbackTitle?: string | null
   fallbackTitleColor?: string | null
   hideProgress?: boolean
+  plain?: boolean
   equippedTitle?: TitleValue | null
   equippedBorderShape?: BorderShapeValue | null
   equippedBorderColor?: BorderColorValue | null
@@ -43,35 +44,50 @@ const progressPercent = computed(() => {
 })
 
 const progressBackground = computed(() => {
-  const cv = props.equippedBorderColor
-  const fill = cv?.states?.[0]?.fill
+  const fill = borderColor.value?.states?.[0]?.fill
   if (fill) return fillToCss(fill)
   return 'var(--accent-overall)'
 })
 
-const borderFragment = computed(() => readFragmentFromLayers(props.borderEffects))
-const titleFragment = computed(() => readFragmentFromLayers(props.titleEffects))
+const PLAIN_BORDER_COLOR: BorderColorValue = {
+  states: [{ atMs: 0, fill: { type: 'solid', hex: 'var(--bg-overlay)' } }],
+}
 
-const borderFxLayers = computed(() => annotateEffectLayerStacks(props.borderEffects))
-const titleFxLayers = computed(() => annotateEffectLayerStacks(props.titleEffects))
-const borderFxMask = computed(() => shapeSilhouetteMask(props.equippedBorderShape))
+const borderShape = computed(() => (props.plain ? null : props.equippedBorderShape ?? null))
+const borderColor = computed(() =>
+  props.plain ? PLAIN_BORDER_COLOR : props.equippedBorderColor ?? null,
+)
+const title = computed(() => (props.plain ? null : props.equippedTitle ?? null))
 
-const hasShapeOverride = computed(() => !!props.equippedBorderShape)
+const borderFragment = computed(() =>
+  props.plain ? null : readFragmentFromLayers(props.borderEffects),
+)
+const titleFragment = computed(() =>
+  props.plain ? null : readFragmentFromLayers(props.titleEffects),
+)
 
-const decals = computed(() => props.equippedBorderShape?.decals ?? [])
+const borderFxLayers = computed(() =>
+  props.plain ? [] : annotateEffectLayerStacks(props.borderEffects),
+)
+const titleFxLayers = computed(() =>
+  props.plain ? [] : annotateEffectLayerStacks(props.titleEffects),
+)
+const borderFxMask = computed(() => shapeSilhouetteMask(borderShape.value))
+
+const hasShapeOverride = computed(() => !!borderShape.value)
+
+const decals = computed(() => borderShape.value?.decals ?? [])
 
 const overlay = computed(() =>
-  props.equippedBorderShape?.overlay?.enabled ? props.equippedBorderShape.overlay : null,
+  borderShape.value?.overlay?.enabled ? borderShape.value.overlay : null,
 )
 
-const avatarMaskPath = computed(() =>
-  props.equippedBorderShape?.avatarMask ?? DEFAULT_AVATAR_MASK,
-)
+const avatarMaskPath = computed(() => borderShape.value?.avatarMask ?? DEFAULT_AVATAR_MASK)
 
 const avatarImageBox = ref({ x: 0, y: 0, size: 100 })
 
 watch(
-  () => props.equippedBorderShape,
+  borderShape,
   (shape) => {
     avatarImageBox.value = resolveAvatarImageBox(shape)
   },
@@ -96,10 +112,7 @@ const fallbackTitleStyle = computed(() => {
         :stack="borderFragment.count"
         :seed="borderFragment.seed"
       >
-        <ProfileBorderRenderer
-          :shape="equippedBorderShape ?? null"
-          :color="equippedBorderColor ?? null"
-        />
+        <ProfileBorderRenderer :shape="borderShape" :color="borderColor" />
         <LevelBadgeAvatar
           v-if="avatarUrl"
           :avatar-url="avatarUrl"
@@ -110,10 +123,7 @@ const fallbackTitleStyle = computed(() => {
         />
       </FragmentedContent>
       <template v-else>
-        <ProfileBorderRenderer
-          :shape="equippedBorderShape ?? null"
-          :color="equippedBorderColor ?? null"
-        />
+        <ProfileBorderRenderer :shape="borderShape" :color="borderColor" />
         <LevelBadgeAvatar
           v-if="avatarUrl"
           :avatar-url="avatarUrl"
@@ -142,10 +152,10 @@ const fallbackTitleStyle = computed(() => {
       />
     </div>
 
-    <div class="level-badge__below">
+    <div v-if="!plain" class="level-badge__below">
       <span class="level-badge__title-line">
         <span class="level-badge__level">Lv. {{ level }}</span>
-        <span v-if="equippedTitle" class="level-badge__title-fx">
+        <span v-if="title" class="level-badge__title-fx">
           <ModifierCompositions
             v-for="layer in titleFxLayers"
             :key="layer.key"
@@ -165,9 +175,9 @@ const fallbackTitleStyle = computed(() => {
               :stack="titleFragment.count"
               :seed="titleFragment.seed"
             >
-              <TitleRenderer :value="equippedTitle" />
+              <TitleRenderer :value="title" />
             </FragmentedContent>
-            <TitleRenderer v-else :value="equippedTitle" />
+            <TitleRenderer v-else :value="title" />
           </span>
         </span>
         <span
