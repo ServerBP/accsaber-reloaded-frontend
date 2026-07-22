@@ -9,6 +9,7 @@ const NOTIFICATION_DEFAULTS: NotificationSettings = {
   'notifications.tradeResolved': true,
   'notifications.marketSold': true,
   'notifications.marketBid': true,
+  'notifications.marketOutbid': true,
   'notifications.itemEarned': true,
   'notifications.server': true,
 }
@@ -33,6 +34,11 @@ const CONTROLS: { key: keyof NotificationSettings & string; title: string; hint:
     key: 'notifications.marketBid',
     title: 'Someone bids on your listing',
     hint: 'A new bid lands on one of your active listings.',
+  },
+  {
+    key: 'notifications.marketOutbid',
+    title: 'You get outbid on a listing',
+    hint: 'Someone tops your bid on an active auction.',
   },
   {
     key: 'notifications.itemEarned',
@@ -98,7 +104,7 @@ async function setToggle(key: keyof NotificationSettings & string, value: boolea
     </header>
 
     <template v-if="settings === null && !error">
-      <div v-for="i in 6" :key="i" class="settings-card__skeleton">
+      <div v-for="i in CONTROLS.length" :key="i" class="settings-card__skeleton">
         <SkeletonLoader variant="text" :lines="2" />
       </div>
     </template>

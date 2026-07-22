@@ -6,6 +6,7 @@ export type NotificationType =
   | 'trade_declined'
   | 'market_sold'
   | 'market_bid'
+  | 'market_outbid'
   | 'item_earned'
   | 'server'
 

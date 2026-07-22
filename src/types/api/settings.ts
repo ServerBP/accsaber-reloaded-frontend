@@ -34,6 +34,7 @@ export type SettingKey =
   | 'notifications.tradeResolved'
   | 'notifications.marketSold'
   | 'notifications.marketBid'
+  | 'notifications.marketOutbid'
   | 'notifications.itemEarned'
   | 'notifications.server'
 
@@ -61,6 +62,7 @@ export interface NotificationSettings extends SettingsBag {
   'notifications.tradeResolved': boolean
   'notifications.marketSold': boolean
   'notifications.marketBid': boolean
+  'notifications.marketOutbid': boolean
   'notifications.itemEarned': boolean
   'notifications.server': boolean
 }

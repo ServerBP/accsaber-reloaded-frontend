@@ -39,6 +39,10 @@ const resolved = computed<NotificationType | 'unknown'>(() =>
       <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
       <polyline points="17 6 23 6 23 12" />
     </template>
+    <template v-else-if="resolved === 'market_outbid'">
+      <polyline points="23 18 13.5 8.5 8.5 13.5 1 6" />
+      <polyline points="17 18 23 18 23 12" />
+    </template>
     <template v-else-if="resolved === 'item_earned'">
       <polyline points="20 12 20 22 4 22 4 12" />
       <rect x="2" y="7" width="20" height="5" />
@@ -78,6 +82,10 @@ const resolved = computed<NotificationType | 'unknown'>(() =>
 
 .notification-type-icon--trade_declined {
   color: var(--error);
+}
+
+.notification-type-icon--market_outbid {
+  color: var(--warning);
 }
 
 .notification-type-icon--item_earned {
