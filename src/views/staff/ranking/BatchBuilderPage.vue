@@ -40,6 +40,30 @@ const batchDifficultyIds = ref<Set<string>>(new Set())
 const isDraft = computed(() => !batch.value || batch.value.status === 'DRAFT')
 const isReleaseReady = computed(() => batch.value?.status === 'RELEASE_READY')
 
+const trimmedName = computed(() => batchName.value.trim())
+const trimmedDescription = computed(() => batchDescription.value.trim())
+
+const detailsDirty = computed(() => {
+  if (!batch.value) return false
+  return (
+    trimmedName.value !== batch.value.name ||
+    trimmedDescription.value !== (batch.value.description ?? '')
+  )
+})
+
+const difficultiesDirty = computed(() => {
+  if (!batch.value) return batchDifficultyIds.value.size > 0
+  const current = batch.value.difficulties
+  if (current.length !== batchDifficultyIds.value.size) return true
+  return current.some((d) => !batchDifficultyIds.value.has(d.id))
+})
+
+const hasChanges = computed(() =>
+  isNew.value || detailsDirty.value || (isDraft.value && difficultiesDirty.value)
+)
+
+const canSave = computed(() => !!trimmedName.value && hasChanges.value)
+
 
 const activeCategories = computed<CategoryInfo[]>(() =>
   categoryStore.categoryInfoList
@@ -99,7 +123,7 @@ async function fetchBatch() {
     const b = await getBatch(batchId.value)
     batch.value = b
     batchName.value = b.name
-    batchDescription.value = b.description
+    batchDescription.value = b.description ?? ''
     batchDifficultyIds.value = new Set(b.difficulties.map((d) => d.id))
   } catch {
     error.value = 'Failed to load batch.'
@@ -212,36 +236,32 @@ function removeFromBatch(diffId: string) {
 }
 
 async function saveBatch() {
-  if (!batchName.value.trim()) return
+  if (!canSave.value) return
   saving.value = true
   error.value = ''
 
   try {
+    const api = await import('@/api/ranking/batches')
     let id = batchId.value
 
     if (!id) {
-      const { createBatch } = await import('@/api/ranking/batches')
-      const created = await createBatch({
-        name: batchName.value.trim(),
-        description: batchDescription.value.trim(),
+      const created = await api.createBatch({
+        name: trimmedName.value,
+        description: trimmedDescription.value,
       })
       id = created.id
+      batch.value = created
+      batchDescription.value = created.description ?? ''
       router.replace({ name: 'ranking-batch-builder', params: { batchId: id } })
+    } else if (detailsDirty.value) {
+      await api.updateBatch(id, {
+        name: trimmedName.value,
+        description: trimmedDescription.value || null,
+      })
     }
 
-    const { addDifficultyToBatch, removeDifficultyFromBatch } = await import('@/api/ranking/batches')
-
-    const currentIds = new Set(batch.value?.difficulties.map((d) => d.id) ?? [])
-    const targetIds = batchDifficultyIds.value
-
-    const toAdd = [...targetIds].filter((id) => !currentIds.has(id))
-    const toRemove = [...currentIds].filter((id) => !targetIds.has(id))
-
-    for (const diffId of toRemove) {
-      await removeDifficultyFromBatch(id, diffId)
-    }
-    for (const diffId of toAdd) {
-      await addDifficultyToBatch(id, diffId)
+    if (isDraft.value) {
+      await syncDifficulties(id)
     }
 
     await fetchBatch()
@@ -249,6 +269,23 @@ async function saveBatch() {
     error.value = e instanceof Error ? e.message : 'Failed to save batch.'
   } finally {
     saving.value = false
+  }
+}
+
+async function syncDifficulties(id: string) {
+  const { addDifficultyToBatch, removeDifficultyFromBatch } = await import('@/api/ranking/batches')
+
+  const currentIds = new Set(batch.value?.difficulties.map((d) => d.id) ?? [])
+  const targetIds = batchDifficultyIds.value
+
+  const toRemove = [...currentIds].filter((diffId) => !targetIds.has(diffId))
+  const toAdd = [...targetIds].filter((diffId) => !currentIds.has(diffId))
+
+  for (const diffId of toRemove) {
+    await removeDifficultyFromBatch(id, diffId)
+  }
+  for (const diffId of toAdd) {
+    await addDifficultyToBatch(id, diffId)
   }
 }
 
@@ -330,26 +367,27 @@ function criteriaIndicatorClass(diff: MapDifficultyResponse): string {
           <polyline points="15 18 9 12 15 6" />
         </svg>
       </button>
-      <h1 class="batch-builder__title">{{ isNew ? 'New Batch' : batchName }}</h1>
+      <h1 class="batch-builder__title">{{ isNew ? 'New Batch' : (trimmedName || 'Untitled Batch') }}</h1>
       <div class="batch-builder__header-actions">
-        <template v-if="isDraft">
-          <BaseButton size="sm" :loading="saving" :disabled="!batchName.trim()" @click="saveBatch">
-            Save
-          </BaseButton>
-          <BaseButton v-if="!isNew && totalSelected > 0" size="sm" variant="primary" @click="showMarkReady = true">
-            Mark Ready
-          </BaseButton>
-        </template>
+        <BaseButton size="sm" :loading="saving" :disabled="!canSave" @click="saveBatch">
+          Save
+        </BaseButton>
+        <BaseButton v-if="isDraft && !isNew && totalSelected > 0" size="sm" variant="primary" @click="showMarkReady = true">
+          Mark Ready
+        </BaseButton>
         <BaseButton v-if="isReleaseReady" size="sm" variant="primary" @click="showRelease = true">
           Release
         </BaseButton>
       </div>
     </div>
 
-    <div v-if="isDraft" class="batch-builder__name-row">
-      <BaseInput v-model="batchName" placeholder="Batch name" :disabled="!isDraft" />
-      <BaseInput v-model="batchDescription" placeholder="Description (optional)" :disabled="!isDraft" />
+    <div class="batch-builder__name-row">
+      <BaseInput v-model="batchName" label="Name" placeholder="Batch name" />
+      <BaseInput v-model="batchDescription" label="Description" placeholder="Description (optional)" />
     </div>
+    <p v-if="!isDraft" class="batch-builder__name-hint">
+      Maps are locked for this batch - only the name and description can be edited.
+    </p>
 
     <div v-if="error" class="batch-builder__error">{{ error }}</div>
 
@@ -594,6 +632,12 @@ function criteriaIndicatorClass(diff: MapDifficultyResponse): string {
 
 .batch-builder__name-row > * {
   flex: 1;
+}
+
+.batch-builder__name-hint {
+  margin: calc(-1 * var(--space-md)) 0 var(--space-lg);
+  color: var(--text-tertiary);
+  font-size: var(--text-caption);
 }
 
 .batch-builder__error {

@@ -191,12 +191,8 @@ function batchStatusClass(status: string): string {
               <span>Playlist</span>
             </BaseButton>
             <template v-if="isHead">
-              <BaseButton
-                v-if="batch.status === 'DRAFT'"
-                size="sm"
-                @click="openBuilder(batch.id)"
-              >
-                Edit
+              <BaseButton size="sm" @click="openBuilder(batch.id)">
+                {{ batch.status === 'DRAFT' ? 'Edit' : 'Rename' }}
               </BaseButton>
               <BaseButton
                 v-if="batch.status === 'RELEASE_READY'"

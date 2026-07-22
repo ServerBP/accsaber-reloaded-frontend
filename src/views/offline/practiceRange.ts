@@ -97,9 +97,9 @@ const LANES = [0.32, 0.55, 0.78]
 
 const MAX_LIVES = 3
 const CUTS_PER_LEVEL = 8
-const MAX_SPEED_MULT = 2.6
+const MAX_SPEED_MULT = 3.0
 const MIN_SPAWN_MS = 380
-const HEART_CHANCE = 0.05
+const HEART_CHANCE = 0.03
 const BOMB_CHANCE_BASE = 0.06
 const BOMB_CHANCE_PER_LEVEL = 0.012
 const BOMB_CHANCE_MAX = 0.15
@@ -263,7 +263,7 @@ export function createPracticeRange(onEvent: (ev: RangeEvent) => void): Practice
   }
 
   function speedMult(): number {
-    return mode === 'game' ? Math.min(1 + 0.15 * (level - 1), MAX_SPEED_MULT) : 1
+    return mode === 'game' ? Math.min(1 + 0.2 * (level - 1), MAX_SPEED_MULT) : 1
   }
 
   function targetSize(): number {

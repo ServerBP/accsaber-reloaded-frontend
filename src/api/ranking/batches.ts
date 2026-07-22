@@ -1,4 +1,4 @@
-import type { CreateBatchRequest, UpdateBatchStatusRequest } from '@/types/api/admin'
+import type { CreateBatchRequest, UpdateBatchRequest, UpdateBatchStatusRequest } from '@/types/api/admin'
 import type { BatchResponse, RankingBatchListParams } from '@/types/api/batches'
 import type { Page } from '@/types/pagination'
 import { del, get, patch, post } from '../client'
@@ -14,6 +14,10 @@ export function getBatch(batchId: string): Promise<BatchResponse> {
 
 export function createBatch(req: CreateBatchRequest): Promise<BatchResponse> {
   return post<BatchResponse>('/ranking/batches', req)
+}
+
+export function updateBatch(batchId: string, req: UpdateBatchRequest): Promise<BatchResponse> {
+  return patch<BatchResponse>(`/ranking/batches/${batchId}`, req)
 }
 
 export function updateBatchStatus(

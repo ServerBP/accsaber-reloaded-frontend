@@ -73,6 +73,11 @@ export interface CreateBatchRequest {
   description?: string
 }
 
+export interface UpdateBatchRequest {
+  name: string
+  description: string | null
+}
+
 export interface UpdateBatchStatusRequest {
   status: BatchStatus
 }

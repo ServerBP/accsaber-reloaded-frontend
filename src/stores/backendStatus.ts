@@ -5,7 +5,8 @@ export type OfflineReason = 'backend' | 'network'
 
 const PROBE_PATH = '/categories'
 const PROBE_TIMEOUT_MS = 6000
-const RETRY_STEPS_MS = [5000, 8000, 13000, 21000, 30000]
+const FIRST_RETRY_MS = 5000
+const RETRY_MS = 10000
 const RELOAD_DELAY_MS = 700
 
 const forced =
@@ -20,7 +21,7 @@ export const useBackendStatusStore = defineStore('backendStatus', () => {
   const lastCheckedAt = ref<number | null>(null)
 
   let retryTimer: ReturnType<typeof setTimeout> | null = null
-  let attempt = 0
+  let firstRetry = true
   let verifying = false
 
   function currentReason(): OfflineReason {
@@ -56,8 +57,8 @@ export const useBackendStatusStore = defineStore('backendStatus', () => {
 
   function scheduleRetry() {
     clearRetry()
-    const delay = RETRY_STEPS_MS[Math.min(attempt, RETRY_STEPS_MS.length - 1)]
-    attempt += 1
+    const delay = firstRetry ? FIRST_RETRY_MS : RETRY_MS
+    firstRetry = false
     nextProbeAt.value = Date.now() + delay
     retryTimer = setTimeout(() => void runProbe(), delay)
   }
@@ -92,7 +93,7 @@ export const useBackendStatusStore = defineStore('backendStatus', () => {
     if (offline.value || recovering.value) return
     offline.value = true
     reason.value = currentReason()
-    attempt = 0
+    firstRetry = true
     scheduleRetry()
     window.addEventListener('online', onBrowserOnline)
   }
