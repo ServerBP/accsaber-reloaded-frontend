@@ -22,6 +22,8 @@ export interface TradeResponse {
   toUserId: string
   offeredItems: TradeItemRef[]
   requestedItems: TradeItemRef[]
+  offeredEssence: number
+  requestedEssence: number
   status: TradeStatus
   message: string | null
   createdAt: string
@@ -42,5 +44,7 @@ export interface CreateTradeRequest {
   toUserId: string
   offeredItems: TradeItemInput[]
   requestedItems: TradeItemInput[]
+  offeredEssence?: number
+  requestedEssence?: number
   message?: string
 }

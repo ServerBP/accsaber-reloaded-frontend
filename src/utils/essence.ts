@@ -7,3 +7,9 @@ export function formatEssenceAmount(amount: number): string {
 export function formatEssence(amount: number): string {
   return `${formatEssenceAmount(amount)} ${ESSENCE_GLYPH}`
 }
+
+export function formatEssenceNet(net: number): string {
+  if (net === 0) return 'You break even on essence'
+  const sign = net > 0 ? '+' : '-'
+  return `You net ${sign}${formatEssenceAmount(Math.abs(net))} essence`
+}

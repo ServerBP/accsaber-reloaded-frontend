@@ -577,6 +577,18 @@ export interface UnusualEffectResponse extends UnusualEffectRef {
   createdAt: string
 }
 
+export interface UnusualEffectCrateGroup {
+  crateId: string
+  crateName: string
+  crateIconUrl: string | null
+  effects: UnusualEffectResponse[]
+}
+
+export interface UnusualEffectGroupsResponse {
+  groups: UnusualEffectCrateGroup[]
+  ungrouped: UnusualEffectResponse[]
+}
+
 export interface CreateUnusualEffectRequest {
   key: string
   name: string
@@ -618,6 +630,7 @@ export interface DisintegrationResponse {
 
 export interface EssenceBalance {
   balance: number
+  reserved: number
 }
 
 export interface ItemListParams {

@@ -10,6 +10,7 @@ import type {
   ItemModifierResponse,
   ItemResponse,
   ItemTypeResponse,
+  UnusualEffectGroupsResponse,
   UnusualEffectResponse,
   UserItemListParams,
   UserItemResponse,
@@ -28,6 +29,10 @@ export function getItemModifiers(): Promise<ItemModifierResponse[]> {
 
 export function getUnusualEffects(): Promise<UnusualEffectResponse[]> {
   return get<UnusualEffectResponse[]>('/unusual-effects')
+}
+
+export function getUnusualEffectGroups(): Promise<UnusualEffectGroupsResponse> {
+  return get<UnusualEffectGroupsResponse>('/unusual-effects/grouped')
 }
 
 export function getItems(params?: ItemListParams): Promise<ItemResponse[]> {

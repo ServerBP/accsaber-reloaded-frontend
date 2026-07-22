@@ -77,9 +77,6 @@ const isSelfProfile = computed(
 
 const { state: supporterState } = useSupporter(() => userId.value)
 
-// Source-of-truth for active-supporter status: the inline `supporterTier` field that the
-// backend ships on UserResponse. The separate /supporter fetch fills in extras (lifetime,
-// balance, since-date) but isn't needed just to know "is this user a supporter."
 const profileOwnerTier = computed(
   () => user.value?.supporterTier ?? supporterState.value?.currentTier ?? null,
 )
@@ -111,7 +108,7 @@ const equippedBackgroundFitClass = computed(() =>
   equippedBackgroundValue.value?.fit ? `profile-page__bg-equipped--${equippedBackgroundValue.value.fit}` : '',
 )
 
-const activeTab = ref('scores')
+const activeTab = ref(route.query.inventoryHighlight ? 'inventory' : 'scores')
 const initialCategory = (route.query.category as CategoryCode) || 'overall'
 const activeCategory = ref<CategoryCode>(initialCategory === 'xp' ? 'overall' : initialCategory)
 

@@ -79,6 +79,26 @@ const router = createRouter({
       component: () => import('@/views/TradeBuilderPage.vue'),
     },
     {
+      path: '/market',
+      name: 'market',
+      component: () => import('@/views/MarketPage.vue'),
+    },
+    {
+      path: '/market/new',
+      name: 'market-new',
+      component: () => import('@/views/MarketCreatePage.vue'),
+    },
+    {
+      path: '/market/me',
+      name: 'market-activity',
+      component: () => import('@/views/MarketActivityPage.vue'),
+    },
+    {
+      path: '/market/:listingId',
+      name: 'market-listing',
+      component: () => import('@/views/MarketListingPage.vue'),
+    },
+    {
       path: '/ranked-queue',
       name: 'ranked-queue',
       component: () => import('@/views/RankedQueuePage.vue'),
@@ -120,6 +140,11 @@ const router = createRouter({
         component: () => import('@/views/NewsDetailPage.vue'),
       },
     ] : []),
+    {
+      path: '/notifications',
+      name: 'notifications',
+      component: () => import('@/views/NotificationsPage.vue'),
+    },
     {
       path: '/settings',
       name: 'settings',

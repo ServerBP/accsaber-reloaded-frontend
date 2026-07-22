@@ -17,6 +17,7 @@ import { useCrateUnusualEffects } from '@/composables/useCrateUnusualEffects'
 import { useEquippedRenderProps } from '@/composables/useEquippedRenderProps'
 import { useOwnedItemIds } from '@/composables/useOwnedItemIds'
 import { usePageableRoute } from '@/composables/usePageableRoute'
+import { useReducedMotion } from '@/composables/useReducedMotion'
 import { disintegrateItem, getItems, getUserInventory, getUserItems } from '@/api/items'
 import { parseApiError } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
@@ -46,6 +47,7 @@ const themeStore = useThemeStore()
 
 const route = useRoute()
 const router = useRouter()
+const reducedMotion = useReducedMotion()
 
 const isOwnProfile = computed(() => authStore.isLoggedIn && authStore.userId === props.userId)
 const canOfferTrade = computed(() => authStore.isLoggedIn && !!authStore.userId && authStore.userId !== props.userId)
@@ -119,6 +121,11 @@ const modifierOptions = computed(() => [
 const data = ref<Page<UserItemResponse> | null>(null)
 const loading = ref(false)
 const selectedLinkId = ref<string | null>(null)
+const pendingHighlightId = ref(
+  typeof route.query.inventoryHighlight === 'string' ? route.query.inventoryHighlight : null,
+)
+const flashLinkId = ref<string | null>(null)
+let flashTimer: ReturnType<typeof setTimeout> | null = null
 const actionBusy = ref(false)
 const mobileDetailOpen = ref(false)
 const disintegrateTarget = ref<UserItemResponse | null>(null)
@@ -282,6 +289,24 @@ function isEquipped(userItem: UserItemResponse): boolean {
   return !!slot && slot.linkId === userItem.linkId
 }
 
+function applyPendingHighlight() {
+  const linkId = pendingHighlightId.value
+  if (!linkId) return
+  pendingHighlightId.value = null
+  if (!data.value?.content.some((u) => u.linkId === linkId)) return
+  selectedLinkId.value = linkId
+  flashLinkId.value = linkId
+  void nextTick(() => {
+    document
+      .querySelector(`[data-link-id="${CSS.escape(linkId)}"]`)
+      ?.scrollIntoView({ block: 'center', behavior: reducedMotion.value ? 'auto' : 'smooth' })
+  })
+  if (flashTimer) clearTimeout(flashTimer)
+  flashTimer = setTimeout(() => {
+    flashLinkId.value = null
+  }, 1600)
+}
+
 async function fetchInventory() {
   loading.value = true
   try {
@@ -298,6 +323,7 @@ async function fetchInventory() {
     } else if (!selectedLinkId.value && data.value.content.length > 0) {
       selectedLinkId.value = data.value.content[0].linkId
     }
+    applyPendingHighlight()
   } catch {
     data.value = null
   } finally {
@@ -645,6 +671,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (feedbackTimer) clearTimeout(feedbackTimer)
+  if (flashTimer) clearTimeout(flashTimer)
 })
 </script>
 
@@ -693,7 +720,7 @@ onUnmounted(() => {
             <span class="inv-tab__wallet-glyph" aria-hidden="true">{{ ESSENCE_GLYPH }}</span>
             <span class="inv-tab__wallet-amount">{{ formatEssenceAmount(essenceStore.balance) }}</span>
           </span>
-          <RouterLink v-if="isOwnProfile" :to="{ name: 'trade-offers' }" custom v-slot="{ navigate, href }">
+          <RouterLink v-if="isOwnProfile" :to="{ name: 'market' }" custom v-slot="{ navigate, href }">
             <BaseButton variant="primary" :href="href" @click="(e: MouseEvent) => { e.preventDefault(); navigate() }">
               Market Hub
             </BaseButton>
@@ -724,8 +751,10 @@ onUnmounted(() => {
           <InventoryItemCell
             v-for="userItem in items"
             :key="userItem.linkId"
+            :data-link-id="userItem.linkId"
             :user-item="userItem"
             :selected="userItem.linkId === selectedLinkId"
+            :highlighted="userItem.linkId === flashLinkId"
             :equipped="isEquipped(userItem)"
             :locked="isLockedLink(userItem.linkId)"
             @select="selectItem"

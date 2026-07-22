@@ -4,6 +4,7 @@ import { ref } from 'vue'
 
 export const useEssenceStore = defineStore('essence', () => {
   const balance = ref<number | null>(null)
+  const reserved = ref<number | null>(null)
   const loading = ref(false)
   const loaded = ref(false)
 
@@ -13,9 +14,9 @@ export const useEssenceStore = defineStore('essence', () => {
     try {
       const res = await getEssenceBalance()
       balance.value = res.balance
+      reserved.value = res.reserved ?? 0
       loaded.value = true
     } catch {
-      // Leave any prior balance in place; the wallet just won't update.
     } finally {
       loading.value = false
     }
@@ -28,8 +29,9 @@ export const useEssenceStore = defineStore('essence', () => {
 
   function reset(): void {
     balance.value = null
+    reserved.value = null
     loaded.value = false
   }
 
-  return { balance, loading, loaded, fetchBalance, setBalance, reset }
+  return { balance, reserved, loading, loaded, fetchBalance, setBalance, reset }
 })

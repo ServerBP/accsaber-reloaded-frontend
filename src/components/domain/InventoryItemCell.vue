@@ -22,6 +22,7 @@ const props = defineProps<{
   selected?: boolean
   equipped?: boolean
   locked?: boolean
+  highlighted?: boolean
 }>()
 
 defineEmits<{
@@ -64,6 +65,7 @@ onMounted(() => {
         rarityClass(item.rarity),
         {
           'inventory-cell--selected': selected,
+          'inventory-cell--highlighted': highlighted,
           'inventory-cell--equipped': equipped,
           'inventory-cell--deprecated': item.deprecated,
           'inventory-cell--locked': locked,
@@ -223,6 +225,26 @@ onMounted(() => {
 .inventory-cell--selected {
   border-color: var(--cell-accent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--cell-accent) 35%, transparent);
+}
+
+.inventory-cell--highlighted {
+  animation: inventory-cell-flash 700ms ease-out 2;
+}
+
+@keyframes inventory-cell-flash {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--cell-accent) 35%, transparent);
+  }
+  40% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--cell-accent) 70%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inventory-cell--highlighted {
+    animation: none;
+  }
 }
 
 .inventory-cell--equipped::before {

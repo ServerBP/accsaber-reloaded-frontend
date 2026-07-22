@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { parseApiError } from '@/api/client'
 import { getUserInventory } from '@/api/items'
 import { getIncomingTrades, getOutgoingTrades } from '@/api/trades'
 import { getUser } from '@/api/users'
@@ -16,9 +17,13 @@ import UserPicker from '@/components/domain/UserPicker.vue'
 import { useDebouncedRef } from '@/composables/useDebouncedRef'
 import { usePageMeta } from '@/composables/usePageMeta'
 import { useAuthStore } from '@/stores/auth'
+import { useEssenceStore } from '@/stores/essence'
 import { useTradeStore } from '@/stores/trades'
 import type { UserItemResponse } from '@/types/api/items'
 import { TRADE_MAX_ITEMS_PER_SIDE } from '@/types/api/trades'
+import { ESSENCE_GLYPH, formatEssenceAmount, formatEssenceNet } from '@/utils/essence'
+import { digitsOnly } from '@/utils/formatters'
+import { sanitizeEssenceInput } from '@/utils/market'
 import type { UserResponse } from '@/types/api/users'
 import type { Page } from '@/types/pagination'
 import { computed, onMounted, ref, watch } from 'vue'
@@ -29,6 +34,7 @@ usePageMeta({
 })
 
 const authStore = useAuthStore()
+const essenceStore = useEssenceStore()
 const tradeStore = useTradeStore()
 const route = useRoute()
 const router = useRouter()
@@ -67,6 +73,20 @@ const offeredEntries = ref<DraftEntry[]>([])
 const requestedEntries = ref<DraftEntry[]>([])
 const itemCache = new Map<string, UserItemResponse>()
 
+const offeredEssenceInput = ref('')
+const requestedEssenceInput = ref('')
+const offeredEssence = computed(() => sanitizeEssenceInput(offeredEssenceInput.value) ?? 0)
+const requestedEssence = computed(() => sanitizeEssenceInput(requestedEssenceInput.value) ?? 0)
+
+const essenceNet = computed(() => requestedEssence.value - offeredEssence.value)
+
+const insufficientEssence = computed(
+  () =>
+    offeredEssence.value > 0 &&
+    essenceStore.balance != null &&
+    offeredEssence.value > essenceStore.balance,
+)
+
 const lockedLinkIds = ref<Set<string>>(new Set())
 
 const isLoggedIn = computed(() => authStore.isLoggedIn)
@@ -76,15 +96,11 @@ const isSelfRecipient = computed(
   () => !!recipientUserId.value && recipientUserId.value === myUserId.value,
 )
 
-const breadcrumbs = computed<Crumb[]>(() => {
-  const out: Crumb[] = []
-  if (myUserId.value) {
-    out.push({ label: 'Profile', to: { name: 'player-profile', params: { userId: myUserId.value } } })
-  }
-  out.push({ label: 'Trade Offers', to: { name: 'trade-offers' } })
-  out.push({ label: 'New Offer' })
-  return out
-})
+const breadcrumbs = computed<Crumb[]>(() => [
+  { label: 'Market Hub', to: { name: 'market' } },
+  { label: 'Trade Offers', to: { name: 'trade-offers' } },
+  { label: 'New Offer' },
+])
 
 interface DraftSlot {
   entry: DraftEntry
@@ -117,7 +133,13 @@ const canSubmit = computed(
   () =>
     !!recipientUserId.value
     && !isSelfRecipient.value
-    && (offeredEntries.value.length > 0 || requestedEntries.value.length > 0)
+    && (
+      offeredEntries.value.length > 0
+      || requestedEntries.value.length > 0
+      || offeredEssence.value > 0
+      || requestedEssence.value > 0
+    )
+    && !insufficientEssence.value
     && !submitting.value,
 )
 
@@ -269,11 +291,15 @@ async function submit() {
         userItemLinkId: e.linkId,
         quantity: clampQuantity(e.linkId, e.quantity),
       })),
+      offeredEssence: offeredEssence.value,
+      requestedEssence: requestedEssence.value,
       message: message.value.trim() || undefined,
     })
+    if (offeredEssence.value > 0) essenceStore.fetchBalance(true)
     router.push({ name: 'trade-offers' })
   } catch (e) {
-    errorMsg.value = (e as Error).message || 'Failed to create trade'
+    const parsed = parseApiError(e, 'Failed to create trade')
+    errorMsg.value = parsed.fieldErrors[0]?.message ?? parsed.message
   } finally {
     submitting.value = false
   }
@@ -308,6 +334,7 @@ onMounted(() => {
   if (!isLoggedIn.value) return
   loadMyInventory()
   loadPendingLockouts()
+  essenceStore.fetchBalance()
   if (recipientUserId.value && !isSelfRecipient.value) {
     loadRecipient(recipientUserId.value)
     loadTheirInventory()
@@ -482,6 +509,28 @@ onMounted(() => {
             <p v-if="offeredEntries.length === 0" class="trade-builder__offer-hint">
               Click items in your inventory to add them.
             </p>
+            <div class="trade-builder__essence-row">
+              <span class="trade-builder__essence-glyph" aria-hidden="true">{{ ESSENCE_GLYPH }}</span>
+              <input
+                class="trade-builder__essence-input"
+                type="text"
+                inputmode="numeric"
+                placeholder="0"
+                aria-label="Essence you offer"
+                :value="offeredEssenceInput"
+                @input="offeredEssenceInput = digitsOnly(($event.target as HTMLInputElement).value)"
+              />
+              <span class="trade-builder__essence-label">essence you add</span>
+            </div>
+            <p class="trade-builder__hint" :class="{ 'trade-builder__hint--warn': insufficientEssence }">
+              <template v-if="insufficientEssence">
+                You only have {{ formatEssenceAmount(essenceStore.balance ?? 0) }} {{ ESSENCE_GLYPH }} available.
+              </template>
+              <template v-else-if="essenceStore.balance != null">
+                {{ formatEssenceAmount(essenceStore.balance) }} available ·
+                {{ formatEssenceAmount(essenceStore.reserved ?? 0) }} reserved in offers
+              </template>
+            </p>
           </section>
 
           <div class="trade-builder__swap" aria-hidden="true">
@@ -521,9 +570,30 @@ onMounted(() => {
               <template v-if="recipientUser">Switch to "Their inventory" to request items.</template>
               <template v-else>Pick a player first.</template>
             </p>
+            <div class="trade-builder__essence-row">
+              <span class="trade-builder__essence-glyph" aria-hidden="true">{{ ESSENCE_GLYPH }}</span>
+              <input
+                class="trade-builder__essence-input"
+                type="text"
+                inputmode="numeric"
+                placeholder="0"
+                aria-label="Essence you request"
+                :value="requestedEssenceInput"
+                @input="requestedEssenceInput = digitsOnly(($event.target as HTMLInputElement).value)"
+              />
+              <span class="trade-builder__essence-label">essence you request</span>
+            </div>
           </section>
 
           <BaseInput v-model="message" label="Message (optional)" />
+
+          <p
+            v-if="offeredEssence > 0 || requestedEssence > 0"
+            class="trade-builder__net"
+            :class="{ 'trade-builder__net--negative': essenceNet < 0 }"
+          >
+            {{ formatEssenceNet(essenceNet) }}
+          </p>
 
           <div v-if="errorMsg" class="trade-builder__error">{{ errorMsg }}</div>
 
@@ -790,6 +860,57 @@ onMounted(() => {
   color: var(--text-tertiary);
   padding: var(--space-xs) 0;
   transform: rotate(90deg);
+}
+
+.trade-builder__essence-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.trade-builder__essence-glyph {
+  color: var(--tier-gold);
+  font-size: var(--text-body);
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.trade-builder__essence-input {
+  width: 96px;
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--bg-base);
+  border: 1px solid var(--bg-overlay);
+  border-radius: var(--radius-input);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-body);
+}
+
+.trade-builder__essence-input:focus {
+  outline: none;
+  border-color: var(--page-accent, var(--accent));
+}
+
+.trade-builder__essence-input:disabled {
+  color: var(--text-tertiary);
+  cursor: not-allowed;
+  background: var(--bg-surface);
+}
+
+.trade-builder__essence-label {
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+}
+
+.trade-builder__net {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: 600;
+  color: var(--success);
+}
+
+.trade-builder__net--negative {
+  color: var(--warning);
 }
 
 .trade-builder__error {

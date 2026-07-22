@@ -1,6 +1,6 @@
 export type Visibility = 'public' | 'followers_only' | 'private'
 
-export type SettingGroup = 'privacy' | 'appearance'
+export type SettingGroup = 'privacy' | 'appearance' | 'notifications'
 
 export type ReplayService = 'beatleader' | 'scoresaber' | 'arcviewer'
 
@@ -30,6 +30,12 @@ export type SettingKey =
   | 'appearance.scoreRowFields'
   | 'appearance.hideReloadedProfileFeatures'
   | 'appearance.showStatisticsChart'
+  | 'notifications.tradeOffer'
+  | 'notifications.tradeResolved'
+  | 'notifications.marketSold'
+  | 'notifications.marketBid'
+  | 'notifications.itemEarned'
+  | 'notifications.server'
 
 export type SettingsBag = Record<string, unknown>
 
@@ -48,4 +54,13 @@ export interface AppearanceSettings extends SettingsBag {
   'appearance.scoreRowFields': ScoreRowField[]
   'appearance.hideReloadedProfileFeatures': boolean
   'appearance.showStatisticsChart': boolean
+}
+
+export interface NotificationSettings extends SettingsBag {
+  'notifications.tradeOffer': boolean
+  'notifications.tradeResolved': boolean
+  'notifications.marketSold': boolean
+  'notifications.marketBid': boolean
+  'notifications.itemEarned': boolean
+  'notifications.server': boolean
 }

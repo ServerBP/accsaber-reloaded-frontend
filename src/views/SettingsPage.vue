@@ -22,6 +22,7 @@ import { isRankingSubdomain } from '@/utils/subdomain'
 import { onAvatarError, pickAvatarFallback, pickAvatarUrl } from '@/composables/useAvatarFallback'
 import { computed, onMounted, ref, watch } from 'vue'
 import ConnectionsSection from './settings/ConnectionsSection.vue'
+import NotificationSettingsSection from './settings/NotificationSettingsSection.vue'
 import SettingsPicker from './settings/SettingsPicker.vue'
 import ThemeCatalog from './settings/ThemeCatalog.vue'
 
@@ -30,7 +31,7 @@ usePageMeta({
   description: 'Manage appearance, account, and linked accounts.',
 })
 
-type SectionKey = 'appearance' | 'privacy' | 'account' | 'connections'
+type SectionKey = 'appearance' | 'notifications' | 'privacy' | 'account' | 'connections'
 
 interface SectionDef {
   key: SectionKey
@@ -140,7 +141,6 @@ async function setSyncAvatar(next: boolean) {
       avatarResyncTimer = setTimeout(() => { avatarResyncQueued.value = false }, 6000)
     }
   } catch {
-    /* swallow */
   } finally {
     avatarSyncSaving.value = false
   }
@@ -163,6 +163,7 @@ async function fetchSyncSetting() {
 
 const sections = computed<SectionDef[]>(() => [
   { key: 'appearance', label: 'Appearance', requiresLogin: false },
+  { key: 'notifications', label: 'Notifications', requiresLogin: !isLoggedIn.value },
   { key: 'privacy', label: 'Privacy', requiresLogin: !isLoggedIn.value },
   { key: 'account', label: 'Account', requiresLogin: !canAccessAccount.value },
   { key: 'connections', label: 'Connections', requiresLogin: !canAccessConnections.value },
@@ -418,6 +419,10 @@ watch(activeSection, (section) => {
             </header>
             <BaseButton variant="primary" @click="loginModalOpen = true">Sign in</BaseButton>
           </section>
+        </template>
+
+        <template v-else-if="activeSection === 'notifications' && isLoggedIn">
+          <NotificationSettingsSection />
         </template>
 
         <template v-else-if="activeSection === 'privacy' && isLoggedIn">

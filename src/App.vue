@@ -3,6 +3,7 @@ import BaseBanner from '@/components/common/BaseBanner.vue'
 import AppNavbar from '@/components/layout/AppNavbar.vue'
 import ThemeBackdrop from '@/components/layout/ThemeBackdrop.vue'
 import { useBrandFavicon } from '@/composables/useBrandLogo'
+import { useNotificationSocket } from '@/composables/useNotificationSocket'
 import { useAuthStore } from '@/stores/auth'
 import { useEssenceStore } from '@/stores/essence'
 import { useRelationsStore } from '@/stores/relations'
@@ -20,6 +21,7 @@ const relationsStore = useRelationsStore()
 const settingsStore = useSettingsStore()
 
 useBrandFavicon()
+useNotificationSocket()
 
 const showLegacyBanner = computed(() => authStore.legacyUserIdDetected !== null)
 

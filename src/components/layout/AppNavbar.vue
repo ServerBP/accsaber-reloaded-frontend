@@ -4,18 +4,20 @@ import BaseModal from '@/components/common/BaseModal.vue'
 import EventNavPill from '@/components/layout/EventNavPill.vue'
 import GlobalSearchModal from '@/components/domain/GlobalSearchModal.vue'
 import MissionsDropdown from '@/components/domain/MissionsDropdown.vue'
+import NotificationsDropdown from '@/components/domain/NotificationsDropdown.vue'
+import NavbarMoreMenu from '@/components/layout/NavbarMoreMenu.vue'
+import NavbarUserMenu from '@/components/layout/NavbarUserMenu.vue'
 import PseudoLoginModal from '@/components/domain/PseudoLoginModal.vue'
 import { useAuthStore } from '@/stores/auth'
-import { onAvatarError } from '@/composables/useAvatarFallback'
 import { useBrandLogo } from '@/composables/useBrandLogo'
 import { useCurrentEvent } from '@/composables/useCurrentEvent'
-import { isAdminSubdomain, isCreativesSubdomain, isRankingSubdomain, isStaffSubdomain, playerProfileHref } from '@/utils/subdomain'
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useOwnProfileLink } from '@/composables/useOwnProfileLink'
+import { isAdminSubdomain, isCreativesSubdomain, isRankingSubdomain, isStaffSubdomain } from '@/utils/subdomain'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 
 const authStore = useAuthStore()
 const route = useRoute()
-const router = useRouter()
 
 const logoSrc = useBrandLogo()
 
@@ -29,25 +31,11 @@ const {
 const loginModalOpen = ref(false)
 const searchModalOpen = ref(false)
 const showStaffLogoutConfirm = ref(false)
+const showSignOutConfirm = ref(false)
 const mobileDrawerOpen = ref(false)
 const scrolled = ref(false)
-const avatarFailed = ref(false)
 
-watch(() => authStore.userProfile?.avatarUrl, () => {
-  avatarFailed.value = false
-})
-
-const navAvatarError = (event: Event) => {
-  const fallback = authStore.userProfile?.avatarFallbackUrl ?? null
-  const img = event.currentTarget as HTMLImageElement
-  if (fallback && img.dataset.fellBack !== '1') {
-    onAvatarError(fallback)(event)
-    return
-  }
-  avatarFailed.value = true
-}
-
-type MobileIcon = 'leaderboard' | 'map' | 'milestone'
+type MobileIcon = 'leaderboard' | 'map'
 interface NavItem {
   to: string
   label: string
@@ -58,7 +46,11 @@ const publicNavItems: NavItem[] = [
   { to: '/leaderboards', label: 'Leaderboards', mobileIcon: 'leaderboard' },
   { to: '/maps', label: 'Maps', mobileIcon: 'map' },
   { to: '/campaigns', label: 'Campaigns' },
-  { to: '/milestones', label: 'Milestones', mobileIcon: 'milestone' },
+]
+
+const morePublicNavItems: NavItem[] = [
+  { to: '/market', label: 'Market Hub' },
+  { to: '/milestones', label: 'Milestones' },
   { to: '/stats', label: 'Stats' },
   { to: '/ranked-queue', label: 'Ranking Queue' },
 ]
@@ -74,6 +66,7 @@ const adminNavItems: NavItem[] = [
   { to: '/?tab=curves', label: 'Curves' },
   { to: '/?tab=news', label: 'News' },
   { to: '/?tab=events', label: 'Events' },
+  { to: '/?tab=broadcast', label: 'Broadcast' },
   { to: '/?tab=operations', label: 'Operations' },
   { to: '/?tab=duplicates', label: 'Duplicates' },
 ]
@@ -120,7 +113,7 @@ const showNewsAction = computed(() =>
   !isAdminSubdomain && !isCreativesSubdomain && !(isRankingContext.value && authStore.isStaffAuthorized),
 )
 
-const showMissionsAction = computed(() =>
+const showPlayerActions = computed(() =>
   authStore.isLoggedIn && !isAdminSubdomain && !isRankingSubdomain && !isCreativesSubdomain,
 )
 
@@ -134,8 +127,23 @@ const navItems = computed(() => {
   if (isCreativesSubdomain) return creativesNavItems
   return publicNavItems
 })
+
+const moreItems = computed<NavItem[]>(() => {
+  if (isAdminSubdomain || isRankingSubdomain) return []
+  if (isRankingContext.value && authStore.isStaffAuthorized) return []
+  return morePublicNavItems
+})
+
+const drawerNavItems = computed<NavItem[]>(() => [
+  ...navItems.value,
+  ...moreItems.value,
+  ...(showNewsAction.value ? [{ to: '/news', label: 'News' }] : []),
+])
+
 const mobileQuickItems = computed(() =>
-  navItems.value.filter((item): item is NavItem & { mobileIcon: MobileIcon } => !!item.mobileIcon)
+  drawerNavItems.value.filter(
+    (item): item is NavItem & { mobileIcon: MobileIcon } => !!item.mobileIcon,
+  )
 )
 
 function isActive(to: string): boolean {
@@ -147,17 +155,21 @@ function isActive(to: string): boolean {
   return route.path === to || route.path.startsWith(to + '/')
 }
 
-function handleUserClick() {
-  if (authStore.isLoggedIn && authStore.userId) {
-    if (isStaffSubdomain) {
-      window.location.assign(playerProfileHref(authStore.userId))
-    } else {
-      router.push({ name: 'player-profile', params: { userId: authStore.userId } })
-    }
-  } else {
-    loginModalOpen.value = true
-  }
+const { goToOwnProfile } = useOwnProfileLink()
+
+function goProfileFromDrawer() {
   mobileDrawerOpen.value = false
+  goToOwnProfile()
+}
+
+async function confirmSignOut() {
+  showSignOutConfirm.value = false
+  mobileDrawerOpen.value = false
+  if (isRankingSubdomain) {
+    await Promise.all([authStore.staffLogout(), authStore.logout()])
+  } else {
+    await authStore.logout()
+  }
 }
 
 async function confirmStaffLogout() {
@@ -207,11 +219,6 @@ onUnmounted(() => {
             <line x1="8" y1="2" x2="8" y2="18" />
             <line x1="16" y1="6" x2="16" y2="22" />
           </svg>
-          <svg v-else-if="item.mobileIcon === 'milestone'" width="20" height="20" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
-            <line x1="4" y1="22" x2="4" y2="15" />
-          </svg>
         </router-link>
       </div>
 
@@ -220,6 +227,7 @@ onUnmounted(() => {
           :class="{ 'navbar__link--active': isActive(item.to) }">
           {{ item.label }}
         </router-link>
+        <NavbarMoreMenu v-if="moreItems.length" :items="moreItems" />
       </nav>
 
       <div class="navbar__actions">
@@ -230,6 +238,10 @@ onUnmounted(() => {
           :countdown="eventCountdown"
           variant="bar"
         />
+
+        <MissionsDropdown v-if="showPlayerActions" />
+
+        <NotificationsDropdown v-if="showPlayerActions" />
 
         <router-link
           v-if="showNewsAction"
@@ -244,8 +256,6 @@ onUnmounted(() => {
           </svg>
         </router-link>
 
-        <MissionsDropdown v-if="showMissionsAction" />
-
         <button type="button" class="navbar__search" @click="openSearch">
           <svg class="navbar__search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -255,38 +265,8 @@ onUnmounted(() => {
           <span class="navbar__search-placeholder">Search anything...</span>
         </button>
 
-        <button class="navbar__icon-btn" :aria-label="authStore.isLoggedIn ? 'Profile' : 'Log in'"
-          @click="handleUserClick">
-          <img
-            v-if="authStore.isLoggedIn && authStore.userProfile?.avatarUrl && !avatarFailed"
-            :src="authStore.userProfile.avatarUrl" :alt="authStore.userProfile.name" class="navbar__avatar"
-            decoding="async" @error="navAvatarError" />
-          <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-            <circle cx="12" cy="7" r="4" />
-          </svg>
-        </button>
-
-        <button v-if="authStore.isAdmin"
-          class="navbar__icon-btn navbar__logout navbar__icon-btn--desktop-only" aria-label="Staff log out"
-          @click="showStaffLogoutConfirm = true">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-          </svg>
-        </button>
-
-        <router-link to="/settings" class="navbar__icon-btn navbar__icon-btn--desktop-only"
-          :class="{ 'navbar__icon-btn--active': isActive('/settings') }" aria-label="Settings">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="3" />
-            <path
-              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-          </svg>
-        </router-link>
+        <NavbarUserMenu @login="loginModalOpen = true" @sign-out="showSignOutConfirm = true"
+          @staff-logout="showStaffLogoutConfirm = true" />
 
         <button class="navbar__icon-btn navbar__hamburger" aria-label="Menu"
           @click="mobileDrawerOpen = !mobileDrawerOpen">
@@ -331,16 +311,25 @@ onUnmounted(() => {
     </section>
 
     <section class="navbar__drawer-section">
-      <router-link v-for="item in navItems" :key="item.to" :to="item.to" class="navbar__drawer-link"
+      <router-link v-for="item in drawerNavItems" :key="item.to" :to="item.to" class="navbar__drawer-link"
         :class="{ 'navbar__drawer-link--active': isActive(item.to) }" @click="mobileDrawerOpen = false">
         {{ item.label }}
       </router-link>
     </section>
 
     <section class="navbar__drawer-section">
-      <router-link v-if="showNewsAction" to="/news" class="navbar__drawer-link"
-        :class="{ 'navbar__drawer-link--active': isActive('/news') }" @click="mobileDrawerOpen = false">
-        News
+      <button v-if="!authStore.isLoggedIn" class="navbar__drawer-link"
+        @click="mobileDrawerOpen = false; loginModalOpen = true">
+        Log in
+      </button>
+      <button v-if="authStore.isLoggedIn" class="navbar__drawer-link" @click="goProfileFromDrawer">
+        Profile
+      </button>
+      <router-link v-if="authStore.isLoggedIn && !isStaffSubdomain" to="/trade-offers"
+        class="navbar__drawer-link"
+        :class="{ 'navbar__drawer-link--active': isActive('/trade-offers') }"
+        @click="mobileDrawerOpen = false">
+        Trade Offers
       </router-link>
       <router-link to="/settings" class="navbar__drawer-link"
         :class="{ 'navbar__drawer-link--active': isActive('/settings') }" @click="mobileDrawerOpen = false">
@@ -350,6 +339,11 @@ onUnmounted(() => {
         class="navbar__drawer-link navbar__drawer-link--danger"
         @click="mobileDrawerOpen = false; showStaffLogoutConfirm = true">
         Staff log out
+      </button>
+      <button v-if="authStore.isLoggedIn"
+        class="navbar__drawer-link navbar__drawer-link--danger"
+        @click="mobileDrawerOpen = false; showSignOutConfirm = true">
+        Sign out
       </button>
     </section>
   </div>
@@ -365,6 +359,17 @@ onUnmounted(() => {
       <div class="logout-confirm__actions">
         <BaseButton @click="showStaffLogoutConfirm = false">Cancel</BaseButton>
         <BaseButton variant="destructive" @click="confirmStaffLogout">Log Out</BaseButton>
+      </div>
+    </template>
+  </BaseModal>
+
+  <BaseModal :open="showSignOutConfirm" title="Sign Out" max-width="340px"
+    @close="showSignOutConfirm = false">
+    <p class="logout-confirm__message">Are you sure you want to sign out?</p>
+    <template #footer>
+      <div class="logout-confirm__actions">
+        <BaseButton @click="showSignOutConfirm = false">Cancel</BaseButton>
+        <BaseButton variant="destructive" @click="confirmSignOut">Sign Out</BaseButton>
       </div>
     </template>
   </BaseModal>
@@ -530,15 +535,62 @@ onUnmounted(() => {
   background: color-mix(in srgb, var(--navbar-text-strong) 10%, transparent);
 }
 
-.navbar__logout:hover {
-  color: var(--error);
+.navbar-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  z-index: 110;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 200px;
+  padding: var(--space-xs);
+  background: var(--bg-elevated);
+  border: 1px solid var(--bg-overlay);
+  border-radius: var(--radius-card);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
 }
 
-.navbar__avatar {
-  width: 28px;
-  height: 28px;
+.navbar-menu__item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 40px;
+  padding: 0 var(--space-md);
+  background: none;
+  border: none;
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  text-align: left;
   border-radius: var(--radius-btn);
-  object-fit: cover;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 120ms ease, background 120ms ease;
+}
+
+.navbar-menu__item:hover {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--bg-overlay) 45%, transparent);
+}
+
+.navbar-menu-enter-active,
+.navbar-menu-leave-active {
+  transition: opacity 100ms ease, transform 100ms ease;
+}
+
+.navbar-menu-enter-from,
+.navbar-menu-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navbar-menu-enter-active,
+  .navbar-menu-leave-active {
+    transition: none;
+  }
 }
 
 .navbar__hamburger {
@@ -585,7 +637,8 @@ onUnmounted(() => {
 
   .navbar__nav,
   .navbar__search,
-  .navbar__icon-btn--desktop-only {
+  .navbar__icon-btn--desktop-only,
+  .navbar__actions .navbar-user {
     display: none;
   }
 
