@@ -96,13 +96,14 @@ function clear() {
   nextTick(() => inputRef.value?.focus())
 }
 
-function onFocus() {
+function openPanel() {
   open.value = true
   updatePanelPosition()
 }
 
 function onClickOutside(e: MouseEvent) {
   const target = e.target as Node
+  if (!target.isConnected) return
   if (containerRef.value?.contains(target)) return
   open.value = false
 }
@@ -194,7 +195,8 @@ onUnmounted(() => {
       class="user-picker__input"
       :placeholder="placeholder"
       :disabled="disabled"
-      @focus="onFocus"
+      @focus="openPanel"
+      @input="openPanel"
       @keydown="onKeydown"
     />
 
