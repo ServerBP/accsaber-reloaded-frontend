@@ -459,7 +459,7 @@ onUnmounted(() => {
         </section>
       </div>
 
-      <MarketBidHistory :bids="bids" :viewer-id="viewerId" />
+      <MarketBidHistory :listing="listing" :bids="bids" :viewer-id="viewerId" />
     </template>
   </div>
 </template>
