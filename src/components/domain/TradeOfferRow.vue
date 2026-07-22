@@ -2,8 +2,10 @@
 import BaseButton from '@/components/common/BaseButton.vue'
 import EssenceAmount from '@/components/domain/EssenceAmount.vue'
 import TradeOfferRowItem from '@/components/domain/TradeOfferRowItem.vue'
+import UserChip from '@/components/domain/UserChip.vue'
 import { useItemModifierStore } from '@/stores/itemModifiers'
 import type { TradeItemRef, TradeResponse } from '@/types/api/trades'
+import type { UserRefDisplay } from '@/types/display'
 import { formatEssenceAmount, formatEssenceNet } from '@/utils/essence'
 import { formatRelativeDate } from '@/utils/formatters'
 import { computed, onMounted } from 'vue'
@@ -26,6 +28,11 @@ const modifierStore = useItemModifierStore()
 const counterpartUserId = computed(() =>
   props.perspective === 'incoming' ? props.trade.fromUserId : props.trade.toUserId,
 )
+
+const counterpart = computed<UserRefDisplay>(() => {
+  const ref = props.perspective === 'incoming' ? props.trade.fromUser : props.trade.toUser
+  return ref ?? { id: counterpartUserId.value, name: String(counterpartUserId.value) }
+})
 
 const yourSide = computed<TradeItemRef[]>(() =>
   props.perspective === 'incoming' ? props.trade.requestedItems : props.trade.offeredItems,
@@ -72,10 +79,8 @@ onMounted(() => {
     <header class="trade-row__head">
       <span class="trade-row__direction">
         {{ perspective === 'incoming' ? 'Offered by' : 'Sent to' }}
-        <router-link class="trade-row__user-link" :to="{ name: 'player-profile', params: { userId: counterpartUserId } }">
-          {{ counterpartUserId }}
-        </router-link>
       </span>
+      <UserChip class="trade-row__user" :user="counterpart" link />
       <span class="trade-row__head-spacer" />
       <span class="trade-row__status-pill" :class="`trade-row__status-pill--${trade.status}`">
         {{ trade.status }}
@@ -193,14 +198,9 @@ onMounted(() => {
   letter-spacing: 0.05em;
 }
 
-.trade-row__user-link {
-  color: var(--text-primary);
-  text-decoration: none;
+.trade-row__user {
   font-weight: 500;
-}
-
-.trade-row__user-link:hover {
-  color: var(--accent-overall);
+  max-width: 14rem;
 }
 
 .trade-row__status-pill {

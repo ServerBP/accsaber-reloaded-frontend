@@ -5,9 +5,11 @@ import ThemeBackdrop from '@/components/layout/ThemeBackdrop.vue'
 import { useBrandFavicon } from '@/composables/useBrandLogo'
 import { useNotificationSocket } from '@/composables/useNotificationSocket'
 import { useAuthStore } from '@/stores/auth'
+import { useBackendStatusStore } from '@/stores/backendStatus'
 import { useEssenceStore } from '@/stores/essence'
 import { useRelationsStore } from '@/stores/relations'
 import { useSettingsStore } from '@/stores/settings'
+import { flushPendingScores } from '@/utils/practiceScores'
 import { isCreativesSubdomain } from '@/utils/subdomain'
 import { computed, defineAsyncComponent, watch } from 'vue'
 
@@ -15,13 +17,18 @@ const PreviewControlBar = isCreativesSubdomain
   ? defineAsyncComponent(() => import('@/components/layout/PreviewControlBar.vue'))
   : null
 
+const MaintenancePage = defineAsyncComponent(() => import('@/views/offline/MaintenancePage.vue'))
+
 const authStore = useAuthStore()
+const backendStatus = useBackendStatusStore()
 const essenceStore = useEssenceStore()
 const relationsStore = useRelationsStore()
 const settingsStore = useSettingsStore()
 
 useBrandFavicon()
 useNotificationSocket()
+
+if (!backendStatus.offline) void flushPendingScores()
 
 const showLegacyBanner = computed(() => authStore.legacyUserIdDetected !== null)
 
@@ -54,23 +61,26 @@ watch(
 
 <template>
   <ThemeBackdrop />
-  <AppNavbar />
-  <main class="main-content">
-    <BaseBanner v-if="showRestrictedBanner" variant="error" @close="dismissRestrictedBanner">
-      Your account is restricted. You can still browse, but creating or changing content is
-      disabled. Contact staff if you think this is a mistake.
-    </BaseBanner>
-    <BaseBanner v-if="showLegacyBanner" variant="info" @close="dismissLegacyBanner">
-      We've upgraded login. Please log in again with Discord, BeatLeader, or Steam to restore your
-      personalized experience.
-    </BaseBanner>
-    <router-view v-slot="{ Component }">
-      <transition name="page">
-        <component :is="Component" />
-      </transition>
-    </router-view>
-  </main>
-  <component :is="PreviewControlBar" v-if="PreviewControlBar" />
+  <MaintenancePage v-if="backendStatus.offline" />
+  <template v-else>
+    <AppNavbar />
+    <main class="main-content">
+      <BaseBanner v-if="showRestrictedBanner" variant="error" @close="dismissRestrictedBanner">
+        Your account is restricted. You can still browse, but creating or changing content is
+        disabled. Contact staff if you think this is a mistake.
+      </BaseBanner>
+      <BaseBanner v-if="showLegacyBanner" variant="info" @close="dismissLegacyBanner">
+        We've upgraded login. Please log in again with Discord, BeatLeader, or Steam to restore your
+        personalized experience.
+      </BaseBanner>
+      <router-view v-slot="{ Component }">
+        <transition name="page">
+          <component :is="Component" />
+        </transition>
+      </router-view>
+    </main>
+    <component :is="PreviewControlBar" v-if="PreviewControlBar" />
+  </template>
 </template>
 
 <style scoped>

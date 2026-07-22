@@ -236,3 +236,11 @@ export interface ScoreFeedEntry {
 }
 
 export type ConnectionStatus = 'connected' | 'reconnecting' | 'disconnected'
+
+export interface UserRefDisplay {
+  id: string | number
+  name: string
+  avatarUrl?: string | null
+  cdnAvatarUrl?: string | null
+  country?: string | null
+}

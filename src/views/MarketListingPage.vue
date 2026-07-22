@@ -36,7 +36,7 @@ import ListingCountdown from './market/ListingCountdown.vue'
 import MarketBidHistory from './market/MarketBidHistory.vue'
 import MarketBidPanel from './market/MarketBidPanel.vue'
 import MarketItemTile from './market/MarketItemTile.vue'
-import MarketUserChip from './market/MarketUserChip.vue'
+import UserChip from '@/components/domain/UserChip.vue'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -372,7 +372,7 @@ onUnmounted(() => {
 
           <p class="listing-page__seller">
             Listed by
-            <MarketUserChip :user="listing.seller" link />
+            <UserChip :user="listing.seller" link />
           </p>
 
           <p v-if="listing.description" class="listing-page__description">{{ listing.description }}</p>
@@ -403,7 +403,7 @@ onUnmounted(() => {
 
           <p v-if="active && listing.currentBidder" class="listing-page__leader">
             Highest bidder:
-            <MarketUserChip :user="listing.currentBidder" link />
+            <UserChip :user="listing.currentBidder" link />
           </p>
 
           <div v-if="awaitingSettlement" class="listing-page__banner listing-page__banner--neutral">
@@ -418,7 +418,7 @@ onUnmounted(() => {
               </template>
               <template v-if="listing.winner"> to </template>
             </span>
-            <MarketUserChip v-if="listing.winner" :user="listing.winner" link />
+            <UserChip v-if="listing.winner" :user="listing.winner" link />
             <span v-if="listing.settledAt" class="listing-page__banner-time">
               {{ formatRelativeDate(listing.settledAt) }}
             </span>

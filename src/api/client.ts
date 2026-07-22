@@ -1,5 +1,22 @@
 import { useAuthStore } from '@/stores/auth'
+import { useBackendStatusStore } from '@/stores/backendStatus'
 import { currentRealm } from '@/utils/subdomain'
+
+const GATEWAY_DOWN_STATUSES = new Set([502, 503, 504])
+
+async function trackedFetch(url: string, init: RequestInit): Promise<Response> {
+  const backendStatus = useBackendStatusStore()
+  let res: Response
+  try {
+    res = await fetch(url, init)
+  } catch (err) {
+    backendStatus.reportUnreachable()
+    throw err
+  }
+  if (GATEWAY_DOWN_STATUSES.has(res.status)) backendStatus.reportUnreachable()
+  else backendStatus.reportReachable()
+  return res
+}
 
 export class ApiError extends Error {
   constructor(
@@ -155,7 +172,7 @@ async function executeFetch<T>(
   if (authHeader) headers['Authorization'] = `Bearer ${authHeader}`
   if (currentRealm) headers['X-AccSaber-Realm'] = currentRealm
 
-  const res = await fetch(url, {
+  const res = await trackedFetch(url, {
     method,
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -244,7 +261,7 @@ export async function postMultipart<T>(path: string, formData: FormData): Promis
   const headers: Record<string, string> = {}
   if (authHeader) headers['Authorization'] = `Bearer ${authHeader}`
   if (currentRealm) headers['X-AccSaber-Realm'] = currentRealm
-  const res = await fetch(url, { method: 'POST', headers, body: formData })
+  const res = await trackedFetch(url, { method: 'POST', headers, body: formData })
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText)
     detectBannedWrite('POST', res.status, text)

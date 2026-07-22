@@ -16,10 +16,20 @@ export interface TradeItemRef {
   quantity: number
 }
 
+export interface TradeUserRef {
+  id: string
+  name: string
+  avatarUrl: string | null
+  cdnAvatarUrl: string | null
+  country: string | null
+}
+
 export interface TradeResponse {
   id: string
   fromUserId: string
   toUserId: string
+  fromUser: TradeUserRef | null
+  toUser: TradeUserRef | null
   offeredItems: TradeItemRef[]
   requestedItems: TradeItemRef[]
   offeredEssence: number

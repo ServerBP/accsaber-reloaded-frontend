@@ -7,7 +7,7 @@ import { computed } from 'vue'
 import EssenceAmount from '@/components/domain/EssenceAmount.vue'
 import ListingCountdown from './ListingCountdown.vue'
 import MarketItemTile from './MarketItemTile.vue'
-import MarketUserChip from './MarketUserChip.vue'
+import UserChip from '@/components/domain/UserChip.vue'
 
 export interface ListingCardTag {
   label: string
@@ -68,7 +68,7 @@ const settledLabel = computed(() => {
       </div>
 
       <div class="market-card__meta">
-        <MarketUserChip :user="listing.seller" compact class="market-card__seller" />
+        <UserChip :user="listing.seller" compact class="market-card__seller" />
         <span class="market-card__meta-right">
           <span v-if="auction" class="market-card__bids">
             {{ listing.bidCount }} {{ listing.bidCount === 1 ? 'bid' : 'bids' }}

@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import CountryFlag from '@/components/domain/CountryFlag.vue'
 import { onAvatarError, pickAvatarFallback, pickAvatarUrl } from '@/composables/useAvatarFallback'
-import type { MarketUserRef } from '@/types/api/market'
+import type { UserRefDisplay } from '@/types/display'
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 
 const props = defineProps<{
-  user: MarketUserRef
+  user: UserRefDisplay
   link?: boolean
   compact?: boolean
 }>()
@@ -18,26 +18,26 @@ const avatarFallback = computed(() => pickAvatarFallback(props.user))
 <template>
   <component
     :is="link ? RouterLink : 'span'"
-    class="market-user-chip"
-    :class="{ 'market-user-chip--link': link, 'market-user-chip--compact': compact }"
+    class="user-chip"
+    :class="{ 'user-chip--link': link, 'user-chip--compact': compact }"
     :to="link ? { name: 'player-profile', params: { userId: String(user.id) } } : undefined"
   >
     <img
       v-if="avatarUrl"
-      class="market-user-chip__avatar"
+      class="user-chip__avatar"
       :src="avatarUrl"
       :alt="`${user.name} avatar`"
       loading="lazy"
       decoding="async"
       @error="onAvatarError(avatarFallback)($event)"
     />
-    <span class="market-user-chip__name">{{ user.name }}</span>
+    <span class="user-chip__name">{{ user.name }}</span>
     <CountryFlag v-if="user.country" :country="user.country" />
   </component>
 </template>
 
 <style scoped>
-.market-user-chip {
+.user-chip {
   display: inline-flex;
   align-items: center;
   gap: var(--space-xs);
@@ -47,7 +47,7 @@ const avatarFallback = computed(() => pickAvatarFallback(props.user))
   font-size: var(--text-body);
 }
 
-.market-user-chip__avatar {
+.user-chip__avatar {
   width: 22px;
   height: 22px;
   border-radius: var(--radius-card);
@@ -55,22 +55,22 @@ const avatarFallback = computed(() => pickAvatarFallback(props.user))
   flex-shrink: 0;
 }
 
-.market-user-chip__name {
+.user-chip__name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.market-user-chip--link:hover .market-user-chip__name {
+.user-chip--link:hover .user-chip__name {
   color: var(--page-accent, var(--accent));
 }
 
-.market-user-chip--compact {
+.user-chip--compact {
   font-size: var(--text-caption);
   color: var(--text-secondary);
 }
 
-.market-user-chip--compact .market-user-chip__avatar {
+.user-chip--compact .user-chip__avatar {
   width: 16px;
   height: 16px;
   border-radius: var(--radius-btn);

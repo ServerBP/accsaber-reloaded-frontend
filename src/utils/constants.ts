@@ -84,6 +84,8 @@ export const CATEGORY_ORDER = ['true_acc', 'standard_acc', 'tech_acc', 'low_mid'
 
 export const KOFI_URL = 'https://ko-fi.com/accsaberreloaded'
 
+export const DISCORD_URL = 'https://discord.gg/DmzKSgcJWe'
+
 export const ROLE_ORDER: Record<string, number> = {
   ADMIN: 0,
   DEVELOPER: 1,
