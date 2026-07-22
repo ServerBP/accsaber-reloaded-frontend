@@ -9,9 +9,7 @@ const RETRY_STEPS_MS = [5000, 8000, 13000, 21000, 30000]
 const RELOAD_DELAY_MS = 700
 
 const forced =
-  import.meta.env.DEV &&
-  typeof window !== 'undefined' &&
-  new URLSearchParams(window.location.search).has('force-offline')
+  typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('force-offline')
 
 export const useBackendStatusStore = defineStore('backendStatus', () => {
   const offline = ref(false)
