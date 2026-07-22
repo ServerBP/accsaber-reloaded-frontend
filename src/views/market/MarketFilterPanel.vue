@@ -13,6 +13,11 @@ export interface MarketTypeOption {
   label: string
 }
 
+export interface MarketTypeGroup {
+  label: string | null
+  options: MarketTypeOption[]
+}
+
 export interface MarketModifierOption {
   key: string
   label: string
@@ -22,7 +27,7 @@ export interface MarketModifierOption {
 const props = defineProps<{
   rarities: ItemRarity[]
   typeKeys: string[]
-  typeOptions: MarketTypeOption[]
+  typeGroups: MarketTypeGroup[]
   modifierKeys: string[]
   modifierOptions: MarketModifierOption[]
   effectKeys: string[]
@@ -90,18 +95,26 @@ function commitPrice(edge: 'min' | 'max', event: Event) {
       </label>
     </fieldset>
 
-    <fieldset v-if="typeOptions.length > 0" class="market-filters__group">
+    <fieldset v-if="typeGroups.length > 0" class="market-filters__group">
       <legend class="market-filters__legend">Item type</legend>
-      <label v-for="option in typeOptions" :key="option.key" class="market-filters__option">
-        <input
-          type="checkbox"
-          :checked="typeKeys.includes(option.key)"
-          @change="toggleType(option.key)"
-        />
-        <span class="market-filters__option-label market-filters__option-label--plain">
-          {{ option.label }}
-        </span>
-      </label>
+      <template v-for="(group, index) in typeGroups" :key="group.label ?? `flat-${index}`">
+        <span v-if="group.label" class="market-filters__subhead">{{ group.label }}</span>
+        <label
+          v-for="option in group.options"
+          :key="option.key"
+          class="market-filters__option"
+          :class="{ 'market-filters__option--nested': group.label }"
+        >
+          <input
+            type="checkbox"
+            :checked="typeKeys.includes(option.key)"
+            @change="toggleType(option.key)"
+          />
+          <span class="market-filters__option-label market-filters__option-label--plain">
+            {{ option.label }}
+          </span>
+        </label>
+      </template>
     </fieldset>
 
     <fieldset v-if="modifierOptions.length > 0" class="market-filters__group">
@@ -220,6 +233,19 @@ function commitPrice(edge: 'min' | 'max', event: Event) {
 
 .market-filters__option-label--plain {
   color: var(--text-primary);
+}
+
+.market-filters__subhead {
+  margin-top: var(--space-xs);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.market-filters__option--nested {
+  margin-left: var(--space-md);
 }
 
 .market-filters__option.rarity--common { --rarity-color: var(--text-secondary); }

@@ -27,6 +27,7 @@ import { useRoute, useRouter } from 'vue-router'
 import type { EffectCrateGroup, EffectOption } from './market/MarketEffectFilter.vue'
 import MarketFilterPanel, {
   type MarketModifierOption,
+  type MarketTypeGroup,
   type MarketTypeOption,
 } from './market/MarketFilterPanel.vue'
 import MarketListingCard from './market/MarketListingCard.vue'
@@ -172,11 +173,29 @@ function clearFilters() {
   })
 }
 
-const typeOptions = computed<MarketTypeOption[]>(() =>
-  itemTypeStore.itemTypes
-    .filter((t) => t.active && t.parentTypeId == null)
-    .map((t) => ({ key: t.key, label: t.name })),
-)
+function childTypeLabel(name: string, parentName: string): string {
+  const stripped = name.startsWith(parentName) ? name.slice(parentName.length).trim() : name
+  const deprefixed = stripped.startsWith('Profile ') ? stripped.slice('Profile '.length) : stripped
+  return deprefixed || name
+}
+
+const typeGroups = computed<MarketTypeGroup[]>(() => {
+  const types = itemTypeStore.itemTypes.filter((t) => t.active)
+  const standalone: MarketTypeOption[] = []
+  const groups: MarketTypeGroup[] = []
+  for (const root of types.filter((t) => t.parentTypeId == null)) {
+    const children = types.filter((t) => t.parentTypeId === root.id)
+    if (children.length === 0) {
+      standalone.push({ key: root.key, label: root.name })
+    } else {
+      groups.push({
+        label: root.name,
+        options: children.map((c) => ({ key: c.key, label: childTypeLabel(c.name, root.name) })),
+      })
+    }
+  }
+  return [{ label: null, options: standalone }, ...groups].filter((g) => g.options.length > 0)
+})
 
 const modifierOptions = computed<MarketModifierOption[]>(() =>
   itemModifierStore.modifiers
@@ -333,7 +352,7 @@ fetchUnusualEffects()
           <MarketFilterPanel
             :rarities="rarities"
             :type-keys="typeKeys"
-            :type-options="typeOptions"
+            :type-groups="typeGroups"
             :modifier-keys="modifierKeys"
             :modifier-options="modifierOptions"
             :effect-keys="effectKeys"

@@ -7,14 +7,13 @@ import CountryFlag from '@/components/domain/CountryFlag.vue'
 import { usePageMeta } from '@/composables/usePageMeta'
 import type { SupporterCreditEntry, SupporterTier } from '@/types/api/supporters'
 import { SUPPORTER_TIER_DISPLAY, SUPPORTER_TIER_PALETTE } from '@/types/api/supporters'
+import { KOFI_URL } from '@/utils/constants'
 import { computed, onMounted, ref } from 'vue'
 
 usePageMeta({
   title: 'Credits | AccSaber',
   description: 'The supporters who keep AccSaber online.',
 })
-
-const KOFI_URL = 'https://ko-fi.com/accsaberreloaded'
 
 const loading = ref(true)
 const error = ref<string | null>(null)

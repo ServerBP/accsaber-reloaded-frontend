@@ -10,6 +10,7 @@ import { useEssenceStore } from '@/stores/essence'
 import { useInventoryStore } from '@/stores/inventory'
 import type { UserItemResponse } from '@/types/api/items'
 import type { CreateMarketListingRequest } from '@/types/api/market'
+import { KOFI_URL } from '@/utils/constants'
 import { displayItemName } from '@/utils/items'
 import { digitsOnly } from '@/utils/formatters'
 import {
@@ -67,6 +68,11 @@ const formError = ref<string | null>(null)
 const fieldErrors = ref<Record<string, string>>({})
 
 const activeSellingCount = ref<number | null>(null)
+const supporterTier = ref<string | null>(null)
+
+const CAP_MESSAGE = `You already have ${MAX_ACTIVE_LISTINGS} active listings. Supporters get unlimited listings.`
+
+const isSupporter = computed(() => supporterTier.value != null)
 
 const disabledLinkIds = computed(() => {
   const ids = new Set<string>()
@@ -89,7 +95,14 @@ const hasBuyout = computed(() => mode.value !== 'auction')
 const modeHint = computed(() => MODE_OPTIONS.find((o) => o.value === mode.value)?.hint ?? '')
 
 const slotsFull = computed(
-  () => activeSellingCount.value != null && activeSellingCount.value >= MAX_ACTIVE_LISTINGS,
+  () =>
+    !isSupporter.value &&
+    activeSellingCount.value != null &&
+    activeSellingCount.value >= MAX_ACTIVE_LISTINGS,
+)
+
+const showKofi = computed(
+  () => slotsFull.value || /supporters get unlimited/i.test(formError.value ?? ''),
 )
 
 const selectedName = computed(() =>
@@ -129,6 +142,18 @@ async function fetchSlots() {
     activeSellingCount.value = page.content.filter((l) => isSameMarketUser(l.seller, userId)).length
   } catch {
     activeSellingCount.value = null
+  }
+}
+
+async function fetchSupporterStatus() {
+  const userId = authStore.userId
+  if (!userId) return
+  try {
+    const { getUser } = await import('@/api/users')
+    const me = await getUser(userId)
+    supporterTier.value = me.supporterTier ?? null
+  } catch {
+    supporterTier.value = null
   }
 }
 
@@ -199,6 +224,7 @@ watch(
     if (!loggedIn) return
     fetchPickerItems()
     fetchSlots()
+    fetchSupporterStatus()
     essenceStore.fetchBalance()
     if (authStore.userId) inventoryStore.fetchEquipped(authStore.userId)
   },
@@ -223,8 +249,9 @@ const breadcrumbs: Crumb[] = [
     <div class="create-page__header">
       <div>
         <h1 class="create-page__title">New Listing</h1>
-        <p v-if="activeSellingCount != null" class="create-page__subtitle">
-          {{ activeSellingCount }}/{{ MAX_ACTIVE_LISTINGS }} listing slots used
+        <p v-if="isSupporter" class="create-page__subtitle">Unlimited listings</p>
+        <p v-else-if="activeSellingCount != null" class="create-page__subtitle">
+          {{ activeSellingCount }} / {{ MAX_ACTIVE_LISTINGS }} listings used
         </p>
       </div>
       <MarketWallet
@@ -381,11 +408,13 @@ const breadcrumbs: Crumb[] = [
           </p>
         </div>
 
-        <p v-if="slotsFull" class="create-page__field-error">
-          You've hit the cap of {{ MAX_ACTIVE_LISTINGS }} active listings. Cancel or wait for one to
-          end before listing more.
-        </p>
+        <p v-if="slotsFull && !formError" class="create-page__field-error">{{ CAP_MESSAGE }}</p>
         <p v-if="formError" class="create-page__field-error" role="alert">{{ formError }}</p>
+        <p v-if="showKofi" class="create-page__hint">
+          <a class="create-page__kofi" :href="KOFI_URL" target="_blank" rel="noopener noreferrer">
+            Support on Ko-fi
+          </a>
+        </p>
 
         <BaseButton
           variant="primary"
@@ -576,6 +605,15 @@ const breadcrumbs: Crumb[] = [
   margin: 0;
   font-size: var(--text-caption);
   color: var(--error);
+}
+
+.create-page__kofi {
+  color: var(--page-accent, var(--accent));
+  text-decoration: none;
+}
+
+.create-page__kofi:hover {
+  text-decoration: underline;
 }
 
 @media (max-width: 1023px) {

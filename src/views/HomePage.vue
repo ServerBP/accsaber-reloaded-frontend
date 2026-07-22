@@ -10,6 +10,7 @@ import { usePageMeta } from '@/composables/usePageMeta'
 import { useAuthStore } from '@/stores/auth'
 import { tierKey, useLevelStore } from '@/stores/levels'
 import { useThemeStore } from '@/stores/theme'
+import { KOFI_URL } from '@/utils/constants'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
@@ -140,7 +141,7 @@ onUnmounted(() => {
               </svg>
               Join Discord
             </a>
-            <a href="https://ko-fi.com/accsaberreloaded" target="_blank" rel="noopener noreferrer" class="hero__kofi">
+            <a :href="KOFI_URL" target="_blank" rel="noopener noreferrer" class="hero__kofi">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M17 8h1a4 4 0 0 1 0 8h-1" />
                 <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V8z" />
