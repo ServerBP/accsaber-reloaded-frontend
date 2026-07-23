@@ -165,10 +165,6 @@ const themeTags = computed(
   () => campaign.value?.tags.filter((t) => t.kind === 'THEME' || t.kind === 'GENRE') ?? [],
 )
 
-const hasIdentity = computed(
-  () => categoryTags.value.length > 0 || !!difficultyLabel.value || themeTags.value.length > 0,
-)
-
 const modeSentence = computed(() => {
   const c = campaign.value
   if (!c) return ''
@@ -582,16 +578,21 @@ function unpinTooltip() {
           <header class="campaign-detail__title-block">
             <h1 class="campaign-detail__title">{{ campaign.name }}</h1>
             <p class="campaign-detail__byline">
-              <span>by</span>
+              by
               <span class="campaign-detail__creator-name">
                 {{ campaign.creatorAlias || campaign.creatorName || 'AccSaber' }}
               </span>
+            </p>
+            <p
+              v-if="campaign.official || campaign.status === 'CURATED'"
+              class="campaign-detail__badge-row"
+            >
               <CampaignStatusBadge :campaign="campaign" size="md" />
             </p>
-            <p v-if="hasIdentity" class="campaign-detail__identity">
-              <span v-if="categoryTags.length" class="campaign-detail__trait campaign-detail__trait--category">
-                <CampaignCategoryTags :tags="campaign.tags" />
-              </span>
+            <p v-if="categoryTags.length" class="campaign-detail__taxonomy">
+              <CampaignCategoryTags :tags="campaign.tags" />
+            </p>
+            <p v-if="difficultyLabel || themeTags.length" class="campaign-detail__traits">
               <span v-if="difficultyLabel" class="campaign-detail__trait">
                 <span class="campaign-detail__difficulty"
                   :class="{ 'campaign-detail__difficulty--fade': difficultyGradient }"
@@ -1204,10 +1205,6 @@ function unpinTooltip() {
 
 .campaign-detail__byline {
   margin: 6px 0 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
   font-family: var(--font-sans);
   font-size: var(--text-caption);
   color: var(--text-tertiary);
@@ -1218,31 +1215,47 @@ function unpinTooltip() {
   font-weight: 500;
 }
 
-.campaign-detail__identity {
+.campaign-detail__badge-row {
+  margin: 8px 0 0;
+}
+
+.campaign-detail__taxonomy,
+.campaign-detail__traits {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  line-height: 1.5;
+}
+
+.campaign-detail__taxonomy {
   margin: 10px 0 0;
+}
+
+.campaign-detail__traits {
+  margin: 3px 0 0;
   font-family: var(--font-sans);
   font-size: 0.6875rem;
   font-weight: 500;
-  line-height: 1.6;
   color: var(--text-tertiary);
 }
 
+.campaign-detail__taxonomy :deep(.campaign-tag) {
+  font-size: 0.625rem;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+
+.campaign-detail__trait {
+  white-space: nowrap;
+}
+
+.campaign-detail__taxonomy :deep(.campaign-tag + .campaign-tag)::before,
 .campaign-detail__trait + .campaign-detail__trait::before {
   content: '·';
   margin: 0 6px;
   font-weight: 400;
+  letter-spacing: 0;
   color: var(--text-tertiary);
-}
-
-.campaign-detail__trait--category {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-}
-
-.campaign-detail__identity :deep(.campaign-tag) {
-  font-size: 0.625rem;
-  letter-spacing: 0.12em;
 }
 
 .campaign-detail__difficulty--fade {
