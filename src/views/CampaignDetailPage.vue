@@ -406,6 +406,20 @@ const focusNodeId = computed<string | null>(() => {
 })
 
 
+let progressRefreshTimer: ReturnType<typeof setTimeout> | null = null
+
+function scheduleProgressRefresh(campaignId: string) {
+  if (progressRefreshTimer) clearTimeout(progressRefreshTimer)
+  progressRefreshTimer = setTimeout(async () => {
+    progressRefreshTimer = null
+    if (campaign.value?.id !== campaignId) return
+    try {
+      progress.value = await getMyCampaignProgress(campaignId)
+    } catch {
+    }
+  }, 2500)
+}
+
 async function onStart() {
   if (!campaign.value || starting.value) return
   starting.value = true
@@ -413,6 +427,7 @@ async function onStart() {
   try {
     await startCampaign(campaign.value.id)
     progress.value = await getMyCampaignProgress(campaign.value.id)
+    if (campaign.value.legacy) scheduleProgressRefresh(campaign.value.id)
   } catch (err) {
     actionError.value = getApiErrorMessage(err, 'Failed to start campaign')
   } finally {
@@ -451,6 +466,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('mousemove', onPageMouseMove)
+  if (progressRefreshTimer) clearTimeout(progressRefreshTimer)
 })
 
 const tooltipPos = computed(() => {
