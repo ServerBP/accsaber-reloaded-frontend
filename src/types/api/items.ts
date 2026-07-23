@@ -24,6 +24,8 @@ export type KnownItemTypeKey =
   | 'profile_thumbnail_background'
   | 'statistic'
   | 'perk'
+  | 'saber'
+  | 'item_pedestal'
 
 export type ItemTypeKey = KnownItemTypeKey | (string & {})
 
@@ -519,6 +521,10 @@ export interface PerkValue {
   amount?: number
 }
 
+export interface DownloadableFileValue {
+  file: string
+}
+
 export type ItemValue =
   | TitleValue
   | BorderShapeValue
@@ -529,6 +535,7 @@ export type ItemValue =
   | ThemeValue
   | StatisticValue
   | PerkValue
+  | DownloadableFileValue
 
 export interface ItemResponse {
   id: string
@@ -539,6 +546,7 @@ export interface ItemResponse {
   iconUrl: string | null
   value: ItemValue | null
   rarity: ItemRarity
+  downloadable: boolean
   tradeable: boolean
   visible: boolean
   active: boolean

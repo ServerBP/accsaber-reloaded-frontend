@@ -15,6 +15,7 @@ import { useCrateContents } from '@/composables/useCrateContents'
 import { useCrateModifiers } from '@/composables/useCrateModifiers'
 import { useCrateUnusualEffects } from '@/composables/useCrateUnusualEffects'
 import { useEquippedRenderProps } from '@/composables/useEquippedRenderProps'
+import { useItemDownload } from '@/composables/useItemDownload'
 import { useOwnedItemIds } from '@/composables/useOwnedItemIds'
 import { usePageableRoute } from '@/composables/usePageableRoute'
 import { useReducedMotion } from '@/composables/useReducedMotion'
@@ -431,6 +432,20 @@ async function handleApplyThemeMode(linkId: string, alt: boolean) {
   }
 }
 
+const { downloadingLinkId, download } = useItemDownload()
+
+async function handleDownload(linkId: string) {
+  if (isLockedLink(linkId) || downloadingLinkId.value) return
+  const target = items.value.find((u) => u.linkId === linkId)
+  if (!target) return
+  try {
+    const filename = await download(target)
+    showFeedback('success', `Saved ${filename}`)
+  } catch (err) {
+    showFeedback('error', err instanceof Error ? err.message : 'Download failed - try again.')
+  }
+}
+
 function showFeedback(variant: 'success' | 'error', message: string) {
   feedback.value = { variant, message }
   if (feedbackTimer) clearTimeout(feedbackTimer)
@@ -780,6 +795,7 @@ onUnmounted(() => {
           :avatar-url="avatarUrl"
           :busy="actionBusy"
           :locked="isSelectedLocked"
+          :downloading="downloadingLinkId === selectedLinkId"
           :crate-contents="crateContents"
           :crate-contents-loading="crateContentsLoading"
           :crate-modifiers="crateModifiers"
@@ -794,6 +810,7 @@ onUnmounted(() => {
           @unequip="handleUnequip"
           @disintegrate="handleDisintegrateRequest"
           @open-crate="handleOpenCrate"
+          @download="handleDownload"
         />
       </aside>
     </div>
@@ -809,6 +826,7 @@ onUnmounted(() => {
         :avatar-url="avatarUrl"
         :busy="actionBusy"
         :locked="isSelectedLocked"
+        :downloading="downloadingLinkId === selectedLinkId"
         :crate-contents="crateContents"
         :crate-contents-loading="crateContentsLoading"
         :crate-modifiers="crateModifiers"
@@ -823,6 +841,7 @@ onUnmounted(() => {
         @unequip="handleUnequip"
         @disintegrate="handleDisintegrateRequest"
         @open-crate="handleOpenCrate"
+        @download="handleDownload"
       />
     </BaseModal>
 

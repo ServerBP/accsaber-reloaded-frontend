@@ -45,6 +45,13 @@ export function uncurateCampaign(campaignId: string): Promise<CampaignResponse> 
   return patch<CampaignResponse>(`/admin/campaigns/${campaignId}/uncurate`)
 }
 
+export function setCampaignOfficial(
+  campaignId: string,
+  value: boolean,
+): Promise<CampaignResponse> {
+  return patch<CampaignResponse>(`/admin/campaigns/${campaignId}/official?value=${value}`)
+}
+
 export function deactivateCampaign(campaignId: string): Promise<void> {
   return patch<void>(`/admin/campaigns/${campaignId}/deactivate`)
 }

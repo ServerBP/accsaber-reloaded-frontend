@@ -1044,6 +1044,7 @@ export function useCampaignEditor() {
     doReopen,
     doCurate,
     doUncurate,
+    doToggleOfficial,
     doDeactivate,
   } = useCampaignLifecycle({
     campaign,
@@ -2655,6 +2656,7 @@ export function useCampaignEditor() {
     doReopen,
     doCurate,
     doUncurate,
+    doToggleOfficial,
     doDeactivate,
     handleMove,
     handleMoveMany,

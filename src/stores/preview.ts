@@ -50,6 +50,7 @@ function placeholderItem(typeKey: string): ItemResponse {
     iconUrl: null,
     value: null,
     rarity: 'common',
+    downloadable: false,
     tradeable: false,
     visible: false,
     active: false,

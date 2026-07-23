@@ -687,6 +687,7 @@ function peerActivity(p: PresencePeer): string {
       <CampaignItemPicker
         v-if="itemPickerFor"
         :loading="actionPending"
+        :unrestricted="!!campaign?.official"
         @close="itemPickerFor = null"
         @pick="handleItemPicked"
       />

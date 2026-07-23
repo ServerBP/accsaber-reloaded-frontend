@@ -16,7 +16,7 @@ import type {
   UserItemResponse,
 } from '@/types/api/items'
 import type { Page } from '@/types/pagination'
-import { del, get, post } from './client'
+import { del, get, getFile, post, type DownloadedFile } from './client'
 import { buildQuery } from './utils'
 
 export function getItemTypes(): Promise<ItemTypeResponse[]> {
@@ -82,6 +82,10 @@ export function disintegrateItem(
 ): Promise<DisintegrationResponse> {
   const query = buildQuery(quantity != null ? { quantity } : undefined)
   return post<DisintegrationResponse>(`/users/me/items/${linkId}/disintegrate${query}`)
+}
+
+export function downloadUserItemFile(linkId: string): Promise<DownloadedFile> {
+  return getFile(`/users/me/items/${linkId}/download`)
 }
 
 export function getEssenceBalance(): Promise<EssenceBalance> {

@@ -69,6 +69,7 @@ const {
   doReopen,
   doCurate,
   doUncurate,
+  doToggleOfficial,
   doDeactivate,
   selectedDifficulty,
   selectedNodeApRankBlocked,
@@ -276,6 +277,14 @@ const connectionSwatch = computed(() => {
             @click="doUncurate"
           >
             Uncurate
+          </BaseButton>
+          <BaseButton
+            v-if="isAdmin"
+            size="sm"
+            :loading="actionPending"
+            @click="doToggleOfficial"
+          >
+            {{ campaign.official ? 'Remove official' : 'Make official' }}
           </BaseButton>
           <BaseButton
             v-if="isAdmin"

@@ -12,7 +12,7 @@ import type { ItemResponse, UserItemResponse } from '@/types/api/items'
 import { rarityClass } from '@/utils/items'
 import { computed, onMounted, ref, watch } from 'vue'
 
-defineProps<{ loading?: boolean }>()
+const props = defineProps<{ loading?: boolean; unrestricted?: boolean }>()
 
 const emit = defineEmits<{
   close: []
@@ -43,15 +43,17 @@ const rarityRank: Record<string, number> = {
   mythic: 5,
 }
 
-const crateItems = computed(() =>
-  items.value.filter((i) => i.active && !i.deprecated && i.typeKey === 'crate'),
+const pickableItems = computed(() =>
+  items.value.filter(
+    (i) => i.active && !i.deprecated && (props.unrestricted || i.typeKey === 'crate'),
+  ),
 )
 
 const filtered = computed(() => {
   const q = debounced.value.trim().toLowerCase()
   const matched = q
-    ? crateItems.value.filter((i) => i.name.toLowerCase().includes(q))
-    : crateItems.value
+    ? pickableItems.value.filter((i) => i.name.toLowerCase().includes(q))
+    : pickableItems.value
   return matched.slice().sort((a, b) => {
     const r = (rarityRank[a.rarity] ?? 0) - (rarityRank[b.rarity] ?? 0)
     if (r !== 0) return r
@@ -65,6 +67,14 @@ const paged = computed(() => {
   const start = (page.value - 1) * PAGE_SIZE
   return filtered.value.slice(start, start + PAGE_SIZE)
 })
+
+const noun = computed(() => (props.unrestricted ? 'items' : 'crates'))
+
+const emptyMessage = computed(() =>
+  pickableItems.value.length === 0
+    ? `Sorry, no ${noun.value} are currently available. Come back soon!`
+    : `No ${noun.value} match that search.`,
+)
 
 watch(debounced, () => { page.value = 1 })
 watch(totalPages, (n) => {
@@ -91,11 +101,15 @@ async function load() {
   fetching.value = true
   err.value = null
   try {
-    await itemTypeStore.fetchItemTypes()
-    const crateTypeId = itemTypeStore.byKey.get('crate')?.id ?? null
-    items.value = await getItems(crateTypeId ? { typeId: crateTypeId } : undefined)
+    if (props.unrestricted) {
+      items.value = await getItems()
+    } else {
+      await itemTypeStore.fetchItemTypes()
+      const crateTypeId = itemTypeStore.byKey.get('crate')?.id ?? null
+      items.value = await getItems(crateTypeId ? { typeId: crateTypeId } : undefined)
+    }
   } catch (e) {
-    err.value = getApiErrorMessage(e, 'Failed to load crates')
+    err.value = getApiErrorMessage(e, 'Failed to load items')
   } finally {
     fetching.value = false
   }
@@ -131,7 +145,7 @@ function confirm() {
     <div class="item-picker">
       <template v-if="!selectedItem">
         <input class="item-picker__search" v-model="query" type="search" autofocus
-          placeholder="Search crates by name" />
+          :placeholder="`Search ${noun} by name`" />
 
         <p v-if="err" class="item-picker__error" role="alert">{{ err }}</p>
 
@@ -142,17 +156,12 @@ function confirm() {
         </div>
 
         <p v-else-if="paged.length === 0" class="item-picker__empty">
-          {{
-            crateItems.length === 0
-              ? 'Sorry, no crates are currently available. Come back soon!'
-              : 'No crates match that search.'
-          }}
+          {{ emptyMessage }}
         </p>
 
         <div v-else class="item-picker__grid">
           <InventoryItemCell v-for="item in paged" :key="item.id"
             :user-item="wrapAsUserItem(item)"
-            :selected="selectedItem?.id === item.id"
             @select="selectByLinkId" />
         </div>
 

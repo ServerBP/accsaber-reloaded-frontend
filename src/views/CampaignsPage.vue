@@ -24,7 +24,7 @@ import { isAdminSubdomain } from '@/utils/subdomain'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-type Pane = 'all' | 'mine' | 'started' | 'review' | 'invites'
+type Pane = 'all' | 'mine' | 'started' | 'review' | 'drafts' | 'invites'
 
 const route = useRoute()
 const router = useRouter()
@@ -38,7 +38,7 @@ const pane = computed<Pane>(() => {
   const v = (route.query.pane as string | undefined) ?? 'all'
   if (v === 'mine' || v === 'started') return v
   if (v === 'invites' && auth.isLoggedIn) return 'invites'
-  if (v === 'review' && canReview.value) return 'review'
+  if ((v === 'review' || v === 'drafts') && canReview.value) return v
   return 'all'
 })
 
@@ -261,6 +261,22 @@ async function loadCampaigns() {
       })
       items.value = page.content
       totalPages.value = page.totalPages || 1
+    } else if (pane.value === 'drafts') {
+      if (!canReview.value) {
+        items.value = []
+        totalPages.value = 1
+        return
+      }
+      const { getCampaigns: fetchCampaigns } = await import('@/api/campaigns')
+      const page: Page<CampaignResponse> = await fetchCampaigns({
+        page: paginationParams.value.page,
+        size: paginationParams.value.size,
+        sort: 'createdAt,desc',
+        status: ['DRAFT'],
+        search: searchTerm.value || undefined,
+      })
+      items.value = page.content
+      totalPages.value = page.totalPages || 1
     } else {
       const { getCampaigns: fetchCampaigns, getMyCampaignProgressBulk } = await import('@/api/campaigns')
       const page: Page<CampaignResponse> = await fetchCampaigns({
@@ -432,9 +448,13 @@ watch(
           :class="{ 'campaigns-page__pane--active': pane === 'review' }" @click="setPane('review')">
           Review
         </button>
+        <button v-if="canReview" class="campaigns-page__pane"
+          :class="{ 'campaigns-page__pane--active': pane === 'drafts' }" @click="setPane('drafts')">
+          Drafts
+        </button>
       </nav>
 
-      <SearchBox v-if="pane === 'all'" class="campaigns-page__search" :model-value="searchTerm"
+      <SearchBox v-if="pane === 'all' || pane === 'drafts'" class="campaigns-page__search" :model-value="searchTerm"
         placeholder="Search title or creator..." @update:model-value="setSearch" />
 
       <div class="campaigns-page__bar-actions">
@@ -578,6 +598,9 @@ watch(
       <EmptyState v-else-if="pane === 'review' && items.length === 0"
         message="Nothing in the curation queue right now." />
 
+      <EmptyState v-else-if="pane === 'drafts' && items.length === 0"
+        message="No draft campaigns match this search." />
+
       <EmptyState v-else-if="pane !== 'mine' && items.length === 0"
         message="No campaigns match these filters." />
 
@@ -586,7 +609,7 @@ watch(
           :campaign="c" :editor-link="true" collab />
         <CampaignRow v-for="campaign in items" :key="campaign.id" :campaign="campaign"
           :progress="progressMap.get(campaign.id) ?? null"
-          :editor-link="pane === 'mine' || pane === 'review'" />
+          :editor-link="pane === 'mine' || pane === 'review' || pane === 'drafts'" />
       </div>
 
       <div v-if="totalPages > 1 && !loading" class="campaigns-page__pagination">

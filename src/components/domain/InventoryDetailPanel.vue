@@ -39,6 +39,7 @@ const props = defineProps<{
   equippedVariantKey?: string | null
   busy?: boolean
   locked?: boolean
+  downloading?: boolean
   crateContents?: CrateContentResponse[]
   crateContentsLoading?: boolean
   crateModifiers?: CrateModifierResponse[]
@@ -55,6 +56,7 @@ const emit = defineEmits<{
   equip: [linkId: string]
   unequip: [typeKey: string]
   disintegrate: [linkId: string]
+  download: [linkId: string]
   openCrate: [linkId: string]
   applyThemeMode: [linkId: string, alt: boolean]
   selectVariant: [linkId: string, variantKey: string]
@@ -160,6 +162,7 @@ const typeName = computed(() => {
 
 const equippable = computed(() => !!item.value && isEquippableTypeKey(item.value.typeKey))
 const showEquipActions = computed(() => !props.locked && props.isOwnProfile && equippable.value && item.value?.active && !item.value.deprecated)
+const showDownload = computed(() => !props.locked && props.isOwnProfile && !!item.value?.downloadable && item.value.active && !item.value.deprecated)
 
 const essenceWorth = computed(() => item.value?.worth ?? 0)
 const showDisintegrate = computed(() => !props.locked && props.isOwnProfile && essenceWorth.value > 0)
@@ -179,7 +182,7 @@ const CRATE_UNLOCK_MS = Date.UTC(2026, 6, 17, 15, 0, 0)
 const CRATE_UNLOCK_MESSAGE = 'Crate opening unlocks Friday, July 17 at 3:00 PM UTC.'
 const crateLocked = ref(Date.now() < CRATE_UNLOCK_MS)
 let crateUnlockTimer: ReturnType<typeof setTimeout> | undefined
-const showActions = computed(() => showEquipActions.value || showDisintegrate.value || !item.value?.tradeable)
+const showActions = computed(() => showEquipActions.value || showDownload.value || showDisintegrate.value || !item.value?.tradeable)
 const hasMetaRows = computed(() => {
   if (!props.locked) return true
   return item.value?.unlockLevel != null || !!item.value?.requirement
@@ -392,6 +395,22 @@ onUnmounted(() => {
 
     <div v-if="showActions" class="inv-detail__actions">
       <div class="inv-detail__actions-row">
+        <BaseButton
+          v-if="showDownload"
+          variant="primary"
+          size="md"
+          :loading="downloading"
+          @click="$emit('download', userItem.linkId)"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          Download
+        </BaseButton>
+
         <BaseButton
           v-if="showEquipActions && !equipped"
           variant="primary"

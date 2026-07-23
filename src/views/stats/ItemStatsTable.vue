@@ -62,6 +62,7 @@ function syntheticItem(row: Record<string, unknown>): ItemResponse {
     iconUrl: (row.iconUrl as string | null) ?? null,
     value: (row.itemValue as ItemResponse['value'] | undefined) ?? null,
     rarity: row.rarity as ItemRarity,
+    downloadable: false,
     tradeable: false,
     visible: true,
     active: true,

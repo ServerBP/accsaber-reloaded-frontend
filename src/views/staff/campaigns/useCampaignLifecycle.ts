@@ -3,6 +3,7 @@ import {
   deactivateCampaign,
   publishCampaign,
   reopenCampaignForEdit,
+  setCampaignOfficial,
   uncurateCampaign,
 } from '@/api/admin/campaigns'
 import {
@@ -146,6 +147,20 @@ export function useCampaignLifecycle(ctx: LifecycleContext) {
     }
   }
 
+  async function doToggleOfficial() {
+    if (!campaign.value) return
+    actionPending.value = true
+    actionError.value = null
+    try {
+      await setCampaignOfficial(campaign.value.id, !campaign.value.official)
+      await load()
+    } catch (err) {
+      actionError.value = getApiErrorMessage(err, 'Failed to update official status')
+    } finally {
+      actionPending.value = false
+    }
+  }
+
   async function doDeactivate() {
     if (!campaign.value) return
     if (
@@ -176,6 +191,7 @@ export function useCampaignLifecycle(ctx: LifecycleContext) {
     doReopen,
     doCurate,
     doUncurate,
+    doToggleOfficial,
     doDeactivate,
   }
 }

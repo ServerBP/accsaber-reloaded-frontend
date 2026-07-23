@@ -157,6 +157,13 @@ async function resolveAuthHeader(path: string): Promise<string | null> {
   return auth.staffToken ?? null
 }
 
+function buildAuthHeaders(authHeader: string | null): Record<string, string> {
+  const headers: Record<string, string> = {}
+  if (authHeader) headers['Authorization'] = `Bearer ${authHeader}`
+  if (currentRealm) headers['X-AccSaber-Realm'] = currentRealm
+  return headers
+}
+
 async function executeFetch<T>(
   method: string,
   path: string,
@@ -166,11 +173,10 @@ async function executeFetch<T>(
   const baseUrl = import.meta.env.VITE_API_BASE
   const url = `${baseUrl}${path}`
 
-  const headers: Record<string, string> = {
+  const headers = {
     'Content-Type': 'application/json',
+    ...buildAuthHeaders(authHeader),
   }
-  if (authHeader) headers['Authorization'] = `Bearer ${authHeader}`
-  if (currentRealm) headers['X-AccSaber-Realm'] = currentRealm
 
   const res = await trackedFetch(url, {
     method,
@@ -254,14 +260,67 @@ export function del<T>(path: string, body?: unknown): Promise<T> {
   return request<T>('DELETE', path, body)
 }
 
+function parseAttachmentFilename(disposition: string | null): string | null {
+  if (!disposition) return null
+  const encoded = disposition.match(/filename\*=UTF-8''([^;]+)/i)
+  if (encoded) {
+    try {
+      return decodeURIComponent(encoded[1].trim())
+    } catch {
+      return null
+    }
+  }
+  const quoted = disposition.match(/filename="([^"]+)"/i)
+  if (quoted) return quoted[1]
+  const bare = disposition.match(/filename=([^;]+)/i)
+  return bare ? bare[1].trim() : null
+}
+
+export interface DownloadedFile {
+  blob: Blob
+  filename: string | null
+}
+
+export async function getFile(path: string): Promise<DownloadedFile> {
+  const baseUrl = import.meta.env.VITE_API_BASE
+  const url = `${baseUrl}${path}`
+
+  const authHeader = await resolveAuthHeader(path)
+  let res = await trackedFetch(url, { method: 'GET', headers: buildAuthHeaders(authHeader) })
+
+  if (res.status === 401 && !shouldSkipAuth(path)) {
+    const auth = useAuthStore()
+    if (!!authHeader && authHeader === auth.accessToken && auth.refreshTokenValue) {
+      const refreshed = await auth.refreshPlayerSession()
+      if (refreshed && auth.accessToken) {
+        res = await trackedFetch(url, {
+          method: 'GET',
+          headers: buildAuthHeaders(auth.accessToken),
+        })
+      }
+    }
+  }
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText)
+    throw new ApiError(res.status, text)
+  }
+
+  return {
+    blob: await res.blob(),
+    filename: parseAttachmentFilename(res.headers.get('Content-Disposition')),
+  }
+}
+
 export async function postMultipart<T>(path: string, formData: FormData): Promise<T> {
   const baseUrl = import.meta.env.VITE_API_BASE
   const url = `${baseUrl}${path}`
   const authHeader = await resolveAuthHeader(path)
-  const headers: Record<string, string> = {}
-  if (authHeader) headers['Authorization'] = `Bearer ${authHeader}`
-  if (currentRealm) headers['X-AccSaber-Realm'] = currentRealm
-  const res = await trackedFetch(url, { method: 'POST', headers, body: formData })
+  const res = await trackedFetch(url, {
+    method: 'POST',
+    headers: buildAuthHeaders(authHeader),
+    body: formData,
+  })
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText)
     detectBannedWrite('POST', res.status, text)

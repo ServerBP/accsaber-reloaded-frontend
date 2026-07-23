@@ -30,6 +30,7 @@ const SAMPLE_ITEM: ItemResponse = {
   iconUrl: null,
   value: { states: [{ atMs: 0, fill: { type: 'solid', hex: SAMPLE_GRAY } }] },
   rarity: 'common',
+  downloadable: false,
   tradeable: false,
   visible: true,
   active: true,

@@ -15,6 +15,7 @@ import { SUPPORTER_TIER_PALETTE } from '@/types/api/supporters'
 import {
   fillToCss,
   pickAssetUrl,
+  rarityClass,
   readBackgroundValue,
   readBadgeValue,
   readBorderColorValue,
@@ -73,6 +74,8 @@ const shapePreviewColor = computed<BorderColorValue | null>(() => {
 const shapeAvatarMask = computed(() => borderShapeValue.value?.avatarMask ?? DEFAULT_AVATAR_MASK)
 
 const shapeAvatarClipId = `ip-avatar-clip-${Math.random().toString(36).slice(2, 9)}`
+
+const pedestalBeamId = `ip-beam-${Math.random().toString(36).slice(2, 9)}`
 
 const badgeValue = computed(() =>
   typeKey.value === 'badge' ? readBadgeValue(props.item.value) : null,
@@ -268,6 +271,50 @@ const fallbackInitial = computed(() => props.item.name.charAt(0).toUpperCase())
       <rect class="item-preview__crate-latch" x="5.5" y="8.35" width="3" height="1.3" rx="0.25" />
       <rect class="item-preview__crate-latch" x="15.5" y="8.35" width="3" height="1.3" rx="0.25" />
       <rect class="item-preview__crate-frame" x="3" y="4.5" width="18" height="15" rx="1.6" />
+    </svg>
+
+    <svg
+      v-else-if="typeKey === 'saber' && !item.iconUrl"
+      class="item-preview__saber"
+      :class="rarityClass(item.rarity)"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <g transform="rotate(45 12 12)">
+        <line class="item-preview__saber-trail" x1="8.6" y1="4.4" x2="8.6" y2="12" />
+        <line class="item-preview__saber-trail-far" x1="7.1" y1="6.2" x2="7.1" y2="11" />
+        <rect class="item-preview__saber-glow-outer" x="9.95" y="1.5" width="4.1" height="13.4" rx="1.3" />
+        <rect class="item-preview__saber-glow-mid" x="10.35" y="1.75" width="3.3" height="12.95" rx="1" />
+        <rect class="item-preview__saber-blade" x="10.7" y="2" width="2.6" height="12.4" rx="0.6" />
+        <rect class="item-preview__saber-core" x="11.15" y="2.45" width="1.7" height="11.5" rx="0.4" />
+        <rect class="item-preview__saber-collar" x="10.75" y="14.5" width="2.5" height="1" rx="0.3" />
+        <rect class="item-preview__saber-grip" x="11" y="15.5" width="2" height="5.4" rx="0.5" />
+        <rect class="item-preview__saber-cap" x="10.85" y="20.9" width="2.3" height="0.9" rx="0.3" />
+      </g>
+    </svg>
+
+    <svg
+      v-else-if="typeKey === 'item_pedestal' && !item.iconUrl"
+      class="item-preview__pedestal"
+      :class="rarityClass(item.rarity)"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <defs>
+        <linearGradient :id="pedestalBeamId" x1="0" y1="1" x2="0" y2="0">
+          <stop class="item-preview__pedestal-beam-near" offset="0" />
+          <stop class="item-preview__pedestal-beam-far" offset="1" />
+        </linearGradient>
+      </defs>
+      <path :fill="`url(#${pedestalBeamId})`" d="M8.1,9.2 L7.1,1.6 L16.9,1.6 L15.9,9.2 Z" />
+      <path class="item-preview__pedestal-column" d="M9.8,11.5 L14.2,11.5 L15.1,17.4 L8.9,17.4 Z" />
+      <path class="item-preview__pedestal-facet" d="M9.8,11.5 L11.1,11.5 L10.5,17.4 L8.9,17.4 Z" />
+      <path class="item-preview__pedestal-side" d="M6,9.2 L6,10.4 A6,1.8 0 0 0 18,10.4 L18,9.2 Z" />
+      <ellipse class="item-preview__pedestal-top" cx="12" cy="9.2" rx="6" ry="1.8" />
+      <ellipse class="item-preview__pedestal-halo" cx="12" cy="9.2" rx="4.5" ry="1.15" />
+      <ellipse class="item-preview__pedestal-hot" cx="12" cy="9.2" rx="2.4" ry="0.6" />
+      <rect class="item-preview__pedestal-step" x="7.5" y="17.4" width="9" height="1.5" rx="0.3" />
+      <rect class="item-preview__pedestal-base" x="5.9" y="18.9" width="12.2" height="2" rx="0.45" />
     </svg>
 
     <img
@@ -474,5 +521,103 @@ const fallbackInitial = computed(() => props.item.name.charAt(0).toUpperCase())
   stroke: var(--text-secondary);
   stroke-width: 1;
   stroke-linejoin: round;
+}
+
+.item-preview__saber,
+.item-preview__pedestal {
+  width: 74%;
+  aspect-ratio: 1 / 1;
+  overflow: visible;
+  --gear-glow: var(--text-tertiary);
+}
+
+.item-preview__saber.rarity--uncommon,
+.item-preview__pedestal.rarity--uncommon { --gear-glow: var(--success); }
+.item-preview__saber.rarity--rare,
+.item-preview__pedestal.rarity--rare { --gear-glow: var(--info); }
+.item-preview__saber.rarity--epic,
+.item-preview__pedestal.rarity--epic { --gear-glow: var(--tier-apex); }
+.item-preview__saber.rarity--legendary,
+.item-preview__pedestal.rarity--legendary { --gear-glow: var(--tier-gold); }
+.item-preview__saber.rarity--mythic,
+.item-preview__pedestal.rarity--mythic { --gear-glow: var(--error); }
+
+.item-preview__saber-trail {
+  stroke: var(--gear-glow);
+  stroke-width: 1;
+  stroke-linecap: round;
+  opacity: 0.2;
+}
+
+.item-preview__saber-trail-far {
+  stroke: var(--gear-glow);
+  stroke-width: 0.75;
+  stroke-linecap: round;
+  opacity: 0.09;
+}
+
+.item-preview__saber-glow-outer {
+  fill: var(--gear-glow);
+  opacity: 0.14;
+}
+
+.item-preview__saber-glow-mid {
+  fill: var(--gear-glow);
+  opacity: 0.3;
+}
+
+.item-preview__saber-blade {
+  fill: var(--gear-glow);
+  opacity: 0.95;
+}
+
+.item-preview__saber-core {
+  fill: color-mix(in srgb, var(--gear-glow) 18%, rgb(255 255 255));
+}
+
+.item-preview__saber-collar,
+.item-preview__saber-cap {
+  fill: var(--text-secondary);
+}
+
+.item-preview__saber-grip {
+  fill: color-mix(in srgb, var(--gear-glow) 45%, rgb(0 0 0));
+}
+
+.item-preview__pedestal-beam-near {
+  stop-color: var(--gear-glow);
+  stop-opacity: 0.4;
+}
+
+.item-preview__pedestal-beam-far {
+  stop-color: var(--gear-glow);
+  stop-opacity: 0;
+}
+
+.item-preview__pedestal-column {
+  fill: var(--bg-elevated);
+}
+
+.item-preview__pedestal-facet,
+.item-preview__pedestal-side,
+.item-preview__pedestal-step {
+  fill: var(--bg-overlay);
+}
+
+.item-preview__pedestal-top,
+.item-preview__pedestal-base {
+  fill: var(--bg-elevated);
+  stroke: var(--text-tertiary);
+  stroke-width: 0.45;
+}
+
+.item-preview__pedestal-halo {
+  fill: var(--gear-glow);
+  opacity: 0.4;
+}
+
+.item-preview__pedestal-hot {
+  fill: color-mix(in srgb, var(--gear-glow) 45%, rgb(255 255 255));
+  opacity: 0.75;
 }
 </style>
