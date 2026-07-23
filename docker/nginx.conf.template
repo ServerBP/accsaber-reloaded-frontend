@@ -35,8 +35,12 @@ http {
 
     map $http_user_agent $is_crawler {
         default 0;
-        ~*(Discordbot|Twitterbot|Slackbot|facebookexternalhit|LinkedInBot|WhatsApp|TelegramBot|Googlebot|Embedly|Pinterest) 1;
+        ~*(discordbot|twitterbot|facebookexternalhit|slackbot|telegrambot|whatsapp|linkedinbot|redditbot|embedly|pinterest|vkshare|skypeuripreview|googlebot) 1;
     }
+
+    resolver ${OG_RESOLVER} valid=300s ipv6=off;
+
+    proxy_cache_path /tmp/og_cache levels=1:2 keys_zone=og_cache:2m max_size=20m inactive=10m;
 
     server {
         listen 80;
@@ -80,30 +84,38 @@ http {
             include /etc/nginx/security-headers.conf;
         }
 
-        location ~ ^/players/(.+)$ {
+        location ~ ^/players/([^/?]+)$ {
             set $og_upstream ${API_PROXY_TARGET}/v1/og/players/$1;
             proxy_set_header Host $proxy_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
             proxy_ssl_server_name on;
+            proxy_cache og_cache;
+            proxy_cache_key $uri$is_args$args;
+            proxy_cache_valid 200 5m;
             if ($is_crawler) {
                 proxy_pass $og_upstream;
             }
             try_files /index.html =404;
+            include /etc/nginx/security-headers.conf;
         }
 
-        location ~ ^/maps/([^?]+)$ {
+        location ~ ^/maps/([^/?]+)$ {
             set $og_upstream ${API_PROXY_TARGET}/v1/og/maps/$1$is_args$args;
             proxy_set_header Host $proxy_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
             proxy_ssl_server_name on;
+            proxy_cache og_cache;
+            proxy_cache_key $uri$is_args$args;
+            proxy_cache_valid 200 5m;
             if ($is_crawler) {
                 proxy_pass $og_upstream;
             }
             try_files /index.html =404;
+            include /etc/nginx/security-headers.conf;
         }
 
         location ~ ^/campaigns/([^/?]+)$ {
@@ -113,10 +125,14 @@ http {
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
             proxy_ssl_server_name on;
+            proxy_cache og_cache;
+            proxy_cache_key $uri$is_args$args;
+            proxy_cache_valid 200 5m;
             if ($is_crawler) {
                 proxy_pass $og_upstream;
             }
             try_files /index.html =404;
+            include /etc/nginx/security-headers.conf;
         }
 
         location / {
