@@ -45,6 +45,7 @@ import {
   formatRequirement,
   formatUserValue,
 } from '@/utils/campaignLayout'
+import { collectMissingPrerequisites } from '@/utils/campaignProgress'
 import { buildMapRoute } from '@/utils/mapRoute'
 import { isAdminSubdomain } from '@/utils/subdomain'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
@@ -232,6 +233,31 @@ const displayedProgress = computed(() => {
   const id = displayedId.value
   if (!id) return null
   return progressByDifficulty.value.get(id) ?? null
+})
+
+const rewardsActive = computed(() => campaign.value?.status === 'CURATED')
+
+const difficultiesById = computed(() => {
+  const map = new Map<string, CampaignDifficultyResponse>()
+  for (const d of campaign.value?.difficulties ?? []) map.set(d.id, d)
+  return map
+})
+
+const displayedRewardPending = computed(() => {
+  if (!rewardsActive.value) return false
+  const d = displayedDifficulty.value
+  const p = displayedProgress.value
+  return !!d && !!p && !!d.checkpointLabel && d.items.length > 0 && p.completed && !p.rewardsEarned
+})
+
+const displayedMissingPrereqNames = computed<string[]>(() => {
+  const d = displayedDifficulty.value
+  if (!displayedRewardPending.value || !d) return []
+  return collectMissingPrerequisites(
+    d.id,
+    difficultiesById.value,
+    (id) => progressByDifficulty.value.get(id)?.completed ?? false,
+  ).map((n) => n.songName)
 })
 
 const progressByBarrier = computed(() => {
@@ -788,11 +814,25 @@ function unpinTooltip() {
                 </span>
               </h3>
               <ul v-if="displayedDifficulty.items.length > 0" class="campaign-detail__rewards-list">
-                <li v-for="item in displayedDifficulty.items" :key="item.itemId" class="campaign-detail__reward">
+                <li v-for="item in displayedDifficulty.items" :key="item.itemId"
+                  class="campaign-detail__reward"
+                  :class="{ 'campaign-detail__reward--withheld': displayedRewardPending }">
                   <CampaignRewardItem :name="item.itemName" :quantity="item.quantity"
                     :item="rewardItemsById.get(item.itemId) ?? null" />
+                  <span v-if="displayedRewardPending" class="campaign-detail__reward-hold" aria-hidden="true">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M6 2h12M6 22h12M7 2v4l5 6-5 6v4M17 2v4l-5 6 5 6v4" />
+                    </svg>
+                  </span>
                 </li>
               </ul>
+              <div v-if="displayedRewardPending" class="campaign-detail__reward-pending" role="note">
+                <p>Milestone reached - rewards unlock automatically when you complete the remaining maps.</p>
+                <p v-if="displayedMissingPrereqNames.length > 0">
+                  Still needed: {{ displayedMissingPrereqNames.join(', ') }}
+                </p>
+              </div>
             </div>
 
             <router-link v-if="displayedMapRoute" :to="displayedMapRoute" class="campaign-detail__node-link">
@@ -1437,6 +1477,50 @@ function unpinTooltip() {
   font-family: var(--font-sans);
   font-size: var(--text-caption);
   border-bottom: 1px solid var(--bg-overlay);
+}
+
+.campaign-detail__reward--withheld {
+  position: relative;
+}
+
+.campaign-detail__reward--withheld :deep(.reward-item) {
+  opacity: 0.55;
+}
+
+.campaign-detail__reward-hold {
+  position: absolute;
+  top: 2px;
+  left: -6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  color: var(--warning);
+  background: var(--bg-elevated);
+  border: 1px solid var(--warning);
+  border-radius: 50%;
+}
+
+.campaign-detail__reward-pending {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--warning) 8%, transparent);
+}
+
+.campaign-detail__reward-pending p {
+  margin: 0;
+  font-size: var(--text-caption);
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.campaign-detail__reward-pending p:first-child {
+  color: var(--text-primary);
 }
 
 .campaign-detail__reward:last-child {

@@ -162,6 +162,7 @@ export interface CampaignDifficultyProgressResponse {
   userScore: number | null
   completed: boolean
   unlocked: boolean
+  rewardsEarned: boolean
 }
 
 export interface BarrierProgressResponse {
