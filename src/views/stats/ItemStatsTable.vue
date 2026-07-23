@@ -63,6 +63,7 @@ function syntheticItem(row: Record<string, unknown>): ItemResponse {
     value: (row.itemValue as ItemResponse['value'] | undefined) ?? null,
     rarity: row.rarity as ItemRarity,
     downloadable: false,
+    serialized: false,
     tradeable: false,
     visible: true,
     active: true,

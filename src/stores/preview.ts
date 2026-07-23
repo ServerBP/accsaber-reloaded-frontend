@@ -51,6 +51,7 @@ function placeholderItem(typeKey: string): ItemResponse {
     value: null,
     rarity: 'common',
     downloadable: false,
+    serialized: false,
     tradeable: false,
     visible: false,
     active: false,

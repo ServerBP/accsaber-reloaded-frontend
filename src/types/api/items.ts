@@ -547,6 +547,7 @@ export interface ItemResponse {
   value: ItemValue | null
   rarity: ItemRarity
   downloadable: boolean
+  serialized: boolean
   tradeable: boolean
   visible: boolean
   active: boolean

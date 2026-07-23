@@ -31,6 +31,7 @@ const SAMPLE_ITEM: ItemResponse = {
   value: { states: [{ atMs: 0, fill: { type: 'solid', hex: SAMPLE_GRAY } }] },
   rarity: 'common',
   downloadable: false,
+  serialized: false,
   tradeable: false,
   visible: true,
   active: true,
