@@ -133,8 +133,12 @@ watch(() => auth.isLoggedIn, (next, prev) => {
   if (next !== prev) void load()
 })
 
+const categoryTags = computed(
+  () => campaign.value?.tags.filter((t) => t.kind === 'CATEGORY') ?? [],
+)
+
 const accent = computed(() => {
-  const cats = campaign.value?.tags.filter((t) => t.kind === 'CATEGORY') ?? []
+  const cats = categoryTags.value
   if (cats.length !== 1 || !cats[0].categoryId) return 'var(--accent-overall)'
   const code = categoryStore.getCategoryCode(cats[0].categoryId)
   if (!code) return 'var(--accent-overall)'
@@ -151,7 +155,7 @@ const difficultyColor = computed(() =>
 
 const difficultyGradient = computed(() => campaignDifficultyGradient(campaign.value?.tags ?? []))
 
-const difficultyChipStyle = computed(() =>
+const difficultyStyle = computed(() =>
   difficultyGradient.value
     ? { backgroundImage: difficultyGradient.value }
     : { color: difficultyColor.value },
@@ -160,6 +164,19 @@ const difficultyChipStyle = computed(() =>
 const themeTags = computed(
   () => campaign.value?.tags.filter((t) => t.kind === 'THEME' || t.kind === 'GENRE') ?? [],
 )
+
+const hasIdentity = computed(
+  () => categoryTags.value.length > 0 || !!difficultyLabel.value || themeTags.value.length > 0,
+)
+
+const modeSentence = computed(() => {
+  const c = campaign.value
+  if (!c) return ''
+  const goal = c.completionMode === 'ALL' ? 'Clear every node' : 'Reach the end'
+  const order = c.progressionAgnostic ? ' in any order' : ''
+  const retro = c.legacy ? ' Existing PBs count toward progress.' : ''
+  return `${goal}${order}.${retro}`
+})
 
 const completedCount = computed(() => progress.value?.completedDifficulties ?? 0)
 
@@ -563,34 +580,26 @@ function unpinTooltip() {
       <div class="campaign-detail__floats">
         <aside class="campaign-detail__rail campaign-detail__rail--left" aria-label="Campaign overview">
           <header class="campaign-detail__title-block">
-            <div class="campaign-detail__eyebrow">
-              <CampaignCategoryTags :tags="campaign.tags" />
-              <span v-if="difficultyLabel"
-                class="campaign-detail__chip campaign-detail__chip--difficulty"
-                :class="{ 'campaign-detail__chip--fade': difficultyGradient }"
-                :style="difficultyChipStyle">{{ difficultyLabel }}</span>
-              <span v-for="tag in themeTags" :key="tag.id" class="campaign-detail__chip">{{ tag.name }}</span>
-            </div>
             <h1 class="campaign-detail__title">{{ campaign.name }}</h1>
-            <p class="campaign-detail__creator">
-              created by
+            <p class="campaign-detail__byline">
+              <span>by</span>
               <span class="campaign-detail__creator-name">
                 {{ campaign.creatorAlias || campaign.creatorName || 'AccSaber' }}
               </span>
-            </p>
-            <p
-              v-if="campaign.official || campaign.status === 'CURATED'"
-              class="campaign-detail__curated-row"
-            >
               <CampaignStatusBadge :campaign="campaign" size="md" />
             </p>
-            <p class="campaign-detail__mode">
-              <span>{{ campaign.completionMode === 'ALL' ? 'Clear every node' : 'Reach the end' }}</span>
-              <span v-if="campaign.progressionAgnostic" class="campaign-detail__mode-sep">·</span>
-              <span v-if="campaign.progressionAgnostic">any order</span>
-              <span v-if="campaign.legacy" class="campaign-detail__mode-sep">·</span>
-              <span v-if="campaign.legacy">retroactive</span>
+            <p v-if="hasIdentity" class="campaign-detail__identity">
+              <span v-if="categoryTags.length" class="campaign-detail__trait campaign-detail__trait--category">
+                <CampaignCategoryTags :tags="campaign.tags" />
+              </span>
+              <span v-if="difficultyLabel" class="campaign-detail__trait">
+                <span class="campaign-detail__difficulty"
+                  :class="{ 'campaign-detail__difficulty--fade': difficultyGradient }"
+                  :style="difficultyStyle">{{ difficultyLabel }}</span>
+              </span>
+              <span v-for="tag in themeTags" :key="tag.id" class="campaign-detail__trait">{{ tag.name }}</span>
             </p>
+            <p class="campaign-detail__mode">{{ modeSentence }}</p>
           </header>
 
           <p v-if="campaign.summary" class="campaign-detail__summary">{{ campaign.summary }}</p>
@@ -619,9 +628,6 @@ function unpinTooltip() {
               <BaseButton variant="primary" size="md" :loading="starting" @click="onStart">
                 Begin campaign
               </BaseButton>
-              <p v-if="campaign.legacy" class="campaign-detail__legacy-hint">
-                Your existing PBs will count toward progression.
-              </p>
             </template>
 
             <BaseButton
@@ -1183,30 +1189,7 @@ function unpinTooltip() {
 .campaign-detail__title-block {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-}
-
-.campaign-detail__eyebrow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  margin-bottom: var(--space-xs);
-}
-
-.campaign-detail__chip {
-  font-family: var(--font-sans);
-  font-size: 0.5625rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-}
-
-.campaign-detail__chip--fade {
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  gap: 0;
 }
 
 .campaign-detail__title {
@@ -1219,8 +1202,12 @@ function unpinTooltip() {
   letter-spacing: -0.005em;
 }
 
-.campaign-detail__creator {
-  margin: 4px 0 0;
+.campaign-detail__byline {
+  margin: 6px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
   font-family: var(--font-sans);
   font-size: var(--text-caption);
   color: var(--text-tertiary);
@@ -1231,25 +1218,45 @@ function unpinTooltip() {
   font-weight: 500;
 }
 
-.campaign-detail__curated-row {
-  margin: 6px 0 0;
+.campaign-detail__identity {
+  margin: 10px 0 0;
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1.6;
+  color: var(--text-tertiary);
+}
+
+.campaign-detail__trait + .campaign-detail__trait::before {
+  content: '·';
+  margin: 0 6px;
+  font-weight: 400;
+  color: var(--text-tertiary);
+}
+
+.campaign-detail__trait--category {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.campaign-detail__identity :deep(.campaign-tag) {
+  font-size: 0.625rem;
+  letter-spacing: 0.12em;
+}
+
+.campaign-detail__difficulty--fade {
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .campaign-detail__mode {
-  margin: 6px 0 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+  margin: 10px 0 0;
   font-family: var(--font-sans);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-}
-
-.campaign-detail__mode-sep {
-  color: var(--text-tertiary);
+  font-size: var(--text-body);
+  color: var(--text-primary);
+  line-height: 1.5;
 }
 
 .campaign-detail__summary {
@@ -1294,13 +1301,6 @@ function unpinTooltip() {
   background: color-mix(in srgb, var(--success) 8%, transparent);
   border: 1px solid color-mix(in srgb, var(--success) 35%, transparent);
   border-radius: 4px;
-}
-
-.campaign-detail__legacy-hint {
-  margin: 0;
-  font-size: 0.6875rem;
-  color: var(--text-tertiary);
-  line-height: 1.4;
 }
 
 .campaign-detail__manage {
