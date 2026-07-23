@@ -106,20 +106,20 @@ const respondingId = ref<string | null>(null)
 const mineCollabs = ref<CampaignDetailResponse[]>([])
 
 const { currentPage, paginationParams, setPage, sortState } = usePageableRoute({
-  defaultSort: 'createdAt',
+  defaultSort: 'publishedAt',
   defaultSize: 20,
   secondarySort: null,
 })
 
 const SORT_OPTIONS = [
-  { key: 'createdAt', order: 'desc', label: 'Newest' },
+  { key: 'publishedAt', order: 'desc', label: 'Newest' },
   { key: 'voteScore', order: 'desc', label: 'Top rated' },
   { key: 'name', order: 'asc', label: 'A-Z' },
 ] as const
 
 function setSortOption(option: (typeof SORT_OPTIONS)[number]) {
   const query = { ...route.query }
-  if (option.key === 'createdAt') {
+  if (option.key === 'publishedAt') {
     delete query.sort
     delete query.order
   } else {
