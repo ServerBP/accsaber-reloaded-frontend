@@ -5,6 +5,7 @@ import { computed } from 'vue'
 
 const props = defineProps<{
   badges: UserItemResponse[]
+  primaryLinkId?: string | null
 }>()
 
 interface Rendered {
@@ -14,10 +15,11 @@ interface Rendered {
   altText: string
   description: string | null
   tint: string | null
+  primary: boolean
 }
 
-const rendered = computed<Rendered[]>(() =>
-  props.badges
+const rendered = computed<Rendered[]>(() => {
+  const mapped = props.badges
     .filter((u) => u.item.typeKey === 'badge')
     .map((u) => {
       const badgeValue = readBadgeValue(u.item.value)
@@ -29,9 +31,17 @@ const rendered = computed<Rendered[]>(() =>
         altText: badgeValue?.asset.altText ?? u.item.name,
         description: u.item.description,
         tint: badgeValue?.tint ?? null,
+        primary: u.linkId === props.primaryLinkId,
       }
-    }),
-)
+    })
+
+  const primaryIndex = mapped.findIndex((b) => b.primary)
+  if (primaryIndex > 0) {
+    const [primary] = mapped.splice(primaryIndex, 1)
+    mapped.unshift(primary)
+  }
+  return mapped
+})
 </script>
 
 <template>
@@ -40,14 +50,16 @@ const rendered = computed<Rendered[]>(() =>
       v-for="b in rendered"
       :key="b.linkId"
       class="badges-row__badge"
+      :class="{ 'badges-row__badge--primary': b.primary }"
       tabindex="0"
-      :aria-label="b.description ? `${b.name}: ${b.description}` : b.name"
+      :aria-label="`${b.primary ? 'Primary badge, ' : ''}${b.description ? `${b.name}: ${b.description}` : b.name}`"
       :style="b.tint ? { color: b.tint } : undefined"
     >
       <img v-if="b.imageUrl" :src="b.imageUrl" :alt="b.altText" loading="lazy" decoding="async" />
       <span v-else class="badges-row__placeholder">{{ b.name.charAt(0).toUpperCase() }}</span>
 
       <span class="badges-row__tooltip" role="tooltip">
+        <span v-if="b.primary" class="badges-row__tooltip-tag">Primary badge</span>
         <span class="badges-row__tooltip-name">{{ b.name }}</span>
         <span v-if="b.description" class="badges-row__tooltip-desc">{{ b.description }}</span>
       </span>
@@ -59,6 +71,7 @@ const rendered = computed<Rendered[]>(() =>
 .badges-row {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: center;
   gap: var(--space-xs);
   max-width: 480px;
@@ -79,11 +92,22 @@ const rendered = computed<Rendered[]>(() =>
   cursor: help;
 }
 
+.badges-row__badge--primary {
+  width: 48px;
+  height: 48px;
+  border-color: var(--page-accent, var(--accent));
+}
+
 .badges-row__badge:hover,
 .badges-row__badge:focus-visible {
   transform: scale(1.1);
   outline: none;
   border-color: var(--text-tertiary);
+}
+
+.badges-row__badge--primary:hover,
+.badges-row__badge--primary:focus-visible {
+  border-color: var(--page-accent, var(--accent));
 }
 
 .badges-row__badge img {
@@ -136,6 +160,15 @@ const rendered = computed<Rendered[]>(() =>
 .badges-row__badge:hover .badges-row__tooltip,
 .badges-row__badge:focus-visible .badges-row__tooltip {
   opacity: 1;
+}
+
+.badges-row__tooltip-tag {
+  font-family: var(--font-sans);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--page-accent, var(--accent));
 }
 
 .badges-row__tooltip-name {

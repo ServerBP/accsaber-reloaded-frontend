@@ -531,7 +531,12 @@ watch(activeCategory, (newCategory) => {
                   Will resync on next refresh (4 AM daily).
                 </p>
               </div>
-              <ProfileBadgesRow v-if="ownedBadges.length" :badges="ownedBadges" class="profile-hero__badges" />
+              <ProfileBadgesRow
+                v-if="ownedBadges.length"
+                :badges="ownedBadges"
+                :primary-link-id="equipped['badge']?.linkId ?? null"
+                class="profile-hero__badges"
+              />
               <SupporterProfileSection
                 v-if="supporterState"
                 :state="supporterState"
