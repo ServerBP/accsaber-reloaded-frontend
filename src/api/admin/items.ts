@@ -78,10 +78,6 @@ export function deleteItemIcon(id: string): Promise<ItemResponse> {
   return del<ItemResponse>(`/admin/items/${id}/icon`)
 }
 
-export function getAdminItemModifiers(): Promise<ItemModifierResponse[]> {
-  return get<ItemModifierResponse[]>('/admin/item-modifiers')
-}
-
 export function patchAdminItemModifier(
   id: string,
   req: PatchItemModifierRequest,

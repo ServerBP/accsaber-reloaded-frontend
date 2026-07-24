@@ -139,8 +139,8 @@ watch(page, () => {
           @keydown.enter="goToProfile(item.targetUserId)"
         >
           <GlowImage
-            v-if="item.targetAvatarUrl"
-            :src="item.targetAvatarUrl"
+            v-if="item.targetCdnAvatarUrl ?? item.targetAvatarUrl"
+            :src="(item.targetCdnAvatarUrl ?? item.targetAvatarUrl) ?? ''"
             :alt="item.targetName"
             :size="36"
           />
@@ -148,7 +148,7 @@ watch(page, () => {
           <PlayerTooltipTrigger
             :user-id="item.targetUserId"
             :user-name="item.targetName"
-            :avatar-url="item.targetAvatarUrl ?? ''"
+            :avatar-url="(item.targetCdnAvatarUrl ?? item.targetAvatarUrl) ?? ''"
             :country="item.targetCountry ?? ''"
             class="relation-list__trigger"
           >

@@ -7,7 +7,6 @@ import NotificationRow from '@/components/domain/NotificationRow.vue'
 import type { NotificationResponse } from '@/types/api/notifications'
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import NotificationTestFire from './notifications/NotificationTestFire.vue'
 
 const TITLE_MAX = 200
 const LINK_MAX = 500
@@ -155,8 +154,6 @@ async function send() {
           lower than the total player count. That is expected.
         </span>
       </div>
-
-      <NotificationTestFire />
     </div>
 
     <BaseModal :open="confirmOpen" title="Send to Everyone" max-width="440px"

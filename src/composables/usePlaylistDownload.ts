@@ -17,7 +17,7 @@ export function usePlaylistDownload() {
   function downloadPlaylist(categoryCode: string) {
     const baseUrl = import.meta.env.VITE_API_BASE as string
     const a = document.createElement('a')
-    a.href = `${baseUrl}/playlists?category=${categoryCode}`
+    a.href = `${baseUrl}/playlists/${categoryCode}`
     a.download = `accsaber-${categoryCode.replace('_', '-')}.json`
     a.click()
   }

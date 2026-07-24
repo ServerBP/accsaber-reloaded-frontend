@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { getAdminItemModifiers, patchAdminItemModifier } from '@/api/admin/items'
+import { patchAdminItemModifier } from '@/api/admin/items'
+import { getItemModifiers } from '@/api/items'
 import { parseApiError } from '@/api/client'
 import AdminTable from '@/components/admin/AdminTable.vue'
 import BaseButton from '@/components/common/BaseButton.vue'
@@ -42,7 +43,7 @@ const form = ref({
 async function fetchModifiers() {
   loading.value = true
   try {
-    modifiers.value = await getAdminItemModifiers()
+    modifiers.value = await getItemModifiers()
   } finally {
     loading.value = false
   }

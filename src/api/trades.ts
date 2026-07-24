@@ -22,11 +22,3 @@ export function cancelTrade(id: string): Promise<TradeResponse> {
 export function getTrades(params?: TradeListParams): Promise<Page<TradeResponse>> {
   return get<Page<TradeResponse>>(`/trades${buildQuery(params)}`)
 }
-
-export function getIncomingTrades(): Promise<TradeResponse[]> {
-  return get<TradeResponse[]>('/trades/incoming')
-}
-
-export function getOutgoingTrades(): Promise<TradeResponse[]> {
-  return get<TradeResponse[]>('/trades/outgoing')
-}

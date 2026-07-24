@@ -16,13 +16,13 @@ import { getAdminUnusualEffects } from '@/api/admin/unusual-effects'
 import {
   deleteItemIcon,
   getAdminItem,
-  getAdminItemModifiers,
   getAdminItems,
   reactivateItem,
   deleteItem as retireItem,
   updateItem,
   uploadItemIcon,
 } from '@/api/admin/items'
+import { getItemModifiers } from '@/api/items'
 import { ApiError, getApiErrorMessage, parseApiError } from '@/api/client'
 import BaseButton from '@/components/common/BaseButton.vue'
 import BaseInput from '@/components/common/BaseInput.vue'
@@ -130,7 +130,7 @@ async function refresh() {
       getAdminCrateContents(crateId.value),
       getAdminItems({ includeInactive: false }),
       getAdminCrateModifiers(crateId.value),
-      getAdminItemModifiers(),
+      getItemModifiers(),
       getAdminCrateUnusualEffects(crateId.value),
       getAdminUnusualEffects(),
     ])

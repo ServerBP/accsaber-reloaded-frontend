@@ -39,20 +39,3 @@ export interface BroadcastNotificationRequest {
 export interface BroadcastNotificationResponse {
   delivered: number
 }
-
-export interface TestNotificationRequest {
-  userId: string
-  type: NotificationType
-  title?: string
-  linkTo?: string
-}
-
-export interface TestNotificationResponse {
-  userId: string
-  userName: string
-  type: NotificationType | (string & {})
-  title: string
-  linkTo: string | null
-  delivered: boolean
-  suppressedReason: string | null
-}

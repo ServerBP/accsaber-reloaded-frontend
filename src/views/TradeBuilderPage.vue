@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { parseApiError } from '@/api/client'
 import { getUserInventory } from '@/api/items'
-import { getIncomingTrades, getOutgoingTrades } from '@/api/trades'
+import { getTrades } from '@/api/trades'
 import { getUser } from '@/api/users'
 import BaseButton from '@/components/common/BaseButton.vue'
 import BaseInput from '@/components/common/BaseInput.vue'
@@ -207,10 +207,9 @@ async function loadTheirInventory() {
 async function loadPendingLockouts() {
   if (!myUserId.value) return
   try {
-    const [incoming, outgoing] = await Promise.all([getIncomingTrades(), getOutgoingTrades()])
+    const page = await getTrades({ direction: 'both', status: ['pending'], size: 200 })
     const set = new Set<string>()
-    for (const t of [...incoming, ...outgoing]) {
-      if (t.status !== 'pending') continue
+    for (const t of page.content) {
       for (const ref of t.offeredItems) set.add(ref.linkId)
       for (const ref of t.requestedItems) set.add(ref.linkId)
     }
