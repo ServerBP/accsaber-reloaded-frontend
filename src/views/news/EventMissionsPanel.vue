@@ -24,10 +24,16 @@ function weekLocked(w: number): boolean {
   return false
 }
 
+function weekComplete(w: number): boolean {
+  const wm = props.missions.filter((m) => m.week === w)
+  return wm.length > 0 && wm.every((m) => m.tracked && m.completed)
+}
+
 const weekList = computed(() =>
   Array.from({ length: weeks.value }, (_, i) => {
     const n = i + 1
-    return { n, locked: weekLocked(n), current: props.currentWeek === n }
+    const locked = weekLocked(n)
+    return { n, locked, current: props.currentWeek === n, complete: !locked && weekComplete(n) }
   }),
 )
 
@@ -102,6 +108,11 @@ watch(
             stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <rect x="3" y="11" width="18" height="11" rx="2" />
             <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+          <svg v-else-if="w.complete" class="week-tab__check" width="13" height="13" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"
+            aria-label="All missions complete">
+            <path d="M20 6 9 17l-5-5" />
           </svg>
         </button>
       </div>
@@ -188,6 +199,11 @@ watch(
 
 .week-tab__lock {
   flex-shrink: 0;
+}
+
+.week-tab__check {
+  flex-shrink: 0;
+  color: var(--success);
 }
 
 .missions__disclaimer {
