@@ -1700,9 +1700,8 @@ function unpinTooltip() {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-sm);
-  padding: var(--space-sm) 0;
+  padding: var(--space-sm) 0 0;
   border-top: 1px solid var(--bg-overlay);
-  border-bottom: 1px solid var(--bg-overlay);
 }
 
 .campaign-detail__target {

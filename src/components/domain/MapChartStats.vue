@@ -28,7 +28,6 @@ const stats = computed(() => buildChartStats(props.source))
   gap: var(--space-xs) var(--space-md);
   padding: var(--space-sm) 0;
   border-top: 1px solid var(--bg-overlay);
-  border-bottom: 1px solid var(--bg-overlay);
 }
 
 .chart-stats__item {
