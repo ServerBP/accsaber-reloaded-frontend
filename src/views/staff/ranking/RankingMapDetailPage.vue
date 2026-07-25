@@ -10,6 +10,7 @@ import CategoryBadge from '@/components/domain/CategoryBadge.vue'
 import ComplexityBadge from '@/components/domain/ComplexityBadge.vue'
 import DifficultyBadge from '@/components/domain/DifficultyBadge.vue'
 import LeaderboardPreviewPanel from '@/components/domain/LeaderboardPreviewPanel.vue'
+import MapChartStats from '@/components/domain/MapChartStats.vue'
 import { useColorExtract } from '@/composables/useColorExtract'
 import { usePageMeta } from '@/composables/usePageMeta'
 import { rankingDashboardRoute } from '@/router'
@@ -622,6 +623,8 @@ watch(availableActions, (actions) => {
               <ComplexityBadge v-else-if="difficulty.complexity != null" :complexity="difficulty.complexity" />
             </div>
 
+            <MapChartStats :source="difficulty" variant="inline" class="rank-detail__chart-stats" />
+
             <div class="rank-detail__badges">
               <span :class="statusBadgeClass(difficulty.status)">
                 {{ difficulty.status }}
@@ -1177,6 +1180,11 @@ watch(availableActions, (actions) => {
   align-items: center;
   gap: var(--space-md);
   margin-top: var(--space-sm);
+}
+
+.rank-detail__chart-stats {
+  margin-top: var(--space-sm);
+  max-width: 560px;
 }
 
 .rank-detail__characteristic {

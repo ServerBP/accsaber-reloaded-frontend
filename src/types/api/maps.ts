@@ -11,6 +11,20 @@ export interface AutoCriteriaCheckResponse {
   failures: string[]
 }
 
+export interface MapChartMetadata {
+  bpm: number | null
+  notes: number | null
+  bombs: number | null
+  walls: number | null
+  duration: number | null
+}
+
+export interface MapChartStatsSource {
+  metadata: MapChartMetadata | null
+  nps: number | null
+  maxCombo: number | null
+}
+
 export interface MapResponse {
   id: string
   songName: string
@@ -37,7 +51,7 @@ export interface PublicMapResponse {
   createdAt: string
 }
 
-export interface MapDifficultyResponse {
+export interface MapDifficultyResponse extends MapChartStatsSource {
   id: string
   mapId: string
   songName: string
@@ -80,7 +94,7 @@ export interface MapDifficultyResponse {
   statistics: MapDifficultyStatisticsResponse | null
 }
 
-export interface PublicMapDifficultyResponse {
+export interface PublicMapDifficultyResponse extends MapChartStatsSource {
   id: string
   mapId: string
   songName: string

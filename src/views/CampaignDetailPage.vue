@@ -20,6 +20,7 @@ import CampaignLeaderboardTray from '@/views/campaign/CampaignLeaderboardTray.vu
 import CampaignRewardNotice from '@/views/campaign/CampaignRewardNotice.vue'
 import ComplexityBadge from '@/components/domain/ComplexityBadge.vue'
 import DifficultyBadge from '@/components/domain/DifficultyBadge.vue'
+import MapChartStats from '@/components/domain/MapChartStats.vue'
 import { pickCoverUrl } from '@/composables/useAvatarFallback'
 import { useItemCatalog } from '@/composables/useItemCatalog'
 import { useAuthStore } from '@/stores/auth'
@@ -467,7 +468,7 @@ const cursorPos = ref({ x: 0, y: 0 })
 const pinnedPos = ref<{ x: number; y: number } | null>(null)
 
 const TOOLTIP_WIDTH = 340
-const TOOLTIP_HEIGHT = 440
+const TOOLTIP_HEIGHT = 520
 
 function onPageMouseMove(e: MouseEvent) {
   cursorPos.value = { x: e.clientX, y: e.clientY }
@@ -516,8 +517,9 @@ watch(selectedId, (id) => {
   }
 })
 
-function handleHover(id: string | null) {
+function handleHover(id: string | null, point?: { x: number; y: number }) {
   hoverId.value = id
+  if (point) cursorPos.value = point
 }
 
 function handleDeselect() {
@@ -796,6 +798,8 @@ function unpinTooltip() {
                 </span>
               </div>
             </div>
+
+            <MapChartStats :source="displayedDifficulty" variant="inline" />
 
             <p v-if="displayedDifficulty.description" class="campaign-detail__node-desc">
               {{ displayedDifficulty.description }}

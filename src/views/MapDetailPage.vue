@@ -6,6 +6,7 @@ import StatBlock from '@/components/common/StatBlock.vue'
 import ApTweaker from '@/components/domain/ApTweaker.vue'
 import ComplexityBadge from '@/components/domain/ComplexityBadge.vue'
 import DifficultyBadge from '@/components/domain/DifficultyBadge.vue'
+import MapChartStats from '@/components/domain/MapChartStats.vue'
 import { useColorExtract } from '@/composables/useColorExtract'
 import { usePageMeta } from '@/composables/usePageMeta'
 import { useCategoryStore } from '@/stores/categories'
@@ -373,6 +374,7 @@ function sameQuery(a: Record<string, string>, b: Record<string, unknown>): boole
               <StatBlock label="Avg AP" :value="diffStats?.averageAp?.toFixed(2) ?? '-'" />
               <StatBlock label="Total Scores" :value="diffStats?.totalScores ?? 0" :decimals="0" />
             </div>
+            <MapChartStats :source="activeDifficulty" />
           </div>
         </div>
       </div>

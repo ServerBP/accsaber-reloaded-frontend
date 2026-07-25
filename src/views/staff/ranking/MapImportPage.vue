@@ -18,6 +18,7 @@ import {
   formatBsDifficulty,
   parseBeatSaverCode,
 } from '@/utils/beatsaver'
+import { formatChartDuration, formatChartNumber } from '@/utils/chartMetadata'
 import { brightenRgb } from '@/utils/color'
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -210,8 +211,7 @@ function goToDetail(difficultyId: string) {
             {{ bsMap.metadata.songAuthorName }} - Mapped by {{ bsMap.metadata.levelAuthorName }}
           </p>
           <p class="map-import__song-stats">
-            {{ bsMap.metadata.bpm }} BPM - {{ Math.floor(bsMap.metadata.duration / 60) }}:{{
-              String(bsMap.metadata.duration % 60).padStart(2, '0') }}
+            {{ formatChartNumber(bsMap.metadata.bpm) }} BPM - {{ formatChartDuration(bsMap.metadata.duration) }}
           </p>
         </div>
       </div>

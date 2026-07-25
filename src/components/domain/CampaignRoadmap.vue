@@ -111,7 +111,7 @@ const emit = defineEmits<{
   select: [id: string]
   selectMany: [ids: string[]]
   toggleSelect: [id: string]
-  hover: [id: string | null]
+  hover: [id: string | null, point?: { x: number; y: number }]
   deselect: []
   move: [payload: { id: string; positionX: number; positionY: number }]
   moveMany: [payloads: Array<{ id: string; positionX: number; positionY: number }>]
@@ -143,6 +143,12 @@ const hoverNodeId = ref<string | null>(null)
 function onNodeHover(id: string | null) {
   hoverNodeId.value = id
   emit('hover', id)
+}
+
+function onNodeFocus(id: string, event: FocusEvent) {
+  const rect = (event.currentTarget as SVGGElement).getBoundingClientRect()
+  hoverNodeId.value = id
+  emit('hover', id, { x: rect.left + rect.width / 2, y: rect.bottom })
 }
 
 const stage = ref<HTMLDivElement | null>(null)
@@ -1664,12 +1670,19 @@ const arrowDecorations = computed(() =>
             'campaign-roadmap__node--editable': editable,
             'campaign-roadmap__node--connect-target': connectHoverId === n.id,
           }"
+          :role="editable ? undefined : 'button'"
+          :tabindex="editable ? undefined : 0"
+          :aria-label="difficultyById.get(n.id)!.songName"
           @mouseenter="onNodeHover(n.id)"
           @mouseleave="onNodeHover(null)"
+          @focusin="onNodeFocus(n.id, $event)"
+          @focusout="onNodeHover(null)"
+          @keydown.enter.prevent="emit('select', n.id)"
+          @keydown.space.prevent="emit('select', n.id)"
           @click.capture="onNodeClickCapture"
         >
           <CampaignNode
-            :difficulty="difficulties.find((d) => d.id === n.id)!"
+            :difficulty="difficultyById.get(n.id)!"
             :progress="progressById.get(n.id) ?? null"
             :cx="n.cx"
             :cy="n.cy"
@@ -1996,6 +2009,15 @@ const arrowDecorations = computed(() =>
   stroke: var(--bg-base);
   stroke-linecap: round;
   fill: none;
+}
+
+[data-node]:focus {
+  outline: none;
+}
+
+[data-node]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 
 .campaign-roadmap__node--editable {

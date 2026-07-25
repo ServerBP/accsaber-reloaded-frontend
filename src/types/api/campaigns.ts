@@ -14,6 +14,7 @@ import type {
   UserCampaignStatus,
 } from '../enums'
 import type { PaginationParams } from '../pagination'
+import type { MapChartStatsSource } from './maps'
 
 export interface CampaignTagResponse {
   id: string
@@ -75,7 +76,7 @@ export interface CampaignPrerequisiteResponse {
   color: string | null
 }
 
-export interface CampaignDifficultyResponse {
+export interface CampaignDifficultyResponse extends MapChartStatsSource {
   id: string
   mapDifficultyId: string
   mapId: string
