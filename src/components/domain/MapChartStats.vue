@@ -1,46 +1,31 @@
 <script setup lang="ts">
-import StatBlock from '@/components/common/StatBlock.vue'
 import type { MapChartStatsSource } from '@/types/api/maps'
 import { buildChartStats } from '@/utils/chartMetadata'
 import { computed } from 'vue'
 
-const props = withDefaults(
-  defineProps<{
-    source: MapChartStatsSource | null
-    variant?: 'tile' | 'inline'
-  }>(),
-  { variant: 'tile' },
-)
+const props = defineProps<{
+  source: MapChartStatsSource | null
+}>()
 
 const stats = computed(() => buildChartStats(props.source))
 </script>
 
 <template>
-  <div v-if="stats.length > 0" class="chart-stats" :class="`chart-stats--${variant}`">
-    <template v-if="variant === 'tile'">
-      <StatBlock v-for="stat in stats" :key="stat.key" :label="stat.label" :value="stat.value" />
-    </template>
-    <template v-else>
-      <div v-for="stat in stats" :key="stat.key" class="chart-stats__item">
-        <span class="chart-stats__label">{{ stat.label }}</span>
-        <span class="chart-stats__value">{{ stat.value }}</span>
-      </div>
-    </template>
+  <div v-if="stats.length > 0" class="chart-stats">
+    <div v-for="stat in stats" :key="stat.key" class="chart-stats__item">
+      <span class="chart-stats__label">{{ stat.label }}</span>
+      <span class="chart-stats__value">{{ stat.value }}</span>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.chart-stats--tile {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--space-sm);
-}
-
-.chart-stats--inline {
+.chart-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
-  gap: var(--space-sm);
+  width: 100%;
+  max-width: 520px;
+  grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
+  gap: var(--space-xs) var(--space-md);
   padding: var(--space-sm) 0;
   border-top: 1px solid var(--bg-overlay);
   border-bottom: 1px solid var(--bg-overlay);
@@ -49,22 +34,22 @@ const stats = computed(() => buildChartStats(props.source))
 .chart-stats__item {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   min-width: 0;
 }
 
 .chart-stats__label {
-  font-size: var(--text-caption);
-  font-weight: 600;
+  font-size: 0.5625rem;
+  font-weight: 700;
   color: var(--text-tertiary);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.14em;
 }
 
 .chart-stats__value {
   font-family: var(--font-mono);
   font-size: var(--text-stat-inline);
   font-weight: 500;
-  color: var(--text-primary);
+  color: var(--text-secondary);
 }
 </style>

@@ -799,7 +799,7 @@ function unpinTooltip() {
               </div>
             </div>
 
-            <MapChartStats :source="displayedDifficulty" variant="inline" />
+            <MapChartStats :source="displayedDifficulty" />
 
             <p v-if="displayedDifficulty.description" class="campaign-detail__node-desc">
               {{ displayedDifficulty.description }}

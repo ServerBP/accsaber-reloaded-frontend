@@ -32,11 +32,10 @@ export function buildChartStats(source: MapChartStatsSource | null | undefined):
   const entries: Array<[string, string, string | null]> = [
     ['bpm', 'BPM', formatChartNumber(meta?.bpm)],
     ['nps', 'NPS', formatChartNumber(source?.nps)],
-    ['notes', 'Notes', formatChartCount(meta?.notes)],
+    ['notes', 'Notes', formatChartCount(meta?.notes ?? source?.maxCombo)],
     ['bombs', 'Bombs', formatChartCount(meta?.bombs)],
     ['walls', 'Walls', formatChartCount(meta?.walls)],
     ['duration', 'Duration', formatChartDuration(meta?.duration)],
-    ['maxCombo', 'Max Combo', formatChartCount(source?.maxCombo)],
   ]
   return entries.flatMap(([key, label, value]) => (value === null ? [] : [{ key, label, value }]))
 }

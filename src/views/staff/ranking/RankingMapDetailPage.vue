@@ -623,7 +623,7 @@ watch(availableActions, (actions) => {
               <ComplexityBadge v-else-if="difficulty.complexity != null" :complexity="difficulty.complexity" />
             </div>
 
-            <MapChartStats :source="difficulty" variant="inline" class="rank-detail__chart-stats" />
+            <MapChartStats :source="difficulty" class="rank-detail__chart-stats" />
 
             <div class="rank-detail__badges">
               <span :class="statusBadgeClass(difficulty.status)">
@@ -1184,7 +1184,6 @@ watch(availableActions, (actions) => {
 
 .rank-detail__chart-stats {
   margin-top: var(--space-sm);
-  max-width: 560px;
 }
 
 .rank-detail__characteristic {
