@@ -80,10 +80,7 @@ async function load() {
     const fetched = await getCampaignByIdOrSlug(idOrSlug.value)
 
     if (fetched.status === 'DRAFT') {
-      const isOwner = auth.isLoggedIn
-        && !!fetched.creatorId
-        && !!auth.userId
-        && String(fetched.creatorId) === String(auth.userId)
+      const isOwner = auth.isLoggedIn && !!fetched.creatorId && fetched.creatorId === auth.userId
       if (isOwner) {
         await router.replace({
           name: 'campaign-editor',
@@ -197,8 +194,7 @@ const isOwner = computed(
   () =>
     auth.isLoggedIn
     && !!campaign.value?.creatorId
-    && !!auth.userId
-    && String(campaign.value.creatorId) === String(auth.userId),
+    && campaign.value.creatorId === auth.userId,
 )
 
 const canManage = computed(

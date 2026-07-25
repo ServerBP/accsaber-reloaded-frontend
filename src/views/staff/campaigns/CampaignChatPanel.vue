@@ -42,7 +42,7 @@ function markSeen() {
 }
 
 function isSelf(m: CampaignChatMessageResponse): boolean {
-  return !!auth.userId && String(m.authorId) === String(auth.userId)
+  return !!auth.userId && m.authorId === auth.userId
 }
 
 function displayTime(m: CampaignChatMessageResponse): string {
@@ -56,7 +56,7 @@ function isoTime(m: CampaignChatMessageResponse): string {
 }
 
 function authorColor(m: CampaignChatMessageResponse): string {
-  return colorForUser(String(m.authorId))
+  return colorForUser(m.authorId)
 }
 
 function avatarSrc(m: CampaignChatMessageResponse): string {

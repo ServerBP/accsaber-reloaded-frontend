@@ -221,7 +221,7 @@ export function useCampaignEditor() {
   function createPlaceholderCampaign(): CampaignDetailResponse {
     return {
       id: '',
-      creatorId: auth.userId ? String(auth.userId) : null,
+      creatorId: auth.userId,
       creatorName: null,
       creatorAlias: null,
       name: '',
@@ -415,11 +415,7 @@ export function useCampaignEditor() {
 
   const isCreator = computed(() => {
     if (isUnsavedDraft.value && auth.isLoggedIn) return true
-    return (
-      !!campaign.value?.creatorId &&
-      !!auth.userId &&
-      String(campaign.value.creatorId) === String(auth.userId)
-    )
+    return !!campaign.value?.creatorId && campaign.value.creatorId === auth.userId
   })
 
   const {

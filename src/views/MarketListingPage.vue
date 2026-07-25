@@ -173,7 +173,8 @@ function onSocketEvent(event: MarketListingEvent) {
     current.currentBidder = event.actor
     current.minimumNextBid = event.amount + current.minIncrement
     current.bidCount += 1
-    if (event.actor && !bids.value.some((b) => b.amount === event.amount && b.bidder.id === event.actor?.id)) {
+    const actorId = event.actor ? String(event.actor.id) : null
+    if (event.actor && !bids.value.some((b) => b.amount === event.amount && String(b.bidder.id) === actorId)) {
       bids.value = [
         {
           id: `live-${current.id}-${++syntheticBidCounter}`,

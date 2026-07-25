@@ -49,7 +49,7 @@ export function useCampaignCollaborators(ctx: CollaboratorsContext) {
   const isCollaborator = computed(() => {
     if (!auth.userId) return false
     return collaborators.value.some(
-      (c) => c.status === 'ACCEPTED' && String(c.userId) === String(auth.userId),
+      (c) => c.status === 'ACCEPTED' && c.userId === auth.userId,
     )
   })
 
@@ -57,8 +57,8 @@ export function useCampaignCollaborators(ctx: CollaboratorsContext) {
 
   const existingCollaboratorIds = computed(() => {
     const ids = new Set<string>()
-    if (campaign.value?.creatorId) ids.add(String(campaign.value.creatorId))
-    for (const c of activeCollaborators.value) ids.add(String(c.userId))
+    if (campaign.value?.creatorId) ids.add(campaign.value.creatorId)
+    for (const c of activeCollaborators.value) ids.add(c.userId)
     return ids
   })
 
@@ -86,7 +86,7 @@ export function useCampaignCollaborators(ctx: CollaboratorsContext) {
   async function removeCollaborator(userId: string) {
     const c = campaign.value
     if (!isCreator.value || !c) return
-    const row = collaborators.value.find((x) => String(x.userId) === String(userId))
+    const row = collaborators.value.find((x) => x.userId === userId)
     if (!window.confirm(`Remove ${row?.userName ?? 'this collaborator'} from this campaign?`)) return
     actionPending.value = true
     actionError.value = null
@@ -107,7 +107,7 @@ export function useCampaignCollaborators(ctx: CollaboratorsContext) {
     actionPending.value = true
     actionError.value = null
     try {
-      await removeCampaignCollaborator(c.id, String(auth.userId))
+      await removeCampaignCollaborator(c.id, auth.userId)
       window.location.assign('/campaigns')
     } catch (err) {
       actionError.value = getApiErrorMessage(err, 'Failed to leave campaign')

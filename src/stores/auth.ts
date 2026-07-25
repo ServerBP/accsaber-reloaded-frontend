@@ -191,16 +191,15 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const me = await getAuthMe()
       authMe.value = me
-      const nextUserId = String(me.userId)
-      if (userId.value !== nextUserId && accessToken.value && refreshTokenValue.value) {
+      if (userId.value !== me.userId && accessToken.value && refreshTokenValue.value) {
         writePlayerSession({
           accessToken: accessToken.value,
           refreshToken: refreshTokenValue.value,
           expiresAt: expiresAt.value,
-          userId: nextUserId,
+          userId: me.userId,
         })
       }
-      userId.value = nextUserId
+      userId.value = me.userId
       return me
     } catch {
       authMe.value = null

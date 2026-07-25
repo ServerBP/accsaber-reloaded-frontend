@@ -14,7 +14,7 @@ export interface AuthMeStaff {
 }
 
 export interface AuthMeResponse {
-  userId: number
+  userId: string
   name: string
   avatarUrl: string | null
   cdnAvatarUrl?: string | null

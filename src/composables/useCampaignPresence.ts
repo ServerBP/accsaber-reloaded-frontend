@@ -25,14 +25,14 @@ export interface PresencePeer {
 
 interface PresenceWire {
   type: string
-  actorUserId?: number | string | null
+  actorUserId?: string | null
   actorName?: string | null
   actorAvatarUrl?: string | null
   targetId?: string | null
   x?: number | null
   y?: number | null
   field?: string | null
-  members?: { userId: number | string; name?: string | null; avatarUrl?: string | null }[] | null
+  members?: { userId: string; name?: string | null; avatarUrl?: string | null }[] | null
   message?: CampaignChatMessageResponse | null
 }
 
@@ -170,8 +170,7 @@ export function useCampaignPresence(
   function onMessage(event: MessageEvent) {
     let msg: PresenceWire
     try {
-      const raw = typeof event.data === 'string' ? event.data : ''
-      msg = JSON.parse(raw.replace(/:\s*(\d{16,})/g, ': "$1"'))
+      msg = JSON.parse(typeof event.data === 'string' ? event.data : '')
     } catch {
       return
     }
@@ -181,9 +180,8 @@ export function useCampaignPresence(
     if (type === 'presence_state') {
       const self = selfId()
       for (const m of msg.members ?? []) {
-        const id = String(m.userId)
-        if (id === self) continue
-        upsertPeer(id, m.name, m.avatarUrl)
+        if (m.userId === self) continue
+        upsertPeer(m.userId, m.name, m.avatarUrl)
       }
       syncPeers()
       return
@@ -194,7 +192,7 @@ export function useCampaignPresence(
       return
     }
 
-    const actorId = msg.actorUserId != null ? String(msg.actorUserId) : null
+    const actorId = msg.actorUserId ?? null
     if (!actorId || actorId === selfId()) return
 
     if (type === 'change') {
