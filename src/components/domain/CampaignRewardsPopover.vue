@@ -17,7 +17,11 @@ const SCROLL_OPTS: AddEventListenerOptions = { capture: true, passive: true }
 
 const { itemsById, ensureLoaded } = useItemCatalog()
 
-const visible = ref(false)
+type Mode = 'hidden' | 'hover' | 'locked'
+
+const mode = ref<Mode>('hidden')
+const visible = computed(() => mode.value !== 'hidden')
+const locked = computed(() => mode.value === 'locked')
 const triggerRef = ref<HTMLElement | null>(null)
 const popupRef = ref<HTMLElement | null>(null)
 const popupStyle = ref<Record<string, string>>({})
@@ -82,22 +86,27 @@ function clearTimers() {
   }
 }
 
-function open() {
-  if (visible.value) return
+function show(next: Mode) {
   updatePosition()
-  visible.value = true
+  mode.value = next
   attachListeners()
   void ensureLoaded()
   void nextTick(updatePosition)
 }
 
+function openHover() {
+  if (visible.value) return
+  show('hover')
+}
+
 function close() {
   if (!visible.value) return
-  visible.value = false
+  mode.value = 'hidden'
   detachListeners()
 }
 
 function scheduleHide() {
+  if (locked.value) return
   if (hideTimer) clearTimeout(hideTimer)
   hideTimer = setTimeout(close, 160)
 }
@@ -108,7 +117,7 @@ function onMouseEnter() {
     hideTimer = null
   }
   if (visible.value) return
-  hoverTimer = setTimeout(open, 350)
+  hoverTimer = setTimeout(openHover, 350)
 }
 
 function onMouseLeave() {
@@ -121,14 +130,15 @@ function onMouseLeave() {
 
 function onToggle() {
   clearTimers()
-  if (visible.value) close()
-  else open()
+  if (locked.value) close()
+  else show('locked')
 }
 
 onUnmounted(() => {
   clearTimers()
   detachListeners()
 })
+
 </script>
 
 <template>
@@ -173,6 +183,27 @@ onUnmounted(() => {
           <div class="rewards-tip__head">
             <span class="rewards-tip__title">Rewards</span>
             <span class="rewards-tip__count">{{ label }}</span>
+            <button
+              v-if="locked"
+              type="button"
+              class="rewards-tip__close"
+              aria-label="Close rewards"
+              @click.stop.prevent="close"
+            >
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                aria-hidden="true"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
           </div>
           <ul class="rewards-tip__list">
             <li v-for="r in rewards" :key="r.itemId" class="rewards-tip__row">
@@ -262,6 +293,27 @@ onUnmounted(() => {
   font-family: var(--font-mono);
   font-size: var(--text-caption);
   color: var(--text-secondary);
+  margin-left: auto;
+}
+
+.rewards-tip__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  background: transparent;
+  border: none;
+  border-radius: 2px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    background 120ms ease;
+}
+
+.rewards-tip__close:hover {
+  color: var(--text-primary);
+  background: var(--bg-overlay);
 }
 
 .rewards-tip__list {
