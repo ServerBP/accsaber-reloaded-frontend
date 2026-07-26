@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import CampaignCategoryTags from '@/components/domain/CampaignCategoryTags.vue'
+import CampaignRewardsPopover from '@/components/domain/CampaignRewardsPopover.vue'
 import CampaignStatusBadge from '@/components/domain/CampaignStatusBadge.vue'
 import CampaignVoteControl from '@/components/domain/CampaignVoteControl.vue'
 import { useCategoryStore } from '@/stores/categories'
@@ -98,20 +99,13 @@ const showStatusBadge = computed(
 
 const hasCover = computed(() => !!coverUrl.value)
 
-const REWARD_PREVIEW_COUNT = 2
+const rewardXp = computed(() =>
+  props.campaign.totalXp ? `${props.campaign.totalXp.toLocaleString()} XP` : null,
+)
 
-const rewardParts = computed<string[]>(() => {
-  const parts: string[] = []
-  if (props.campaign.totalXp) parts.push(`${props.campaign.totalXp.toLocaleString()} XP`)
-  const rewards = props.campaign.rewards ?? []
-  for (const r of rewards.slice(0, REWARD_PREVIEW_COUNT)) {
-    parts.push(r.quantity > 1 ? `${r.itemName} ×${r.quantity}` : r.itemName)
-  }
-  if (rewards.length > REWARD_PREVIEW_COUNT) {
-    parts.push(`+${rewards.length - REWARD_PREVIEW_COUNT} more`)
-  }
-  return parts
-})
+const rewardItems = computed(() => props.campaign.rewards ?? [])
+
+const hasLoot = computed(() => !!rewardXp.value || rewardItems.value.length > 0)
 </script>
 
 <template>
@@ -158,11 +152,14 @@ const rewardParts = computed<string[]>(() => {
       </div>
 
       <footer class="campaign-card__foot">
-        <p v-if="rewardParts.length > 0" class="campaign-card__loot">
-          <template v-for="(part, i) in rewardParts" :key="i">
-            <span v-if="i > 0" class="campaign-card__loot-sep" aria-hidden="true">·</span>
-            <span>{{ part }}</span>
-          </template>
+        <p v-if="hasLoot" class="campaign-card__loot">
+          <span v-if="rewardXp">{{ rewardXp }}</span>
+          <span v-if="rewardXp && rewardItems.length > 0" class="campaign-card__loot-sep" aria-hidden="true">·</span>
+          <CampaignRewardsPopover
+            v-if="rewardItems.length > 0"
+            :rewards="rewardItems"
+            :total-count="campaign.totalRewardCount ?? rewardItems.length"
+          />
         </p>
         <div class="campaign-card__foot-row">
           <CampaignStatusBadge v-if="showStatusBadge" :campaign="campaign" size="sm" />
@@ -357,17 +354,17 @@ const rewardParts = computed<string[]>(() => {
 }
 
 .campaign-card__loot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
   margin: 0;
   font-family: var(--font-sans);
   font-size: 0.6875rem;
   color: var(--text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .campaign-card__loot-sep {
-  margin: 0 5px;
   color: var(--text-tertiary);
 }
 

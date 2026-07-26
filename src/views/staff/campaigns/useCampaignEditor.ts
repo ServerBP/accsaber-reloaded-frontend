@@ -76,6 +76,7 @@ import type {
   CampaignModifierRequirement,
   CampaignNodeBorderLayer,
   CampaignRequirementType,
+  CampaignStatus,
   CampaignTargetMode,
 } from '@/types/enums'
 import { useModifierStore } from '@/stores/modifiers'
@@ -520,17 +521,18 @@ export function useCampaignEditor() {
     return isCurator.value
   })
 
+  const CURATOR_EDITABLE_STATUSES = new Set<CampaignStatus>(['DRAFT', 'EDITING', 'CURATED'])
+
   const editable = computed(() => {
     if (!campaign.value || actionPending.value) return false
     if (isCreator.value && campaign.value.status === 'DRAFT' && !creatorBlocked.value) return true
     if (isCollaborator.value && campaign.value.status === 'DRAFT') return true
-    if (
-      isCurator.value &&
-      (campaign.value.status === 'DRAFT' || campaign.value.status === 'EDITING')
-    )
-      return true
-    return false
+    return isCurator.value && CURATOR_EDITABLE_STATUSES.has(campaign.value.status)
   })
+
+  const editingLiveCampaign = computed(
+    () => editable.value && campaign.value?.status === 'CURATED',
+  )
 
   const accent = computed(() => {
     const cats = campaign.value?.tags.filter((t) => t.kind === 'CATEGORY') ?? []
@@ -710,7 +712,7 @@ export function useCampaignEditor() {
     DRAFT: 'Hidden from the queue; players cannot start. Fully editable.',
     PUBLISHED: 'Visible to players but no XP / items pay out. Locked from edits.',
     EDITING: 'Reopened for changes. Player progress is preserved while you edit.',
-    CURATED: 'Live with payouts. Locked from edits.',
+    CURATED: 'Live with payouts. Curator edits apply immediately.',
   }
 
   const creatorStatusMeaning = computed<string | null>(() => {
@@ -2981,6 +2983,7 @@ export function useCampaignEditor() {
     canAccess,
     creatorBlocked,
     editable,
+    editingLiveCampaign,
     accent,
     nodeAccents,
     selectedDifficulty,

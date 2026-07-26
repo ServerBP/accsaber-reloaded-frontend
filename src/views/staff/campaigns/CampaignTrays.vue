@@ -40,6 +40,7 @@ const {
   isCurator,
   isCreator,
   creatorBlocked,
+  editingLiveCampaign,
   statusLabel,
   statusMeaning,
   creatorStatusMeaning,
@@ -396,6 +397,11 @@ const connectionSwatch = computed(() => {
           </BaseButton>
         </template>
       </div>
+
+      <CampaignEditorNote v-if="editingLiveCampaign">
+        This campaign is live and paying out. Edits apply immediately, and changing a requirement
+        re-settles player completions on that node and everything after it.
+      </CampaignEditorNote>
 
       <CampaignPluginWarning
         :show="fractionalVertexCount > 0"
