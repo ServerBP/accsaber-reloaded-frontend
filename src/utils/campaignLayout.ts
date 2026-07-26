@@ -1,10 +1,11 @@
 import type {
+  CampaignBackgroundPlacement,
   CampaignDifficultyResponse,
   CampaignNodeShape,
   CampaignPrerequisiteResponse,
 } from '@/types/api/campaigns'
 import type { CampaignPrerequisiteInput } from '@/types/api/admin'
-import type { BarrierConditionType } from '@/types/enums'
+import type { BarrierConditionType, CampaignRequirementType } from '@/types/enums'
 
 export const SQRT3 = Math.sqrt(3)
 
@@ -46,6 +47,18 @@ export function resolveShape(raw: string | null | undefined): CampaignNodeShape 
 
 export function resolveSize(raw: number | null | undefined, fallback: number): number {
   return raw != null && raw > 0 ? raw : fallback
+}
+
+export function backgroundPlacementStyle(
+  url: string,
+  placement: CampaignBackgroundPlacement | null | undefined,
+): Record<string, string> {
+  const style: Record<string, string> = { backgroundImage: `url(${url})` }
+  if (!placement) return style
+  style.backgroundSize = `${placement.size}%`
+  style.backgroundPosition = `${placement.x}% ${placement.y}%`
+  style.backgroundRepeat = 'no-repeat'
+  return style
 }
 
 export function hexCorners(cx: number, cy: number, size: number): string {
@@ -93,6 +106,54 @@ export interface NodeLayout {
   cy: number
 }
 
+function hexRowOffset(positionX: number, unit: number): number {
+  const phase = ((positionX % 2) + 2) % 2
+  return ((unit * SQRT3) / 2) * (1 - Math.abs(1 - phase))
+}
+
+export function gridToContent(
+  positionX: number,
+  positionY: number,
+  unit: number,
+): { cx: number; cy: number } {
+  return {
+    cx: positionX * unit * 1.5,
+    cy: positionY * unit * SQRT3 + hexRowOffset(positionX, unit),
+  }
+}
+
+function roundToPrecision(value: number): number {
+  return Math.round(value * 100) / 100
+}
+
+export function contentToGrid(
+  cx: number,
+  cy: number,
+  unit: number,
+  snap: boolean,
+): { positionX: number; positionY: number } {
+  const rawX = cx / (unit * 1.5)
+  const positionX = snap ? Math.round(rawX) : roundToPrecision(rawX)
+  const rawY = (cy - hexRowOffset(positionX, unit)) / (unit * SQRT3)
+  return { positionX, positionY: snap ? Math.round(rawY) : roundToPrecision(rawY) }
+}
+
+export function findOverlaps(vertices: NodeLayout[], minDistance: number): Set<string> {
+  const out = new Set<string>()
+  const limit = minDistance * minDistance
+  for (let i = 0; i < vertices.length; i++) {
+    for (let j = i + 1; j < vertices.length; j++) {
+      const dx = vertices[i].cx - vertices[j].cx
+      const dy = vertices[i].cy - vertices[j].cy
+      if (dx * dx + dy * dy < limit) {
+        out.add(vertices[i].id)
+        out.add(vertices[j].id)
+      }
+    }
+  }
+  return out
+}
+
 export interface LayoutBounds {
   minX: number
   minY: number
@@ -108,8 +169,7 @@ export function layoutNodes(
 ): { nodes: NodeLayout[]; bounds: LayoutBounds } {
   const nodes: NodeLayout[] = difficulties.map((d) => ({
     id: d.id,
-    cx: d.positionX * unit * 1.5,
-    cy: d.positionY * unit * SQRT3 + (d.positionX % 2 !== 0 ? (unit * SQRT3) / 2 : 0),
+    ...gridToContent(d.positionX, d.positionY, unit),
   }))
 
   if (nodes.length === 0) {
@@ -284,84 +344,100 @@ export function edgePointOnShape(
   return { x: cx + ux * r, y: cy + uy * r }
 }
 
-export function formatRequirement(
-  type: CampaignDifficultyResponse['requirementType'],
-  value: number,
-): string {
-  switch (type) {
-    case 'ACC':
-      return `${(value * 100).toFixed(2)}%`
-    case 'AP':
-      return `${Math.round(value)} AP`
-    case 'SCORE':
-      if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`
-      if (value >= 1_000) return `${(value / 1_000).toFixed(0)}k`
-      return String(Math.round(value))
-    case 'STREAK_115':
-      return `115×${Math.round(value)}`
-    case 'FC':
-      return 'FC'
-    case 'PASS':
-      return 'Pass'
-    case 'RANK':
-      return `Rank ${Math.round(value)}`
-    default:
-      return String(value)
-  }
+export function formatScoreCompact(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`
+  if (value >= 1_000) return `${(value / 1_000).toFixed(0)}k`
+  return String(Math.round(value))
 }
 
-export function formatRequirementShort(
-  type: CampaignDifficultyResponse['requirementType'],
-  value: number,
-): string {
-  switch (type) {
-    case 'ACC':
-      return `${(value * 100).toFixed(1)}%`
-    case 'AP':
-      return `${Math.round(value)} AP`
-    case 'SCORE':
-      if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`
-      if (value >= 1_000) return `${(value / 1_000).toFixed(0)}k`
-      return String(Math.round(value))
-    case 'STREAK_115':
-      return `×${Math.round(value)}`
-    case 'FC':
-      return 'FC'
-    case 'PASS':
-      return 'Pass'
-    case 'RANK':
-      return `Rank ${Math.round(value)}`
-    default:
-      return String(value)
-  }
+interface RequirementDisplay {
+  label: string
+  format: (value: number) => string
+  lowerBetter?: boolean
+  flag?: boolean
+}
+
+const REQUIREMENT_DISPLAY: Record<CampaignRequirementType, RequirementDisplay> = {
+  ACC: { label: 'Accuracy', format: (v) => `${(v * 100).toFixed(2)}%` },
+  AP: { label: 'AP', format: (v) => `${Math.round(v)}` },
+  SCORE: { label: 'Score', format: formatScoreCompact },
+  STREAK_115: { label: '115 streak', format: (v) => `${Math.round(v)}` },
+  FC: { label: 'Full combo', format: () => 'Required', flag: true },
+  PASS: { label: 'Pass', format: () => 'Required', flag: true },
+  RANK: { label: 'Rank', format: (v) => `#${Math.round(v)}`, lowerBetter: true },
+  COMBO: { label: 'Combo', format: (v) => `${Math.round(v)}` },
+  BOMB_HITS: { label: 'Bombs', format: (v) => `${Math.round(v)}` },
+}
+
+export function requirementLabel(type: CampaignRequirementType): string {
+  return REQUIREMENT_DISPLAY[type].label
 }
 
 export function formatUserValue(
-  type: CampaignDifficultyResponse['requirementType'],
+  type: CampaignRequirementType,
   value: number | null,
 ): string {
   if (value == null) return '-'
-  switch (type) {
-    case 'ACC':
-      return `${(value * 100).toFixed(2)}%`
-    case 'AP':
-      return `${value.toFixed(1)} AP`
-    case 'SCORE':
-      return value.toLocaleString('en-US')
-    case 'STREAK_115':
-      return `${Math.round(value)}`
-    case 'FC':
-      return value > 0 ? 'cleared' : 'not yet'
-    case 'PASS':
-      return value > 0 ? 'passed' : 'not yet'
-    case 'RANK':
-      return `#${Math.round(value)}`
-    default:
-      return String(value)
-  }
+  if (type === 'FC') return value > 0 ? 'Cleared' : 'Not yet'
+  if (type === 'PASS') return value > 0 ? 'Passed' : 'Not yet'
+  return REQUIREMENT_DISPLAY[type].format(value)
 }
 
-type BarrierMetric = 'acc' | 'ap' | 'streak' | 'rank' | 'fc' | 'count'
+export function hasValidBounds(value: number | null, valueMax: number | null): boolean {
+  if (value == null && valueMax == null) return false
+  if (value != null && valueMax != null) return value <= valueMax
+  return true
+}
+
+export interface BoundsReadout {
+  label: string
+  text: string
+  inline: string
+}
+
+interface BoundsLabels {
+  lower: string
+  upper: string
+  range: string
+}
+
+function boundsInline(
+  format: (value: number) => string,
+  lower: number | null,
+  upper: number | null,
+  lowerBetter: boolean,
+): string {
+  if (lower != null && upper != null) return `${format(lower)} - ${format(upper)}`
+  if (upper != null) return `≤ ${format(upper)}`
+  if (lower == null) return '-'
+  return lowerBetter ? `≤ ${format(lower)}` : format(lower)
+}
+
+function boundsReadout(
+  format: (value: number) => string,
+  lower: number | null,
+  upper: number | null,
+  labels: BoundsLabels,
+  lowerBetter = false,
+): BoundsReadout {
+  const inline = boundsInline(format, lower, upper, lowerBetter)
+  if (lower != null && upper != null) return { label: labels.range, text: inline, inline }
+  if (upper != null) return { label: labels.upper, text: format(upper), inline }
+  if (lower == null) return { label: labels.lower, text: '-', inline }
+  return { label: labels.lower, text: format(lower), inline }
+}
+
+export function requirementGoalText(
+  type: CampaignRequirementType,
+  value: number | null,
+  valueMax: number | null,
+): string {
+  const display = REQUIREMENT_DISPLAY[type]
+  if (display.flag) return display.format(1)
+  return boundsInline(display.format, value, valueMax, display.lowerBetter ?? false)
+}
+
+type BarrierMetric = 'acc' | 'ap' | 'streak' | 'rank' | 'fc' | 'count' | 'combo' | 'bombs'
 
 interface BarrierConditionMeta {
   agg: string
@@ -380,6 +456,14 @@ const BARRIER_CONDITION_META: Record<BarrierConditionType, BarrierConditionMeta>
   STREAK_115_MAX: { agg: 'best', metric: 'streak', lowerBetter: false, noValue: false, label: 'Best 115 streak' },
   AVERAGE_RANK: { agg: 'avg', metric: 'rank', lowerBetter: true, noValue: false, label: 'Average rank' },
   MAX_RANK: { agg: 'best', metric: 'rank', lowerBetter: true, noValue: false, label: 'Best rank' },
+  AVERAGE_COMBO: { agg: 'avg', metric: 'combo', lowerBetter: false, noValue: false, label: 'Average combo' },
+  AVERAGE_BOMB_HITS: {
+    agg: 'avg',
+    metric: 'bombs',
+    lowerBetter: false,
+    noValue: false,
+    label: 'Average bombs hit',
+  },
   FC: { agg: '', metric: 'fc', lowerBetter: false, noValue: true, label: 'Full combo' },
   PASS: { agg: '', metric: 'fc', lowerBetter: false, noValue: true, label: 'Pass (no No-Fail)' },
   COMPLETION_COUNT: {
@@ -404,6 +488,8 @@ const BARRIER_READOUT_LABEL: Record<BarrierConditionType, string> = {
   STREAK_115_MAX: 'Best 115 Streak',
   AVERAGE_RANK: 'Avg Rank',
   MAX_RANK: 'Best Rank',
+  AVERAGE_COMBO: 'Avg Combo',
+  AVERAGE_BOMB_HITS: 'Avg Bombs',
   FC: 'Full Combo',
   PASS: 'Pass',
   COMPLETION_COUNT: 'Maps Completed',
@@ -415,21 +501,41 @@ export function barrierConditionLabel(type: BarrierConditionType): string {
 
 export function barrierPairValue(type: BarrierConditionType, value: number | null): string {
   if (value == null) return '-'
-  switch (BARRIER_CONDITION_META[type].metric) {
-    case 'acc':
-      return `${(value * 100).toFixed(2)}%`
-    case 'ap':
-    case 'streak':
-    case 'rank':
-    case 'count':
-      return `${Math.round(value)}`
-    default:
-      return ''
-  }
+  if (BARRIER_CONDITION_META[type].metric === 'acc') return `${(value * 100).toFixed(2)}%`
+  if (BARRIER_CONDITION_META[type].metric === 'fc') return ''
+  return `${Math.round(value)}`
 }
 
 export function barrierGoalValue(type: BarrierConditionType, value: number | null): string {
   const base = barrierPairValue(type, value)
   if (value == null) return base
   return BARRIER_CONDITION_META[type].metric === 'rank' ? `Rank ${base}` : base
+}
+
+const BARRIER_LABELS: BoundsLabels = {
+  lower: 'Goal',
+  upper: 'Limit',
+  range: 'Goal range',
+}
+
+export function barrierReadout(
+  type: BarrierConditionType,
+  value: number | null,
+  valueMax: number | null,
+): BoundsReadout {
+  const meta = BARRIER_CONDITION_META[type]
+  if (meta.noValue) return { label: BARRIER_LABELS.lower, text: meta.label, inline: meta.label }
+  const readout = boundsReadout(
+    (v) => barrierPairValue(type, v),
+    value,
+    valueMax,
+    BARRIER_LABELS,
+    meta.lowerBetter,
+  )
+  if (meta.metric !== 'rank') return readout
+  return {
+    label: readout.label,
+    text: `Rank ${readout.text}`,
+    inline: `Rank ${readout.inline}`,
+  }
 }

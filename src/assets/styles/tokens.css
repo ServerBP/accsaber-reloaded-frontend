@@ -50,6 +50,7 @@
   --campaign-tier-advanced: #ef4444;
   --campaign-tier-expert: #a855f7;
   --campaign-tier-impossible: #1e40af;
+  --campaign-loved: #e56fb0;
 
   /* --- Milestone Tiers --- */
   --tier-bronze: #cd7f32;
@@ -179,6 +180,8 @@
   --xp-campaign: #ab1c78;
   --xp-up: #146c34;
   --xp-down: #c02222;
+
+  --campaign-loved: #ab1c78;
 
   /* Category Tints (Light) */
   --tint-true-acc: #d4f5e0;

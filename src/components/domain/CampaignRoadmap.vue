@@ -6,6 +6,7 @@ import { useThemeStore } from '@/stores/theme'
 import { readBackdropConfig } from '@/utils/themeBackdrop'
 import type {
   BarrierProgressResponse,
+  CampaignBackgroundPlacement,
   CampaignBarrierResponse,
   CampaignDifficultyProgressResponse,
   CampaignDifficultyResponse,
@@ -22,8 +23,13 @@ import type {
 import {
   barrierConditionLabel,
   barrierPairValue,
+  barrierReadout,
+  backgroundPlacementStyle,
   computeLabelPlacements,
+  contentToGrid,
   edgePointOnShape,
+  findOverlaps,
+  gridToContent,
   layoutNodes,
   prereqIds,
   resolveConnectionColor,
@@ -47,6 +53,7 @@ const props = withDefaults(
     nodeAccents?: Map<string, string>
     backgroundUrl?: string | null
     backgroundColor?: string | null
+    backgroundPlacement?: CampaignBackgroundPlacement | null
     focusId?: string | null
     defaultScale?: number
     showStarfield?: boolean
@@ -59,6 +66,7 @@ const props = withDefaults(
     followFocus?: boolean
     presencePeers?: PresencePeer[]
     editable?: boolean
+    gridLock?: boolean
     flagMissingRewards?: boolean
     mode?: 'drag' | 'connect' | 'select'
     unit?: number
@@ -74,6 +82,7 @@ const props = withDefaults(
     nodeAccents: () => new Map(),
     backgroundUrl: null,
     backgroundColor: null,
+    backgroundPlacement: null,
     focusId: null,
     defaultScale: 1.25,
     showStarfield: false,
@@ -86,6 +95,7 @@ const props = withDefaults(
     followFocus: true,
     presencePeers: () => [],
     editable: false,
+    gridLock: true,
     flagMissingRewards: false,
     mode: 'drag',
     unit: 48,
@@ -651,14 +661,15 @@ const barrierGeometry = computed<BarrierGeom[]>(() => {
     }
     const label = barrierConditionLabel(b.conditionType)
     const isFc = b.conditionType === 'FC' || b.conditionType === 'PASS'
-    const goal = barrierPairValue(b.conditionType, b.conditionValue)
+    const goal = barrierReadout(b.conditionType, b.conditionValue, b.conditionValueMax)
     let readoutText: string
     if (isFc) {
       readoutText = label
     } else if (state === 'blocking') {
-      readoutText = `${label}: ${barrierPairValue(b.conditionType, prog?.currentValue ?? null)}/${goal}`
+      const current = barrierPairValue(b.conditionType, prog?.currentValue ?? null)
+      readoutText = `${label}: ${current} / ${goal.inline}`
     } else {
-      readoutText = `${label}: ${goal}`
+      readoutText = `${label}: ${goal.inline}`
     }
     out.push({
       id: b.id,
@@ -692,6 +703,25 @@ const affectedHighlight = computed(() => {
     .filter((n): n is { id: string; cx: number; cy: number; r: number } => !!n)
   if (nodes.length === 0) return null
   return { cx: center.cx, cy: center.cy, nodes }
+})
+
+const textHitRadius = computed(() => Math.max(props.unit * 0.45, 12))
+
+const overlapRadius = computed(() => props.unit * 0.75)
+
+const overlapIds = computed(() => {
+  if (!props.editable) return new Set<string>()
+  return findOverlaps(
+    [...layout.value.nodes, ...barrierLayout.value.nodes, ...textLayout.value.nodes],
+    overlapRadius.value,
+  )
+})
+
+const overlapMarkers = computed(() => {
+  if (overlapIds.value.size === 0) return []
+  return [...renderedNodes.value, ...renderedBarriers.value, ...renderedTexts.value].filter((v) =>
+    overlapIds.value.has(v.id),
+  )
 })
 
 const contentBounds = computed(() => {
@@ -831,15 +861,21 @@ function clientToContent(clientX: number, clientY: number) {
   }
 }
 
-function contentToGrid(cx: number, cy: number) {
-  const positionX = Math.round(cx / (props.unit * 1.5))
-  const offsetY = positionX % 2 !== 0 ? (props.unit * SQRT3) / 2 : 0
-  const positionY = Math.round((cy - offsetY) / (props.unit * SQRT3))
-  return { positionX, positionY }
+const altHeld = ref(false)
+
+const snapEnabled = computed(() => props.gridLock !== altHeld.value)
+
+function trackAlt(e: PointerEvent) {
+  altHeld.value = e.altKey
+}
+
+function pointerToGrid(cx: number, cy: number) {
+  return contentToGrid(cx, cy, props.unit, snapEnabled.value)
 }
 
 function onPointerDown(e: PointerEvent) {
   if (e.button !== 0 && e.button !== 1) return
+  trackAlt(e)
   const target = e.target as Element | null
   if (target?.closest?.('.campaign-roadmap__bottom-stack')) return
   if (target?.closest?.('.campaign-roadmap__edge-x')) return
@@ -1097,6 +1133,7 @@ const remoteRings = computed(() => {
 })
 
 function onPointerMove(e: PointerEvent) {
+  trackAlt(e)
   trackPresence(e)
   if (!dragStart) return
   const dx = e.clientX - dragStart.x
@@ -1183,6 +1220,7 @@ function settleOverlay(
 
 function onPointerUp(e: PointerEvent) {
   if (!dragStart) return
+  trackAlt(e)
   const { nodeId, moved } = dragStart
   ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
   clampPan()
@@ -1231,26 +1269,21 @@ function onPointerUp(e: PointerEvent) {
     const draggedFinal = dragOverlay.value.get(nodeId)
     const start = groupDragStart.get(nodeId)
     if (draggedFinal && start) {
-      const { positionX, positionY } = contentToGrid(draggedFinal.cx, draggedFinal.cy)
-      const snapCx = positionX * props.unit * 1.5
-      const snapCy =
-        positionY * props.unit * SQRT3 + (positionX % 2 !== 0 ? (props.unit * SQRT3) / 2 : 0)
-      const shiftX = snapCx - start.cx
-      const shiftY = snapCy - start.cy
+      const lead = pointerToGrid(draggedFinal.cx, draggedFinal.cy)
+      const leadPoint = gridToContent(lead.positionX, lead.positionY, props.unit)
+      const shiftX = leadPoint.cx - start.cx
+      const shiftY = leadPoint.cy - start.cy
       const payloads: Array<{ id: string; positionX: number; positionY: number }> = []
       for (const [id, st] of groupDragStart) {
         const targetCx = st.cx + shiftX
         const targetCy = st.cy + shiftY
-        const grid = contentToGrid(targetCx, targetCy)
+        const grid = pointerToGrid(targetCx, targetCy)
         payloads.push({ id, positionX: grid.positionX, positionY: grid.positionY })
-        const settledCx = grid.positionX * props.unit * 1.5
-        const settledCy =
-          grid.positionY * props.unit * SQRT3 +
-          (grid.positionX % 2 !== 0 ? (props.unit * SQRT3) / 2 : 0)
-        settleOverlay(id, dragOverlay.value.get(id) ?? { cx: targetCx, cy: targetCy }, {
-          cx: settledCx,
-          cy: settledCy,
-        })
+        settleOverlay(
+          id,
+          dragOverlay.value.get(id) ?? { cx: targetCx, cy: targetCy },
+          gridToContent(grid.positionX, grid.positionY, props.unit),
+        )
       }
       emit('moveMany', payloads)
     } else {
@@ -1265,12 +1298,9 @@ function onPointerUp(e: PointerEvent) {
   if (nodeId && props.editable && (props.mode === 'drag' || props.mode === 'select') && moved) {
     const final = dragOverlay.value.get(nodeId)
     if (final) {
-      const { positionX, positionY } = contentToGrid(final.cx, final.cy)
-      const snapCx = positionX * props.unit * 1.5
-      const snapCy =
-        positionY * props.unit * SQRT3 + (positionX % 2 !== 0 ? (props.unit * SQRT3) / 2 : 0)
+      const { positionX, positionY } = pointerToGrid(final.cx, final.cy)
       emit('move', { id: nodeId, positionX, positionY })
-      settleOverlay(nodeId, final, { cx: snapCx, cy: snapCy })
+      settleOverlay(nodeId, final, gridToContent(positionX, positionY, props.unit))
     } else {
       draggingNodeId.value = null
     }
@@ -1416,7 +1446,7 @@ watch(
 function getViewCenterCell(): { x: number; y: number } {
   const cx = (stageWidth.value / 2 - translateX.value) / scale.value
   const cy = (stageHeight.value / 2 - translateY.value) / scale.value
-  const { positionX, positionY } = contentToGrid(cx, cy)
+  const { positionX, positionY } = contentToGrid(cx, cy, props.unit, true)
   return { x: positionX, y: positionY }
 }
 
@@ -1426,6 +1456,29 @@ const transformStyle = computed(
   () => `translate(${translateX.value} ${translateY.value}) scale(${scale.value})`,
 )
 
+const showGrid = computed(
+  () => props.editable || (!props.backgroundUrl && !props.showStarfield),
+)
+
+const gridOpacity = computed(() => {
+  if (!props.editable) return 0.4
+  return snapEnabled.value ? 0.5 : 0.14
+})
+
+const gridDots = computed(() => {
+  const width = props.unit * 3
+  const height = props.unit * SQRT3
+  const anchors = [
+    { x: 0, y: 0 },
+    { x: props.unit * 1.5, y: height / 2 },
+  ]
+  return anchors.flatMap((a) => {
+    const xs = a.x === 0 ? [0, width] : [a.x]
+    const ys = a.y === 0 ? [0, height] : [a.y]
+    return xs.flatMap((x) => ys.map((y) => ({ x, y })))
+  })
+})
+
 const snapTarget = computed<{
   cx: number
   cy: number
@@ -1433,18 +1486,17 @@ const snapTarget = computed<{
   size: number
 } | null>(() => {
   const id = draggingNodeId.value
-  if (!id) return null
+  if (!id || !snapEnabled.value) return null
   const overlay = dragOverlay.value.get(id)
   if (!overlay) return null
   const diff = props.difficulties.find((d) => d.id === id)
   const isBarrier = !diff && barrierMetaById.value.has(id)
   const isText = !diff && !isBarrier && textStaticById.value.has(id)
   if (!diff && !isBarrier && !isText) return null
-  const { positionX, positionY } = contentToGrid(overlay.cx, overlay.cy)
-  const cx = positionX * props.unit * 1.5
-  const cy = positionY * props.unit * SQRT3 + (positionX % 2 !== 0 ? (props.unit * SQRT3) / 2 : 0)
+  const { positionX, positionY } = pointerToGrid(overlay.cx, overlay.cy)
+  const { cx, cy } = gridToContent(positionX, positionY, props.unit)
   if (isText) {
-    return { cx, cy, shape: 'circle', size: Math.max(props.unit * 0.45, 12) }
+    return { cx, cy, shape: 'circle', size: textHitRadius.value }
   }
   if (!diff) {
     return { cx, cy, shape: 'circle', size: barrierEdgeRadius.value }
@@ -1505,7 +1557,7 @@ const arrowDecorations = computed(() =>
     <div
       v-if="backgroundUrl"
       class="campaign-roadmap__bg"
-      :style="{ backgroundImage: `url(${backgroundUrl})` }"
+      :style="backgroundPlacementStyle(backgroundUrl, backgroundPlacement)"
       aria-hidden="true"
     />
     <template v-else-if="showOwnStarfield">
@@ -1523,22 +1575,31 @@ const arrowDecorations = computed(() =>
       <defs>
         <pattern
           id="campaign-roadmap-grid"
-          :width="unit * 1.5"
+          :width="unit * 3"
           :height="unit * SQRT3"
           patternUnits="userSpaceOnUse"
+          :patternTransform="transformStyle"
         >
-          <circle :cx="0" :cy="0" r="1.2" fill="var(--bg-overlay)" />
+          <circle
+            v-for="(dot, i) in gridDots"
+            :key="i"
+            :cx="dot.x"
+            :cy="dot.y"
+            r="1.2"
+            fill="var(--bg-overlay)"
+          />
         </pattern>
       </defs>
 
       <rect
-        v-if="!backgroundUrl && !showStarfield"
+        v-if="showGrid"
+        class="campaign-roadmap__grid"
         x="0"
         y="0"
         :width="stageWidth"
         :height="stageHeight"
         fill="url(#campaign-roadmap-grid)"
-        opacity="0.4"
+        :opacity="gridOpacity"
       />
 
       <g :transform="transformStyle">
@@ -1786,6 +1847,17 @@ const arrowDecorations = computed(() =>
           </foreignObject>
         </g>
 
+        <g v-if="overlapMarkers.length > 0" class="campaign-roadmap__overlaps" aria-hidden="true">
+          <circle
+            v-for="v in overlapMarkers"
+            :key="`overlap-${v.id}`"
+            class="campaign-roadmap__overlap-ring"
+            :cx="v.cx"
+            :cy="v.cy"
+            :r="overlapRadius"
+          />
+        </g>
+
         <g class="campaign-roadmap__checkpoints">
           <text
             v-for="cp in checkpointLabels"
@@ -1858,6 +1930,9 @@ const arrowDecorations = computed(() =>
     </svg>
 
     <div class="campaign-roadmap__bottom-stack">
+      <p v-if="overlapMarkers.length > 0" class="campaign-roadmap__overlap-note" role="status">
+        {{ overlapMarkers.length }} elements are stacked on top of each other
+      </p>
       <div class="campaign-roadmap__hint" aria-hidden="true">drag · scroll to zoom</div>
       <div class="campaign-roadmap__controls" aria-label="Roadmap controls">
         <button
@@ -2143,6 +2218,27 @@ const arrowDecorations = computed(() =>
   opacity: 0.85;
 }
 
+.campaign-roadmap__overlaps {
+  pointer-events: none;
+}
+
+.campaign-roadmap__overlap-ring {
+  fill: none;
+  stroke: var(--error);
+  stroke-width: 2;
+  stroke-dasharray: 3 3;
+}
+
+.campaign-roadmap__grid {
+  transition: opacity 150ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .campaign-roadmap__grid {
+    transition: none;
+  }
+}
+
 .campaign-roadmap__text-fo {
   overflow: visible;
   pointer-events: none;
@@ -2319,6 +2415,20 @@ const arrowDecorations = computed(() =>
 .campaign-roadmap__btn:hover {
   color: var(--text-primary);
   background: var(--bg-elevated);
+}
+
+.campaign-roadmap__overlap-note {
+  order: -2;
+  margin: 0;
+  padding: 3px 9px;
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--error);
+  background: color-mix(in srgb, var(--error) 12%, var(--bg-surface));
+  border: 1px solid color-mix(in srgb, var(--error) 45%, transparent);
+  border-radius: 3px;
+  pointer-events: none;
 }
 
 .campaign-roadmap__hint {

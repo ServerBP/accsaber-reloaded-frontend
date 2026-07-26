@@ -91,6 +91,26 @@ export function deleteCampaignCheckpointAvatar(
   )
 }
 
+export function uploadCampaignNodeBorder(
+  difficultyId: string,
+  file: File,
+  admin = false,
+): Promise<CampaignDifficultyResponse> {
+  const base = admin ? '/admin/campaigns' : '/campaigns'
+  return postMultipart<CampaignDifficultyResponse>(
+    `${base}/difficulties/${difficultyId}/node-border`,
+    multipartFile(file),
+  )
+}
+
+export function deleteCampaignNodeBorder(
+  difficultyId: string,
+  admin = false,
+): Promise<CampaignDifficultyResponse> {
+  const base = admin ? '/admin/campaigns' : '/campaigns'
+  return del<CampaignDifficultyResponse>(`${base}/difficulties/${difficultyId}/node-border`)
+}
+
 export function uploadMyAvatar(file: File): Promise<UserResponse> {
   return postMultipart<UserResponse>('/users/me/avatar', multipartFile(file))
 }

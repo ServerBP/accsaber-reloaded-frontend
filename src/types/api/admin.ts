@@ -211,12 +211,21 @@ export type { ActivateMilestonesRequest, AdminMilestoneListParams } from './mile
 
 import type {
   BarrierConditionType,
+  CampaignBoundClear,
   CampaignCompletionMode,
+  CampaignModifierRequirement,
+  CampaignNodeBorderLayer,
   CampaignRequirementType,
   CampaignPrerequisiteMode,
   CampaignTagKind,
+  CampaignTargetMode,
   CheckpointLabelPosition,
 } from '../enums'
+import type { CampaignBackgroundPlacement } from './campaigns'
+
+export type CampaignBackgroundPlacementInput =
+  | CampaignBackgroundPlacement
+  | Record<string, never>
 
 export interface CreateCampaignRequest {
   creatorId?: number
@@ -230,6 +239,7 @@ export interface CreateCampaignRequest {
   playlistExportEnabled?: boolean
   backgroundUrl?: string
   backgroundColor?: string
+  background?: CampaignBackgroundPlacementInput
   tagIds?: string[]
 }
 
@@ -246,6 +256,7 @@ export interface UpdateCampaignRequest {
   seekingCuration?: boolean
   backgroundUrl?: string | null
   backgroundColor?: string | null
+  background?: CampaignBackgroundPlacementInput
   tagIds?: string[]
 }
 
@@ -254,14 +265,31 @@ export interface CampaignPrerequisiteInput {
   color?: string
 }
 
+export interface CampaignModifierInput {
+  modifierId: string
+  requirement: CampaignModifierRequirement
+}
+
+export interface CampaignTargetInput {
+  requirementType: CampaignRequirementType
+  requirementValue?: number | null
+  requirementValueMax?: number | null
+}
+
 export interface AddCampaignDifficultyRequest {
   mapDifficultyId: string
   requirementType: CampaignRequirementType
-  requirementValue: number
+  requirementValue?: number
+  requirementValueMax?: number
+  targetMode?: CampaignTargetMode
+  targets?: CampaignTargetInput[]
+  modifiers?: CampaignModifierInput[]
   description?: string
   checkpointLabel?: string
   checkpointLabelPosition?: CheckpointLabelPosition
   checkpointAvatarUrl?: string
+  nodeBorderUrl?: string
+  nodeBorderLayer?: CampaignNodeBorderLayer
   checkpointColor?: string
   checkpointSize?: number
   borderColor?: string
@@ -276,11 +304,15 @@ export interface AddCampaignDifficultyRequest {
 
 export interface UpdateCampaignDifficultyRequest {
   requirementType?: CampaignRequirementType
-  requirementValue?: number
+  targetMode?: CampaignTargetMode
+  targets?: CampaignTargetInput[]
+  modifiers?: CampaignModifierInput[]
   description?: string | null
   checkpointLabel?: string | null
   checkpointLabelPosition?: CheckpointLabelPosition | null
   checkpointAvatarUrl?: string | null
+  nodeBorderUrl?: string | null
+  nodeBorderLayer?: CampaignNodeBorderLayer
   checkpointColor?: string | null
   checkpointSize?: number | null
   borderColor?: string | null
@@ -306,6 +338,7 @@ export interface AddCampaignItemRequest {
 export interface AddCampaignBarrierRequest {
   conditionType: BarrierConditionType
   conditionValue?: number | null
+  conditionValueMax?: number | null
   description?: string
   checkpointLabel?: string
   checkpointLabelPosition?: CheckpointLabelPosition
@@ -325,6 +358,8 @@ export interface AddCampaignBarrierRequest {
 export interface UpdateCampaignBarrierRequest {
   conditionType?: BarrierConditionType
   conditionValue?: number | null
+  conditionValueMax?: number | null
+  clear?: CampaignBoundClear[]
   description?: string | null
   checkpointLabel?: string | null
   checkpointLabelPosition?: CheckpointLabelPosition | null

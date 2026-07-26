@@ -22,6 +22,7 @@ import { useThemeStore } from '@/stores/theme'
 import { readBackdropConfig } from '@/utils/themeBackdrop'
 import { computed, onMounted, provide, ref } from 'vue'
 import CampaignChatPanel from './CampaignChatPanel.vue'
+import CampaignPluginWarning from './CampaignPluginWarning.vue'
 import CampaignCollaboratorPicker from './CampaignCollaboratorPicker.vue'
 import CampaignItemPicker from './CampaignItemPicker.vue'
 import CampaignMapPicker from './CampaignMapPicker.vue'
@@ -47,6 +48,8 @@ const {
   selectedId,
   selectedIdList,
   canvasMode,
+  gridLock,
+  toggleGridLock,
   itemPickerFor,
   showCollaboratorPicker,
   existingCollaboratorIds,
@@ -77,6 +80,7 @@ const {
   handleMapsPicked,
   submitGlobalAdd,
   campaignGenreBeatsaverSlugs,
+  usedMapDifficultyIds,
   unrankedNodes,
   showRepoint,
   closeRepoint,
@@ -265,6 +269,7 @@ function peerActivity(p: PresencePeer): string {
           :node-accents="nodeAccents"
           :background-url="campaign.backgroundUrl"
           :background-color="campaign.backgroundColor"
+          :background-placement="campaign.background"
           :show-starfield="!campaign.backgroundUrl"
           :focus-id="selectedId"
           :follow-focus="false"
@@ -277,6 +282,7 @@ function peerActivity(p: PresencePeer): string {
           :active-tray="activeTray"
           :presence-peers="presencePeers"
           :editable="editable"
+          :grid-lock="gridLock"
           :flag-missing-rewards="true"
           :mode="canvasMode"
           @cursormove="onCursorMove"
@@ -439,43 +445,76 @@ function peerActivity(p: PresencePeer): string {
           </Transition>
         </div>
 
-        <div
-          v-if="editable"
-          class="campaign-editor__mode-toggle"
-          role="radiogroup"
-          aria-label="Canvas mode"
-        >
+        <div v-if="editable" class="campaign-editor__toolbar">
+          <div class="campaign-editor__mode-toggle" role="radiogroup" aria-label="Canvas mode">
+            <button
+              type="button"
+              role="radio"
+              :aria-checked="canvasMode === 'drag'"
+              class="campaign-editor__mode-btn"
+              :class="{ 'campaign-editor__mode-btn--active': canvasMode === 'drag' }"
+              @click="canvasMode = 'drag'"
+            >
+              Drag
+            </button>
+            <button
+              type="button"
+              role="radio"
+              :aria-checked="canvasMode === 'connect'"
+              class="campaign-editor__mode-btn"
+              :class="{ 'campaign-editor__mode-btn--active': canvasMode === 'connect' }"
+              @click="canvasMode = 'connect'"
+            >
+              Connect
+            </button>
+            <button
+              type="button"
+              role="radio"
+              :aria-checked="canvasMode === 'select'"
+              class="campaign-editor__mode-btn"
+              :class="{ 'campaign-editor__mode-btn--active': canvasMode === 'select' }"
+              @click="canvasMode = 'select'"
+            >
+              Select
+            </button>
+          </div>
+
           <button
             type="button"
-            role="radio"
-            :aria-checked="canvasMode === 'drag'"
-            class="campaign-editor__mode-btn"
-            :class="{ 'campaign-editor__mode-btn--active': canvasMode === 'drag' }"
-            @click="canvasMode = 'drag'"
+            class="campaign-editor__grid-lock"
+            :class="{ 'campaign-editor__grid-lock--off': !gridLock }"
+            :aria-pressed="gridLock"
+            :title="
+              gridLock
+                ? 'Elements snap to whole grid units. Hold Alt while dragging to place freely.'
+                : 'Free placement is on, so elements can overlap. Hold Alt while dragging to snap.'
+            "
+            @click="toggleGridLock"
           >
-            Drag
-          </button>
-          <button
-            type="button"
-            role="radio"
-            :aria-checked="canvasMode === 'connect'"
-            class="campaign-editor__mode-btn"
-            :class="{ 'campaign-editor__mode-btn--active': canvasMode === 'connect' }"
-            @click="canvasMode = 'connect'"
-          >
-            Connect
-          </button>
-          <button
-            type="button"
-            role="radio"
-            :aria-checked="canvasMode === 'select'"
-            class="campaign-editor__mode-btn"
-            :class="{ 'campaign-editor__mode-btn--active': canvasMode === 'select' }"
-            @click="canvasMode = 'select'"
-          >
-            Select
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <rect x="4" y="11" width="16" height="10" rx="2" />
+              <path v-if="gridLock" d="M8 11V7a4 4 0 0 1 8 0v4" />
+              <path v-else d="M8 11V7a4 4 0 0 1 7.5-2" />
+            </svg>
+            {{ gridLock ? 'Grid' : 'Free' }}
           </button>
         </div>
+
+        <CampaignPluginWarning
+          class="campaign-editor__toolbar-warning"
+          detail="Free placement puts elements on fractional coordinates."
+          :show="editable && !gridLock"
+        />
 
         <CampaignChatPanel
           v-if="canChat"
@@ -670,6 +709,7 @@ function peerActivity(p: PresencePeer): string {
         :loading="actionPending"
         :global-submit="submitGlobalAdd"
         :initial-genre-slugs="campaignGenreBeatsaverSlugs"
+        :used-difficulty-ids="usedMapDifficultyIds"
         @close="closeMapPicker"
         @pick="handleMapsPicked"
       />
@@ -1054,18 +1094,68 @@ function peerActivity(p: PresencePeer): string {
   background: color-mix(in srgb, var(--warning) 14%, transparent);
 }
 
-.campaign-editor__mode-toggle {
+.campaign-editor__toolbar {
   position: absolute;
   top: var(--space-md);
   left: 50%;
   transform: translateX(-50%);
   z-index: 4;
   display: inline-flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.campaign-editor__mode-toggle {
+  display: inline-flex;
   gap: 2px;
   padding: 2px;
   background: var(--bg-surface);
   border: 1px solid var(--bg-overlay);
   border-radius: 4px;
+}
+
+.campaign-editor__toolbar-warning {
+  position: absolute;
+  top: calc(var(--space-md) + 44px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  max-width: 420px;
+  background: color-mix(in srgb, var(--error) 12%, var(--bg-surface));
+  pointer-events: none;
+}
+
+.campaign-editor__grid-lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  background: var(--bg-surface);
+  border: 1px solid var(--bg-overlay);
+  border-radius: 4px;
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease,
+    background 120ms ease;
+}
+
+.campaign-editor__grid-lock:hover {
+  color: var(--text-primary);
+  border-color: var(--text-tertiary);
+}
+
+.campaign-editor__grid-lock--off,
+.campaign-editor__grid-lock--off:hover {
+  color: var(--warning);
+  border-color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 12%, var(--bg-surface));
 }
 
 .campaign-editor__mode-btn {

@@ -56,6 +56,16 @@ export type CampaignRequirementType =
   | 'FC'
   | 'PASS'
   | 'RANK'
+  | 'COMBO'
+  | 'BOMB_HITS'
+
+export type CampaignModifierRequirement = 'REQUIRED' | 'FORBIDDEN'
+
+export type CampaignBoundClear = 'VALUE' | 'VALUE_MAX'
+
+export type CampaignTargetMode = 'AND' | 'OR'
+
+export type CampaignNodeBorderLayer = 'ABOVE' | 'BELOW'
 
 export type CampaignPrerequisiteMode = 'AND' | 'OR'
 
@@ -72,6 +82,8 @@ export type BarrierConditionType =
   | 'PASS'
   | 'AVERAGE_RANK'
   | 'MAX_RANK'
+  | 'AVERAGE_COMBO'
+  | 'AVERAGE_BOMB_HITS'
   | 'COMPLETION_COUNT'
 
 export type CampaignVoteDirection = 'UP' | 'DOWN'

@@ -3,7 +3,10 @@ import type {
   CampaignCollaboratorStatus,
   CampaignCompletionMode,
   CampaignLeaderboardBoard,
+  CampaignModifierRequirement,
+  CampaignNodeBorderLayer,
   CampaignPrerequisiteMode,
+  CampaignTargetMode,
   CampaignVoteDirection,
   CheckpointLabelPosition,
   CampaignRequirementType,
@@ -15,6 +18,7 @@ import type {
 } from '../enums'
 import type { PaginationParams } from '../pagination'
 import type { MapChartStatsSource } from './maps'
+import type { ModifierResponse } from './modifiers'
 
 export interface CampaignTagResponse {
   id: string
@@ -22,6 +26,12 @@ export interface CampaignTagResponse {
   name: string
   categoryId: string | null
   system: boolean
+}
+
+export interface CampaignBackgroundPlacement {
+  size: number
+  x: number
+  y: number
 }
 
 export interface CampaignResponse {
@@ -45,14 +55,22 @@ export interface CampaignResponse {
   tags: CampaignTagResponse[]
   backgroundUrl: string | null
   backgroundColor: string | null
+  background: CampaignBackgroundPlacement | null
   iconUrl: string | null
   submittedAt: string | null
   curatedAt: string | null
+  curatedById: string | null
+  loved: boolean
+  lovedAt: string | null
+  lovedById: string | null
   createdAt: string
   totalUpvotes: number
   totalDownvotes: number
   voteScore: number
   myVote?: CampaignVoteDirection
+  totalXp: number | null
+  totalRewardCount: number | null
+  rewards: CampaignItemAwardResponse[] | null
 }
 
 export interface CampaignVoteResponse {
@@ -76,6 +94,18 @@ export interface CampaignPrerequisiteResponse {
   color: string | null
 }
 
+export interface CampaignTargetResponse {
+  id?: string
+  requirementType: CampaignRequirementType
+  requirementValue: number | null
+  requirementValueMax: number | null
+}
+
+export interface CampaignModifierRequirementResponse {
+  modifier: ModifierResponse
+  requirement: CampaignModifierRequirement
+}
+
 export interface CampaignDifficultyResponse extends MapChartStatsSource {
   id: string
   mapDifficultyId: string
@@ -92,12 +122,18 @@ export interface CampaignDifficultyResponse extends MapChartStatsSource {
   difficulty: string
   characteristic: string
   status?: MapDifficultyStatus
+  targetMode: CampaignTargetMode
+  targets: CampaignTargetResponse[]
   requirementType: CampaignRequirementType
-  requirementValue: number
+  requirementValue: number | null
+  requirementValueMax: number | null
+  modifiers: CampaignModifierRequirementResponse[]
   description: string | null
   checkpointLabel: string | null
   checkpointLabelPosition: CheckpointLabelPosition | null
   checkpointAvatarUrl: string | null
+  nodeBorderUrl: string | null
+  nodeBorderLayer: CampaignNodeBorderLayer
   borderColor: string | null
   borderShape: string | null
   checkpointColor: string | null
@@ -120,6 +156,7 @@ export interface CampaignBarrierResponse {
   id: string
   conditionType: BarrierConditionType
   conditionValue: number | null
+  conditionValueMax: number | null
   description: string | null
   checkpointLabel: string | null
   checkpointLabelPosition: CheckpointLabelPosition | null
@@ -157,8 +194,15 @@ export interface CampaignDetailResponse extends CampaignResponse {
   completionItems: CampaignItemAwardResponse[]
 }
 
+export interface CampaignTargetProgressResponse {
+  target: CampaignTargetResponse
+  userValue: number | null
+  met: boolean
+}
+
 export interface CampaignDifficultyProgressResponse {
   node: CampaignDifficultyResponse
+  targets: CampaignTargetProgressResponse[]
   userValue: number | null
   userScore: number | null
   completed: boolean
@@ -242,6 +286,7 @@ export interface CampaignListParams extends PaginationParams {
   creatorId?: string
   search?: string
   official?: boolean
+  loved?: boolean
 }
 
 export interface CampaignTagListParams {

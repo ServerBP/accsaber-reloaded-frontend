@@ -3,6 +3,7 @@ import {
   deactivateCampaign,
   publishCampaign,
   reopenCampaignForEdit,
+  setCampaignLoved,
   setCampaignOfficial,
   uncurateCampaign,
 } from '@/api/admin/campaigns'
@@ -147,6 +148,20 @@ export function useCampaignLifecycle(ctx: LifecycleContext) {
     }
   }
 
+  async function doToggleLoved() {
+    if (!campaign.value) return
+    actionPending.value = true
+    actionError.value = null
+    try {
+      await setCampaignLoved(campaign.value.id, !campaign.value.loved)
+      await load()
+    } catch (err) {
+      actionError.value = getApiErrorMessage(err, 'Failed to update loved status')
+    } finally {
+      actionPending.value = false
+    }
+  }
+
   async function doToggleOfficial() {
     if (!campaign.value) return
     actionPending.value = true
@@ -191,6 +206,7 @@ export function useCampaignLifecycle(ctx: LifecycleContext) {
     doReopen,
     doCurate,
     doUncurate,
+    doToggleLoved,
     doToggleOfficial,
     doDeactivate,
   }

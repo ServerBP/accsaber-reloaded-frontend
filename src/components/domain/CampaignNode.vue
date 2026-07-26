@@ -60,7 +60,24 @@ const avatarUrl = computed(
 
 const avatarRadius = computed(() => effectiveSize.value)
 
+const NODE_BORDER_SCALE = 1.5
+
+const borderArt = computed(() => {
+  const url = props.difficulty.nodeBorderUrl
+  if (!url) return null
+  const radius = effectiveSize.value * NODE_BORDER_SCALE
+  return {
+    url,
+    x: props.cx - radius,
+    y: props.cy - radius,
+    extent: radius * 2,
+    below: props.difficulty.nodeBorderLayer === 'BELOW',
+  }
+})
+
 const clipId = computed(() => `node-clip-${props.difficulty.id}`)
+
+const borderId = computed(() => `node-border-${props.difficulty.id}`)
 
 const clipPoints = computed(() =>
   shapeCorners(effectiveShape.value, props.cx, props.cy, effectiveSize.value),
@@ -131,7 +148,19 @@ const gateR = computed(() => effectiveSize.value * 0.3)
         <circle v-if="effectiveShape === 'circle'" :cx="cx" :cy="cy" :r="effectiveSize" />
         <polygon v-else :points="clipPoints" />
       </clipPath>
+      <image
+        v-if="borderArt"
+        :id="borderId"
+        :href="borderArt.url"
+        :x="borderArt.x"
+        :y="borderArt.y"
+        :width="borderArt.extent"
+        :height="borderArt.extent"
+        preserveAspectRatio="xMidYMid meet"
+      />
     </defs>
+
+    <use v-if="borderArt?.below" class="campaign-node__border" :href="`#${borderId}`" />
 
     <CampaignShape
       :cx="cx"
@@ -155,6 +184,8 @@ const gateR = computed(() => effectiveSize.value * 0.3)
       preserveAspectRatio="xMidYMid slice"
       class="campaign-node__avatar"
     />
+
+    <use v-if="borderArt && !borderArt.below" class="campaign-node__border" :href="`#${borderId}`" />
 
     <g v-if="state === 'cleared'" class="campaign-node__tick" :transform="`translate(${tickCx}, ${tickCy})`">
       <circle :r="tickR" fill="var(--success)" stroke="var(--bg-base)" :stroke-width="tickR * 0.18" />
@@ -222,6 +253,10 @@ const gateR = computed(() => effectiveSize.value * 0.3)
   pointer-events: none;
 }
 
+.campaign-node__border {
+  pointer-events: none;
+}
+
 .campaign-node__tick {
   pointer-events: none;
 }
@@ -252,7 +287,8 @@ const gateR = computed(() => effectiveSize.value * 0.3)
   fill: var(--text-tertiary);
 }
 
-.campaign-node--locked .campaign-node__avatar {
+.campaign-node--locked .campaign-node__avatar,
+.campaign-node--locked .campaign-node__border {
   filter: grayscale(0.65) brightness(0.62);
 }
 

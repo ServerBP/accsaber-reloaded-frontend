@@ -4,6 +4,7 @@ import CampaignStatusBadge from '@/components/domain/CampaignStatusBadge.vue'
 import CampaignVoteControl from '@/components/domain/CampaignVoteControl.vue'
 import { useCategoryStore } from '@/stores/categories'
 import type { CampaignProgressSummary, CampaignResponse } from '@/types/api/campaigns'
+import { campaignBadges } from '@/utils/campaignBadges'
 import {
   campaignDifficultyColor,
   campaignDifficultyGradient,
@@ -92,11 +93,25 @@ const hasProgressLabel = computed(
 )
 
 const showStatusBadge = computed(
-  () =>
-    !hasProgressLabel.value && (props.campaign.official || props.campaign.status === 'CURATED'),
+  () => !hasProgressLabel.value && campaignBadges(props.campaign).length > 0,
 )
 
 const hasCover = computed(() => !!coverUrl.value)
+
+const REWARD_PREVIEW_COUNT = 2
+
+const rewardParts = computed<string[]>(() => {
+  const parts: string[] = []
+  if (props.campaign.totalXp) parts.push(`${props.campaign.totalXp.toLocaleString()} XP`)
+  const rewards = props.campaign.rewards ?? []
+  for (const r of rewards.slice(0, REWARD_PREVIEW_COUNT)) {
+    parts.push(r.quantity > 1 ? `${r.itemName} ×${r.quantity}` : r.itemName)
+  }
+  if (rewards.length > REWARD_PREVIEW_COUNT) {
+    parts.push(`+${rewards.length - REWARD_PREVIEW_COUNT} more`)
+  }
+  return parts
+})
 </script>
 
 <template>
@@ -143,6 +158,12 @@ const hasCover = computed(() => !!coverUrl.value)
       </div>
 
       <footer class="campaign-card__foot">
+        <p v-if="rewardParts.length > 0" class="campaign-card__loot">
+          <template v-for="(part, i) in rewardParts" :key="i">
+            <span v-if="i > 0" class="campaign-card__loot-sep" aria-hidden="true">·</span>
+            <span>{{ part }}</span>
+          </template>
+        </p>
         <div class="campaign-card__foot-row">
           <CampaignStatusBadge v-if="showStatusBadge" :campaign="campaign" size="sm" />
           <span v-else class="campaign-card__status" :data-tone="statusTone">{{ statusLabel }}</span>
@@ -333,6 +354,21 @@ const hasCover = computed(() => !!coverUrl.value)
   gap: var(--space-sm);
   padding-top: var(--space-sm);
   border-top: 1px solid var(--bg-overlay);
+}
+
+.campaign-card__loot {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.campaign-card__loot-sep {
+  margin: 0 5px;
+  color: var(--text-tertiary);
 }
 
 .campaign-card__foot-row {

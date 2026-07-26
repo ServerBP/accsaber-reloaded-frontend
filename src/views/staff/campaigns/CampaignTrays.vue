@@ -6,13 +6,21 @@ import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import RichTextEditor from '@/components/common/RichTextEditor.vue'
 import CampaignRewardItem from '@/components/domain/CampaignRewardItem.vue'
 import CountryFlag from '@/components/domain/CountryFlag.vue'
+import CampaignBackgroundPlacer from './CampaignBackgroundPlacer.vue'
+import CampaignBoundsField from './CampaignBoundsField.vue'
+import CampaignEditorNote from './CampaignEditorNote.vue'
 import CampaignEditorTile from './CampaignEditorTile.vue'
+import CampaignFieldHint from './CampaignFieldHint.vue'
+import CampaignPluginWarning from './CampaignPluginWarning.vue'
+import CampaignTargetRow from './CampaignTargetRow.vue'
 import CampaignShapeGlyph from './CampaignShapeGlyph.vue'
 import CampaignLabelPositionPicker from './CampaignLabelPositionPicker.vue'
 import { useCampaignEditorContext } from './campaignEditorContext'
 import { onAvatarError } from '@/composables/useAvatarFallback'
 import { resolveSize } from '@/utils/campaignLayout'
-import { computed } from 'vue'
+import { PLUGIN_FIRST_TARGET_NOTE, PLUGIN_ZERO_BOUND_NOTE } from '@/utils/campaignPlugin'
+import type { CampaignTargetMode } from '@/types/enums'
+import { computed, ref } from 'vue'
 
 const fontOptions = [
   { value: '', label: 'Default' },
@@ -48,6 +56,7 @@ const {
   removeBackground,
   uploadIcon,
   removeIcon,
+  commitBackgroundPlacement,
   rewardItemsById,
   removeCompletionItem,
   openCampaignItemPicker,
@@ -69,6 +78,7 @@ const {
   doReopen,
   doCurate,
   doUncurate,
+  doToggleLoved,
   doToggleOfficial,
   doDeactivate,
   selectedDifficulty,
@@ -78,14 +88,30 @@ const {
   refreshNodeVersion,
   formNode,
   requirementTypeOptions,
-  onRequirementTypeChange,
-  requirementBounds,
-  requirementNumberBounds,
-  requirementEquivalents,
-  requirementValueDisplay,
+  targetRows,
+  targetsUnreadable,
+  formTargetMode,
+  canAddTarget,
+  addTarget,
+  removeTarget,
+  moveTarget,
+  setTargetMode,
+  setTargetType,
+  setTargetBound,
+  reorderTargets,
+  commitTargets,
+  barrierUnreadable,
+  barrierZeroBound,
+  fractionalVertexCount,
+  modifierOptions,
+  nodeModifierById,
+  cycleNodeModifier,
   commitNodeField,
   uploadCheckpointAvatar,
   removeCheckpointAvatar,
+  uploadNodeBorder,
+  removeNodeBorder,
+  selectNodeBorderLayer,
   isMilestone,
   setMilestone,
   defaultColorHex,
@@ -109,11 +135,13 @@ const {
   formBarrier,
   barrierConditionOptions,
   barrierMeta,
-  barrierValueDisplay,
+  barrierLowerDisplay,
+  barrierUpperDisplay,
+  setBarrierBound,
+  commitBarrierBounds,
   barrierValueBounds,
   onBarrierConditionTypeChange,
   commitBarrierField,
-  commitBarrierValue,
   affectedPickMode,
   toggleAffectedPickMode,
   toggleAffected,
@@ -153,6 +181,69 @@ const requirementOptions = computed(() =>
     ? requirementTypeOptions.filter((o) => o.value !== 'AP' && o.value !== 'RANK')
     : requirementTypeOptions,
 )
+
+const MODIFIER_STATE_WORD: Record<string, string> = {
+  REQUIRED: 'required',
+  FORBIDDEN: 'forbidden',
+}
+
+const modifierChips = computed(() =>
+  modifierOptions.value.map((m) => {
+    const state = nodeModifierById.value.get(m.id) ?? null
+    return {
+      id: m.id,
+      code: m.code,
+      state,
+      label: `${m.name}: ${state ? MODIFIER_STATE_WORD[state] : 'not constrained'}`,
+    }
+  }),
+)
+
+const MARKDOWN_HINT = 'Markdown is supported here.'
+
+const TARGET_MODES: Array<{ value: CampaignTargetMode; label: string }> = [
+  { value: 'AND', label: 'All of' },
+  { value: 'OR', label: 'Any of' },
+]
+
+const isMultiTarget = computed(() => targetRows.value.length > 1)
+
+const targetsBombHits = computed(() =>
+  targetRows.value.some((r) => r.requirementType === 'BOMB_HITS'),
+)
+
+const dragTargetIndex = ref<number | null>(null)
+
+function onTargetDragEnter(index: number) {
+  const from = dragTargetIndex.value
+  if (from === null || from === index) return
+  if (reorderTargets(from, index)) dragTargetIndex.value = index
+}
+
+function onTargetDrop() {
+  if (dragTargetIndex.value === null) return
+  dragTargetIndex.value = null
+  commitTargets()
+}
+
+const barrierConditionHint = computed(() => {
+  const meta = barrierMeta.value
+  if (meta.noValue) {
+    const verb =
+      formBarrier.value.conditionType === 'PASS' ? 'passed (no No-Fail)' : 'full-comboed'
+    return `Opens once every affected node has been ${verb}.`
+  }
+  if (meta.metric === 'count') {
+    return `Opens once the player has completed this many of the ${affectedNodeList.value.length} affected nodes, each cleared by its own requirement. The cap is the number of affected nodes.`
+  }
+  if (meta.metric === 'bombs') {
+    return 'Averaged over the affected nodes, and higher passes. For "at most N bombs", set the upper bound instead of the lower one.'
+  }
+  if (meta.lowerBetter) {
+    return `Lower is better. Opens when the ${meta.agg} leaderboard rank across the affected nodes reaches this position or better.`
+  }
+  return `Aggregated over the affected nodes (${meta.agg}). Higher clears the gate.`
+})
 
 const AP_RANK_BARRIER_TYPES = ['AVERAGE_AP', 'AP_MAX', 'AVERAGE_RANK', 'MAX_RANK']
 
@@ -279,6 +370,14 @@ const connectionSwatch = computed(() => {
             Uncurate
           </BaseButton>
           <BaseButton
+            v-if="isCurator && !isDraftStatus"
+            size="sm"
+            :loading="actionPending"
+            @click="doToggleLoved"
+          >
+            {{ campaign.loved ? 'Remove loved' : 'Mark loved' }}
+          </BaseButton>
+          <BaseButton
             v-if="isAdmin"
             size="sm"
             :loading="actionPending"
@@ -297,6 +396,11 @@ const connectionSwatch = computed(() => {
           </BaseButton>
         </template>
       </div>
+
+      <CampaignPluginWarning
+        :show="fractionalVertexCount > 0"
+        :detail="`${fractionalVertexCount} element${fractionalVertexCount === 1 ? '' : 's'} sit on fractional grid coordinates. Turn the grid lock on and re-drag them onto whole units to make this campaign loadable again.`"
+      />
 
       <p v-if="creatorBlocked" class="campaign-editor__status-warning">
         You flagged this campaign for review. A curator needs to lift the flag before you can edit
@@ -345,7 +449,7 @@ const connectionSwatch = computed(() => {
       <input v-model="formMeta.summary" type="text" @blur="commitMetaField('summary')" />
     </label>
     <label class="campaign-editor__field">
-      <span>Description</span>
+      <span>Description <CampaignFieldHint :text="MARKDOWN_HINT" /></span>
       <textarea v-model="formMeta.description" rows="4" @blur="commitMetaField('description')" />
     </label>
   </fieldset>
@@ -384,7 +488,12 @@ const connectionSwatch = computed(() => {
       <span>Playlist export enabled</span>
     </label>
     <label class="campaign-editor__field">
-      <span>Background color</span>
+      <span>
+        Background color
+        <CampaignFieldHint
+          text="Hex, named, or rgb/hsl. Tints the roadmap backdrop; leave empty for the default."
+        />
+      </span>
       <div class="campaign-editor__color-row">
         <input
           type="color"
@@ -408,7 +517,6 @@ const connectionSwatch = computed(() => {
           Auto
         </button>
       </div>
-      <small>Hex, named, or rgb/hsl. Tints the roadmap backdrop; leave empty for the default.</small>
       <p v-if="fieldErrors.backgroundColor" class="campaign-editor__field-error" role="alert">
         {{ fieldErrors.backgroundColor }}
       </p>
@@ -439,6 +547,15 @@ const connectionSwatch = computed(() => {
         :remove-handler="removeIcon"
       />
     </div>
+    <div v-if="campaign.backgroundUrl" class="campaign-editor__field">
+      <span>Background placement</span>
+      <CampaignBackgroundPlacer
+        :image-url="campaign.backgroundUrl"
+        :placement="campaign.background"
+        :disabled="!editable"
+        @commit="commitBackgroundPlacement"
+      />
+    </div>
   </fieldset>
 
   <fieldset
@@ -446,28 +563,14 @@ const connectionSwatch = computed(() => {
     class="campaign-editor__section"
     :disabled="!editable"
   >
-    <p v-if="campaign.status !== 'CURATED'" class="campaign-editor__reward-note">
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        <path
-          d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
-        />
-        <line x1="12" y1="9" x2="12" y2="13" />
-        <line x1="12" y1="17" x2="12" y2="17.01" />
-      </svg>
-      <span>Rewards are only handed out once the campaign is curated.</span>
-    </p>
+    <CampaignEditorNote v-if="campaign.status !== 'CURATED'">
+      Rewards are only handed out once the campaign is curated.
+    </CampaignEditorNote>
     <label class="campaign-editor__field">
-      <span>Completion XP</span>
+      <span>
+        Completion XP
+        <CampaignFieldHint text="Awarded on completion, once the campaign is curated." />
+      </span>
       <div class="campaign-editor__slider-row">
         <input
           type="range"
@@ -485,7 +588,6 @@ const connectionSwatch = computed(() => {
           @blur="commitMetaField('completionXp')"
         />
       </div>
-      <small>Awarded on completion once curated.</small>
     </label>
     <ul v-if="campaign.completionItems.length > 0" class="campaign-editor__reward-list">
       <li
@@ -687,57 +789,119 @@ const connectionSwatch = computed(() => {
     class="campaign-editor__section"
     :disabled="!editable"
   >
-    <div class="campaign-editor__field">
-      <span>Type</span>
-      <BaseSelect
-        :model-value="formNode.requirementType"
-        :options="requirementOptions.map((o) => ({ value: o.value, label: o.label }))"
-        @update:model-value="onRequirementTypeChange"
-      />
+    <div v-if="isMultiTarget" class="campaign-editor__field">
+      <span>
+        Clears when
+        <CampaignFieldHint
+          text="All of: every objective must be met by one score. Any of: meeting a single objective clears the node."
+        />
+      </span>
+      <div class="campaign-editor__prereq-mode-toggle" role="radiogroup" aria-label="Objective mode">
+        <button
+          v-for="mode in TARGET_MODES"
+          :key="mode.value"
+          type="button"
+          role="radio"
+          :aria-checked="formTargetMode === mode.value"
+          class="campaign-editor__prereq-mode-btn"
+          :class="{ 'campaign-editor__prereq-mode-btn--active': formTargetMode === mode.value }"
+          @click="setTargetMode(mode.value)"
+        >
+          {{ mode.label }}
+        </button>
+      </div>
     </div>
+
+    <ul class="campaign-editor__targets">
+      <template v-for="row in targetRows" :key="row.key">
+        <li
+          v-if="row.index > 0"
+          class="campaign-editor__target-join"
+          :class="`campaign-editor__target-join--${formTargetMode.toLowerCase()}`"
+          aria-hidden="true"
+        >
+          {{ formTargetMode }}
+        </li>
+        <CampaignTargetRow
+          :row="row"
+          :type-options="requirementOptions"
+          :multi="isMultiTarget"
+          :disabled="!editable"
+          @type="setTargetType(row.index, $event)"
+          @update:lower="setTargetBound(row.index, 'requirementValue', $event)"
+          @update:upper="setTargetBound(row.index, 'requirementValueMax', $event)"
+          @commit="commitTargets"
+          @remove="removeTarget(row.index)"
+          @move="moveTarget(row.index, row.index + $event)"
+          @grab="dragTargetIndex = row.index"
+          @enter="onTargetDragEnter(row.index)"
+          @drop="onTargetDrop"
+        />
+      </template>
+    </ul>
+
+    <button
+      v-if="canAddTarget"
+      type="button"
+      class="campaign-editor__add-reward"
+      @click="addTarget"
+    >
+      <svg
+        width="12"
+        height="12"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <line x1="12" y1="5" x2="12" y2="19" />
+        <line x1="5" y1="12" x2="19" y2="12" />
+      </svg>
+      Add objective
+    </button>
+
     <p v-if="selectedNodeApRankBlocked" class="campaign-editor__hint">
       This map isn't ranked (imported campaign map, or still in the ranking queue). AP and leaderboard-rank requirements are unavailable.
     </p>
-    <label
-      v-if="formNode.requirementType !== 'FC' && formNode.requirementType !== 'PASS'"
-      class="campaign-editor__field"
-    >
-      <span>Target {{ requirementBounds.unit ? `(${requirementBounds.unit})` : '' }}</span>
-      <div class="campaign-editor__slider-row">
-        <input
-          type="range"
-          :min="requirementBounds.min"
-          :max="requirementBounds.max"
-          :step="requirementBounds.step"
-          v-model.number="requirementValueDisplay"
-          @change="commitNodeField('requirementValue')"
+    <p v-if="isMultiTarget" class="campaign-editor__hint">{{ PLUGIN_FIRST_TARGET_NOTE }}</p>
+    <CampaignEditorNote v-if="targetsBombHits">
+      Bomb counts come from BeatLeader only. A ScoreSaber-sourced score carries no bomb data and can never clear that objective.
+    </CampaignEditorNote>
+    <CampaignPluginWarning :show="targetsUnreadable" />
+
+    <div class="campaign-editor__field">
+      <span>
+        Modifiers <small>(optional)</small>
+        <CampaignFieldHint
+          text="Click to cycle unset, required, forbidden. A score only counts here if it used every required modifier and none of the forbidden ones. Anything unlisted is free."
         />
-        <input
-          type="number"
-          :min="requirementNumberBounds.min"
-          :max="requirementNumberBounds.max"
-          :step="requirementNumberBounds.step"
-          v-model.number.lazy="requirementValueDisplay"
-          @blur="commitNodeField('requirementValue')"
-        />
+      </span>
+      <div class="campaign-editor__tag-chips">
+        <button
+          v-for="m in modifierChips"
+          :key="m.id"
+          type="button"
+          class="campaign-editor__mod"
+          :class="{
+            'campaign-editor__mod--required': m.state === 'REQUIRED',
+            'campaign-editor__mod--forbidden': m.state === 'FORBIDDEN',
+          }"
+          :aria-label="m.label"
+          :title="m.label"
+          @click="cycleNodeModifier(m.id)"
+        >
+          {{ m.code }}
+        </button>
       </div>
-      <p v-if="requirementEquivalents.length" class="campaign-editor__equiv">
-        <span class="campaign-editor__equiv-approx" aria-hidden="true">≈</span>
-        <template v-for="(e, i) in requirementEquivalents" :key="e.key">
-          <span v-if="i > 0" class="campaign-editor__equiv-sep" aria-hidden="true">·</span>
-          <span class="campaign-editor__equiv-val">{{ e.text }}</span>
-        </template>
-      </p>
-    </label>
-    <p v-if="formNode.requirementType === 'RANK'" class="campaign-editor__hint">
-      Lower is better. Cleared when the player's leaderboard rank on the map is this position or
-      better (rank ≤ target).
-    </p>
-    <p v-else-if="formNode.requirementType === 'PASS'" class="campaign-editor__hint">
-      Cleared by any legitimate pass - a completion without the No-Fail modifier.
-    </p>
+    </div>
     <label class="campaign-editor__field">
-      <span>Description <small>(optional)</small></span>
+      <span>
+        Description <small>(optional)</small>
+        <CampaignFieldHint :text="MARKDOWN_HINT" />
+      </span>
       <textarea v-model="formNode.description" rows="2" @blur="commitNodeField('description')" />
     </label>
     <div v-if="editable && selectedDifficulty" class="campaign-editor__field">
@@ -746,19 +910,19 @@ const connectionSwatch = computed(() => {
           v-if="selectedDifficulty.beatsaverCode"
           size="sm"
           :loading="actionPending"
+          title="Re-fetches the latest BeatSaver upload for this same map and repoints to its newest leaderboard IDs. Only this campaign's node changes."
           @click="refreshNodeVersion"
         >
           Refresh version
         </BaseButton>
-        <BaseButton size="sm" @click="openRepoint(selectedDifficulty.id)">
+        <BaseButton
+          size="sm"
+          title="Pick a different map or version by hand. Only this campaign's node changes."
+          @click="openRepoint(selectedDifficulty.id)"
+        >
           Change map / version
         </BaseButton>
       </div>
-      <p class="campaign-editor__hint">
-        <strong>Refresh version</strong> re-fetches the latest BeatSaver upload for this same map and
-        repoints to its newest leaderboard IDs. <strong>Change map / version</strong> lets you pick a
-        different map or version by hand. Either way, only this campaign's node changes.
-      </p>
     </div>
   </fieldset>
 
@@ -774,10 +938,8 @@ const connectionSwatch = computed(() => {
         @change="setMilestone(($event.target as HTMLInputElement).checked)"
       />
       <span>Treat this node as a milestone</span>
+      <CampaignFieldHint text="Rewards pay only when a cleared prerequisite path exists." />
     </label>
-    <p v-if="isMilestone" class="campaign-editor__hint">
-      Rewards pay only when a cleared prerequisite path exists.
-    </p>
     <template v-if="isMilestone">
       <label class="campaign-editor__field">
         <span>Label</span>
@@ -901,6 +1063,51 @@ const connectionSwatch = computed(() => {
         </button>
       </div>
     </label>
+    <div class="campaign-editor__avatar-upload">
+      <ImageUploader
+        label="Border art"
+        hint="Frame or GIF"
+        aspect-ratio="1 / 1"
+        :image-url="selectedDifficulty?.nodeBorderUrl || null"
+        :disabled="!editable"
+        :upload-handler="uploadNodeBorder"
+        :remove-handler="removeNodeBorder"
+      />
+    </div>
+    <div v-if="selectedDifficulty?.nodeBorderUrl" class="campaign-editor__field">
+      <span>
+        Border layer
+        <CampaignFieldHint
+          text="Over frames the node and its own transparency decides how much cover shows through. Behind turns it into a backplate that spills past the node edge."
+        />
+      </span>
+      <div class="campaign-editor__prereq-mode-toggle" role="radiogroup" aria-label="Border layer">
+        <button
+          type="button"
+          role="radio"
+          :aria-checked="formNode.nodeBorderLayer !== 'BELOW'"
+          class="campaign-editor__prereq-mode-btn"
+          :class="{
+            'campaign-editor__prereq-mode-btn--active': formNode.nodeBorderLayer !== 'BELOW',
+          }"
+          @click="selectNodeBorderLayer('ABOVE')"
+        >
+          over cover
+        </button>
+        <button
+          type="button"
+          role="radio"
+          :aria-checked="formNode.nodeBorderLayer === 'BELOW'"
+          class="campaign-editor__prereq-mode-btn"
+          :class="{
+            'campaign-editor__prereq-mode-btn--active': formNode.nodeBorderLayer === 'BELOW',
+          }"
+          @click="selectNodeBorderLayer('BELOW')"
+        >
+          behind cover
+        </button>
+      </div>
+    </div>
   </fieldset>
 
   <fieldset
@@ -989,26 +1196,9 @@ const connectionSwatch = computed(() => {
     class="campaign-editor__section"
     :disabled="!editable"
   >
-    <p v-if="campaign && campaign.status !== 'CURATED'" class="campaign-editor__reward-note">
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        <path
-          d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
-        />
-        <line x1="12" y1="9" x2="12" y2="13" />
-        <line x1="12" y1="17" x2="12" y2="17.01" />
-      </svg>
-      <span>Rewards are only handed out once the campaign is curated.</span>
-    </p>
+    <CampaignEditorNote v-if="campaign && campaign.status !== 'CURATED'">
+      Rewards are only handed out once the campaign is curated.
+    </CampaignEditorNote>
     <label class="campaign-editor__field">
       <span>XP on clear</span>
       <div class="campaign-editor__slider-row">
@@ -1102,72 +1292,52 @@ const connectionSwatch = computed(() => {
     :disabled="!editable"
   >
     <div class="campaign-editor__field">
-      <span>Condition</span>
+      <span>Condition <CampaignFieldHint :text="barrierConditionHint" /></span>
       <BaseSelect
         :model-value="formBarrier.conditionType"
         :options="barrierConditionOptionsFiltered.map((o) => ({ value: o.value, label: o.label }))"
         @update:model-value="onBarrierConditionTypeChange"
       />
     </div>
+    <CampaignPluginWarning :show="barrierUnreadable" />
+    <p v-if="barrierZeroBound" class="campaign-editor__hint">{{ PLUGIN_ZERO_BOUND_NOTE }}</p>
     <p v-if="barrierAffectsApRankBlocked" class="campaign-editor__hint">
       This gate affects a map that isn't ranked (campaign import or ranking queue), so AP
       and rank based conditions are unavailable.
     </p>
-    <label
+    <div
       v-if="!barrierMeta.noValue"
       class="campaign-editor__field"
       :class="{ 'campaign-editor__field--disabled': barrierMeta.metric === 'count' && barrierValueBounds.max <= 1 }"
     >
-      <span>
-        Target {{ barrierValueBounds.unit ? `(${barrierValueBounds.unit})` : '' }}
-        <small v-if="barrierMeta.metric === 'count'">of {{ barrierValueBounds.max }}</small>
-      </span>
-      <div class="campaign-editor__slider-row">
-        <input
-          type="range"
-          :min="barrierValueBounds.min"
-          :max="barrierValueBounds.max"
-          :step="barrierValueBounds.step"
-          :disabled="barrierMeta.metric === 'count' && barrierValueBounds.max <= 1"
-          v-model.number="barrierValueDisplay"
-          @change="commitBarrierValue"
-        />
-        <input
-          type="number"
-          :min="barrierValueBounds.min"
-          :max="barrierValueBounds.max"
-          :step="barrierValueBounds.step"
-          :disabled="barrierMeta.metric === 'count' && barrierValueBounds.max <= 1"
-          v-model.number.lazy="barrierValueDisplay"
-          @change="commitBarrierValue"
-          @blur="commitBarrierValue"
-        />
-      </div>
-    </label>
-    <p v-if="barrierMeta.noValue" class="campaign-editor__hint">
-      Opens once every affected node has been
-      {{ formBarrier.conditionType === 'PASS' ? 'passed (no No-Fail)' : 'full-comboed' }}.
-    </p>
-    <p v-else-if="barrierMeta.metric === 'count' && affectedNodeList.length <= 1" class="campaign-editor__hint">
+      <CampaignBoundsField
+        :lower="barrierLowerDisplay"
+        :upper="barrierUpperDisplay"
+        :min="barrierValueBounds.min"
+        :max="barrierValueBounds.max"
+        :step="barrierValueBounds.step"
+        :unit="barrierValueBounds.unit"
+        :disabled="barrierMeta.metric === 'count' && barrierValueBounds.max <= 1"
+        single-label="Goal"
+        @update:lower="setBarrierBound('conditionValue', $event)"
+        @update:upper="setBarrierBound('conditionValueMax', $event)"
+        @commit="commitBarrierBounds"
+      />
+    </div>
+    <p
+      v-if="barrierMeta.metric === 'count' && affectedNodeList.length <= 1"
+      class="campaign-editor__hint"
+    >
       This gate only measures
       {{ affectedNodeList.length }}
       {{ affectedNodeList.length === 1 ? 'node' : 'nodes' }}, so the target is locked at
       {{ affectedNodeList.length || 1 }}. Add more affected nodes (Affected tab) to raise the cap.
     </p>
-    <p v-else-if="barrierMeta.metric === 'count'" class="campaign-editor__hint">
-      Opens once the player has completed this many of the
-      {{ affectedNodeList.length }} affected nodes, each cleared by its own requirement. The cap is
-      the number of affected nodes.
-    </p>
-    <p v-else-if="barrierMeta.lowerBetter" class="campaign-editor__hint">
-      Lower is better. Opens when the {{ barrierMeta.agg }} leaderboard rank across the affected
-      nodes reaches this position or better.
-    </p>
-    <p v-else class="campaign-editor__hint">
-      Aggregated over the affected nodes ({{ barrierMeta.agg }}). Higher clears the gate.
-    </p>
     <label class="campaign-editor__field">
-      <span>Description <small>(optional)</small></span>
+      <span>
+        Description <small>(optional)</small>
+        <CampaignFieldHint :text="MARKDOWN_HINT" />
+      </span>
       <textarea
         v-model="formBarrier.description"
         rows="2"
@@ -1181,14 +1351,11 @@ const connectionSwatch = computed(() => {
     class="campaign-editor__section"
     :disabled="!editable"
   >
-    <p class="campaign-editor__hint">
-      Pick the nodes this gate measures. Separate from its connections: a gate can sit across the
-      whole path but score only a section.
-    </p>
     <button
       type="button"
       class="campaign-editor__pick-toggle"
       :class="{ 'campaign-editor__pick-toggle--active': affectedPickMode }"
+      title="Pick the nodes this gate measures. Separate from its connections: a gate can sit across the whole path but score only a section."
       @click="toggleAffectedPickMode"
     >
       <span class="campaign-editor__pick-dot" aria-hidden="true" />
@@ -1225,7 +1392,13 @@ const connectionSwatch = computed(() => {
       No nodes yet. The gate can't be evaluated until it measures at least one node.
     </p>
     <div class="campaign-editor__field">
-      <span>Opens when</span>
+      <span>
+        Opens when
+        <CampaignFieldHint
+          v-if="barrierMeta.metric === 'count'"
+          text="This gates the connections feeding the gate, not the affected nodes above: a map-count gate always counts completions rather than aggregating a metric."
+        />
+      </span>
       <div
         class="campaign-editor__prereq-mode-toggle"
         role="radiogroup"
@@ -1259,10 +1432,6 @@ const connectionSwatch = computed(() => {
         </button>
       </div>
     </div>
-    <p v-if="barrierMeta.metric === 'count'" class="campaign-editor__hint">
-      This gates the connections feeding the gate, not the affected nodes above: a map-count gate
-      always counts completions rather than aggregating a metric.
-    </p>
   </fieldset>
 
   <fieldset
@@ -1319,26 +1488,9 @@ const connectionSwatch = computed(() => {
     class="campaign-editor__section"
     :disabled="!editable"
   >
-    <p v-if="campaign && campaign.status !== 'CURATED'" class="campaign-editor__reward-note">
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        <path
-          d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
-        />
-        <line x1="12" y1="9" x2="12" y2="13" />
-        <line x1="12" y1="17" x2="12" y2="17.01" />
-      </svg>
-      <span>Rewards are only handed out once the campaign is curated.</span>
-    </p>
+    <CampaignEditorNote v-if="campaign && campaign.status !== 'CURATED'">
+      Rewards are only handed out once the campaign is curated.
+    </CampaignEditorNote>
     <label class="campaign-editor__field">
       <span>XP on clear</span>
       <div class="campaign-editor__slider-row">
@@ -1502,7 +1654,10 @@ const connectionSwatch = computed(() => {
     :disabled="!editable"
   >
     <label class="campaign-editor__field">
-      <span>Connection color</span>
+      <span>
+        Connection color
+        <CampaignFieldHint text="Hex or named color. Leave empty for the default arrow color." />
+      </span>
       <div class="campaign-editor__color-row">
         <input
           type="color"
@@ -1527,7 +1682,6 @@ const connectionSwatch = computed(() => {
           Auto
         </button>
       </div>
-      <small>Hex or named color. Leave empty for the default arrow color.</small>
       <p v-if="connectionColorError" class="campaign-editor__field-error" role="alert">
         {{ connectionColorError }}
       </p>
@@ -1563,6 +1717,9 @@ const connectionSwatch = computed(() => {
 }
 
 .campaign-editor__field > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-family: var(--font-sans);
   font-size: 0.625rem;
   font-weight: 600;
@@ -1575,7 +1732,6 @@ const connectionSwatch = computed(() => {
   font-weight: 500;
   text-transform: none;
   letter-spacing: 0;
-  margin-left: 4px;
 }
 
 .campaign-editor__field--disabled {
@@ -1640,22 +1796,6 @@ const connectionSwatch = computed(() => {
   background: transparent;
   border: none;
   accent-color: var(--page-accent);
-}
-
-.campaign-editor__equiv {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px;
-  margin: 2px 0 0;
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  color: var(--text-secondary);
-}
-
-.campaign-editor__equiv-approx,
-.campaign-editor__equiv-sep {
-  color: var(--text-tertiary);
 }
 
 .campaign-editor__color-row {
@@ -1736,26 +1876,6 @@ const connectionSwatch = computed(() => {
   font-family: var(--font-sans);
   font-size: var(--text-caption);
   color: var(--text-tertiary);
-}
-
-.campaign-editor__reward-note {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  margin: 0;
-  padding: 7px 9px;
-  font-family: var(--font-sans);
-  font-size: var(--text-caption);
-  line-height: 1.4;
-  color: var(--warning);
-  background: color-mix(in srgb, var(--warning) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
-  border-radius: 3px;
-}
-
-.campaign-editor__reward-note svg {
-  flex-shrink: 0;
-  margin-top: 1px;
 }
 
 .campaign-editor__reward-list {
@@ -1959,6 +2079,72 @@ const connectionSwatch = computed(() => {
   color: var(--page-accent);
   border-color: var(--page-accent);
   background: color-mix(in srgb, var(--page-accent) 12%, transparent);
+}
+
+.campaign-editor__mod {
+  padding: 3px 8px;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  background: transparent;
+  border: 1px solid var(--bg-overlay);
+  border-radius: 2px;
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease,
+    background 120ms ease;
+}
+
+.campaign-editor__mod:hover {
+  color: var(--text-primary);
+  border-color: var(--text-tertiary);
+}
+
+.campaign-editor__mod--required {
+  color: var(--success);
+  border-color: color-mix(in srgb, var(--success) 55%, transparent);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+}
+
+.campaign-editor__mod--forbidden {
+  color: var(--error);
+  border-color: color-mix(in srgb, var(--error) 55%, transparent);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  text-decoration: line-through;
+}
+
+.campaign-editor__targets {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.campaign-editor__target-join {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-sans);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--text-tertiary);
+}
+
+.campaign-editor__target-join::before,
+.campaign-editor__target-join::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--bg-overlay);
+}
+
+.campaign-editor__target-join--or {
+  color: var(--page-accent);
 }
 
 .campaign-editor__shape-row {

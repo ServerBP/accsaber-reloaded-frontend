@@ -51,29 +51,49 @@ import { isAdminSubdomain } from '@/utils/subdomain'
 import type {
   AddCampaignBarrierRequest,
   AddCampaignDifficultyRequest,
+  CampaignBackgroundPlacementInput,
+  CampaignModifierInput,
   CampaignTextRequest,
   UpdateCampaignBarrierRequest,
   UpdateCampaignDifficultyRequest,
   UpdateCampaignRequest,
 } from '@/types/api/admin'
 import type {
+  CampaignBackgroundPlacement,
   CampaignBarrierResponse,
   CampaignDetailResponse,
   CampaignDifficultyResponse,
   CampaignPrerequisiteResponse,
   CampaignTagResponse,
+  CampaignTargetResponse,
   CampaignTextResponse,
   ImportCampaignMapRequest,
 } from '@/types/api/campaigns'
 import type { CurveResponse } from '@/types/api/categories'
-import type { BarrierConditionType, CampaignRequirementType } from '@/types/enums'
+import type {
+  BarrierConditionType,
+  CampaignBoundClear,
+  CampaignModifierRequirement,
+  CampaignNodeBorderLayer,
+  CampaignRequirementType,
+  CampaignTargetMode,
+} from '@/types/enums'
+import { useModifierStore } from '@/stores/modifiers'
 import {
   barrierConditionMeta,
   CONNECTION_COLOR_RE,
+  formatScoreCompact,
+  hasValidBounds,
   MAX_PREREQUISITES_PER_NODE,
   prereqIds,
   toPrerequisiteInputs,
 } from '@/utils/campaignLayout'
+import {
+  countFractionalVertices,
+  isUnreadableCondition,
+  isUnreadableRequirement,
+  isZeroBound,
+} from '@/utils/campaignPlugin'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -103,11 +123,28 @@ const MAX_TEXTS = 50
 
 export type TrayDef = { id: TrayId; label: string; icon: string; count?: number; tone?: string }
 
+export interface CampaignTargetRow {
+  key: string
+  index: number
+  requirementType: CampaignRequirementType
+  lower: number | null
+  upper: number | null
+  bounds: { min: number; max: number; step: number; unit: string }
+  numberBounds: { min: number; max: number }
+  hasBounds: boolean
+  hint: string
+  equivalents: Array<{ key: string; text: string }>
+  unreadable: boolean
+  zeroBound: boolean
+  invalid: boolean
+}
+
 export function useCampaignEditor() {
   const route = useRoute()
   const router = useRouter()
   const auth = useAuthStore()
   const categoryStore = useCategoryStore()
+  const modifierStore = useModifierStore()
   const { itemsById: rewardItemsById, ensureLoaded: ensureRewardItems } = useItemCatalog()
 
   const campaign = ref<CampaignDetailResponse | null>(null)
@@ -177,6 +214,25 @@ export function useCampaignEditor() {
     selectedIds.value = new Set()
   }
 
+  const GRID_LOCK_STORAGE_KEY = 'campaign-editor:grid-lock'
+
+  function readGridLock(): boolean {
+    try {
+      return localStorage.getItem(GRID_LOCK_STORAGE_KEY) !== '0'
+    } catch {
+      return true
+    }
+  }
+
+  const gridLock = ref(readGridLock())
+
+  function toggleGridLock() {
+    gridLock.value = !gridLock.value
+    try {
+      localStorage.setItem(GRID_LOCK_STORAGE_KEY, gridLock.value ? '1' : '0')
+    } catch {}
+  }
+
   const SELECTION_STORAGE_PREFIX = 'campaign-editor:selection:'
 
   function persistSelection() {
@@ -240,13 +296,21 @@ export function useCampaignEditor() {
       tags: [],
       backgroundUrl: null,
       backgroundColor: null,
+      background: null,
       iconUrl: null,
       submittedAt: null,
       curatedAt: null,
+      curatedById: null,
+      loved: false,
+      lovedAt: null,
+      lovedById: null,
       createdAt: new Date().toISOString(),
       totalUpvotes: 0,
       totalDownvotes: 0,
       voteScore: 0,
+      totalXp: null,
+      totalRewardCount: null,
+      rewards: null,
       curatorNotes: null,
       difficulties: [],
       barriers: [],
@@ -376,6 +440,7 @@ export function useCampaignEditor() {
   })
 
   onMounted(() => {
+    void modifierStore.fetchModifiers()
     if (isNewMode.value) {
       campaign.value = createPlaceholderCampaign()
       void getCampaignTags()
@@ -702,27 +767,25 @@ export function useCampaignEditor() {
   watch(campaign, syncFormFromCampaign, { immediate: true })
 
   const formNode = ref<{
-    requirementType: CampaignRequirementType
-    requirementValue: number
     description: string
     checkpointLabel: string
     checkpointLabelPosition: string
     checkpointAvatarUrl: string
     checkpointColor: string
     checkpointSize: number | null
+    nodeBorderLayer: CampaignNodeBorderLayer
     borderColor: string
     borderShape: string
     size: number | null
     xp: number
   }>({
-    requirementType: 'ACC',
-    requirementValue: 0,
     description: '',
     checkpointLabel: '',
     checkpointLabelPosition: '',
     checkpointAvatarUrl: '',
     checkpointColor: '',
     checkpointSize: null,
+    nodeBorderLayer: 'ABOVE',
     borderColor: '',
     borderShape: '',
     size: null,
@@ -733,14 +796,13 @@ export function useCampaignEditor() {
     const d = selectedDifficulty.value
     if (!d) return
     formNode.value = {
-      requirementType: d.requirementType,
-      requirementValue: d.requirementValue,
       description: d.description ?? '',
       checkpointLabel: d.checkpointLabel ?? '',
       checkpointLabelPosition: d.checkpointLabelPosition ?? '',
       checkpointAvatarUrl: d.checkpointAvatarUrl ?? '',
       checkpointColor: d.checkpointColor ?? '',
       checkpointSize: d.checkpointSize,
+      nodeBorderLayer: d.nodeBorderLayer,
       borderColor: d.borderColor ?? '',
       borderShape: d.borderShape ?? 'hex',
       size: d.size,
@@ -748,11 +810,48 @@ export function useCampaignEditor() {
     }
   }
 
-  watch(selectedDifficulty, syncFormFromNode, { immediate: true })
+  interface TargetDraft {
+    key: string
+    requirementType: CampaignRequirementType
+    requirementValue: number | null
+    requirementValueMax: number | null
+  }
+
+  const MAX_TARGETS = 8
+
+  const formTargets = ref<TargetDraft[]>([])
+  const formTargetMode = ref<CampaignTargetMode>('AND')
+  let targetKeySeq = 0
+
+  function toTargetDraft(target: CampaignTargetResponse): TargetDraft {
+    return {
+      key: `target-${++targetKeySeq}`,
+      requirementType: target.requirementType,
+      requirementValue: target.requirementValue,
+      requirementValueMax: target.requirementValueMax,
+    }
+  }
+
+  function syncFormFromTargets() {
+    const d = selectedDifficulty.value
+    if (!d) return
+    formTargets.value = d.targets.map(toTargetDraft)
+    formTargetMode.value = d.targetMode
+  }
+
+  watch(
+    selectedDifficulty,
+    () => {
+      syncFormFromNode()
+      syncFormFromTargets()
+    },
+    { immediate: true },
+  )
 
   const formBarrier = ref<{
     conditionType: BarrierConditionType
-    conditionValue: number
+    conditionValue: number | null
+    conditionValueMax: number | null
     description: string
     checkpointLabel: string
     checkpointLabelPosition: string
@@ -765,6 +864,7 @@ export function useCampaignEditor() {
   }>({
     conditionType: 'AVERAGE_ACC',
     conditionValue: 0.9,
+    conditionValueMax: null,
     description: '',
     checkpointLabel: '',
     checkpointLabelPosition: '',
@@ -781,7 +881,8 @@ export function useCampaignEditor() {
     if (!b) return
     formBarrier.value = {
       conditionType: b.conditionType,
-      conditionValue: b.conditionValue ?? 0,
+      conditionValue: b.conditionValue,
+      conditionValueMax: b.conditionValueMax,
       description: b.description ?? '',
       checkpointLabel: b.checkpointLabel ?? '',
       checkpointLabelPosition: b.checkpointLabelPosition ?? '',
@@ -867,7 +968,13 @@ export function useCampaignEditor() {
         ? await updateCampaign(c.id, patch)
         : await updatePlayerCampaign(c.id, patch)
       if (campaign.value) {
-        campaign.value = { ...campaign.value, ...updated }
+        const merged = { ...campaign.value, ...updated }
+        if (patch.background !== undefined) {
+          merged.background = Object.keys(patch.background).length > 0
+            ? (patch.background as CampaignBackgroundPlacement)
+            : null
+        }
+        campaign.value = merged
       }
     } catch (err) {
       reportPatchError(err, 'Failed to update campaign')
@@ -991,9 +1098,6 @@ export function useCampaignEditor() {
     const original = (d as unknown as Record<string, unknown>)[field]
     if (value === original) return
     if (typeof value === 'string' && original == null && value === '') return
-    if (field === 'requirementType' || field === 'requirementValue') {
-      requirementDirtyIds.value.add(d.id)
-    }
     const send = value === '' && !CLEARABLE_TEXT_FIELDS.has(field) ? null : value
     void applyNodePatch(d.id, { [field]: send } as UpdateCampaignDifficultyRequest)
   }
@@ -1020,6 +1124,30 @@ export function useCampaignEditor() {
     mergeDifficulty(await deleteCampaignCheckpointAvatar(d.id, useAdminEndpoint.value))
   }
 
+  async function uploadNodeBorder(file: File) {
+    const d = selectedDifficulty.value
+    if (!editable.value || !d) return
+    const { uploadCampaignNodeBorder } = await import('@/api/cdn')
+    mergeDifficulty(await uploadCampaignNodeBorder(d.id, file, useAdminEndpoint.value))
+  }
+
+  async function removeNodeBorder() {
+    const d = selectedDifficulty.value
+    if (!editable.value || !d) return
+    const { deleteCampaignNodeBorder } = await import('@/api/cdn')
+    mergeDifficulty(await deleteCampaignNodeBorder(d.id, useAdminEndpoint.value))
+  }
+
+  function selectNodeBorderLayer(layer: CampaignNodeBorderLayer) {
+    formNode.value.nodeBorderLayer = layer
+    commitNodeField('nodeBorderLayer')
+  }
+
+  function commitBackgroundPlacement(placement: CampaignBackgroundPlacementInput) {
+    if (!editable.value || !campaign.value?.backgroundUrl) return
+    void applyCampaignPatch({ background: placement })
+  }
+
   function toggleTag(tagId: string) {
     if (!editable.value || !campaign.value) return
     const current = new Set(campaignTagIds.value)
@@ -1040,6 +1168,7 @@ export function useCampaignEditor() {
     doReopen,
     doCurate,
     doUncurate,
+    doToggleLoved,
     doToggleOfficial,
     doDeactivate,
   } = useCampaignLifecycle({
@@ -1104,6 +1233,17 @@ export function useCampaignEditor() {
     void applyNodePatch(d.id, { prerequisiteMode: mode })
   }
 
+  const OCCUPIED_CELL_STATUSES = new Set([409, 422])
+
+  function reportMoveError(err: unknown, fallback: string) {
+    if (err instanceof ApiError && OCCUPIED_CELL_STATUSES.has(err.status)) {
+      actionError.value =
+        'Something is already there. Drop it on an empty spot, or turn the grid lock off to place freely.'
+      return
+    }
+    actionError.value = getApiErrorMessage(err, fallback)
+  }
+
   async function handleMove(payload: { id: string; positionX: number; positionY: number }) {
     if (!campaign.value) return
     const prev = vertexPosition(payload.id)
@@ -1116,7 +1256,7 @@ export function useCampaignEditor() {
       actionError.value = null
       await patchVertexPosition(payload.id, payload.positionX, payload.positionY)
     } catch (err) {
-      actionError.value = getApiErrorMessage(err, 'Failed to move node')
+      reportMoveError(err, 'Failed to move node')
       setVertexPositionLocal(payload.id, prev.x, prev.y)
     }
   }
@@ -1414,6 +1554,10 @@ export function useCampaignEditor() {
     return ids
   })
 
+  const usedMapDifficultyIds = computed(() =>
+    (campaign.value?.difficulties ?? []).map((d) => d.mapDifficultyId),
+  )
+
   const unrankedNodes = computed(() =>
     (campaign.value?.difficulties ?? [])
       .filter((d) => nodeApRankBlocked(d))
@@ -1525,7 +1669,7 @@ export function useCampaignEditor() {
       actionError.value = null
       await Promise.all(moves.map((m) => patchVertexPosition(m.id, m.positionX, m.positionY)))
     } catch (err) {
-      actionError.value = getApiErrorMessage(err, 'Failed to move nodes')
+      reportMoveError(err, 'Failed to move nodes')
       for (const m of moves) {
         const prev = prevById.get(m.id)
         if (prev) setVertexPositionLocal(m.id, prev.x, prev.y)
@@ -1594,6 +1738,8 @@ export function useCampaignEditor() {
     { value: 'AP', label: 'AP' },
     { value: 'SCORE', label: 'Score' },
     { value: 'STREAK_115', label: '115 Streak' },
+    { value: 'COMBO', label: 'Max combo' },
+    { value: 'BOMB_HITS', label: 'Bombs hit' },
     { value: 'FC', label: 'Full Combo' },
     { value: 'PASS', label: 'Pass (no No-Fail)' },
     { value: 'RANK', label: 'Leaderboard rank' },
@@ -1604,59 +1750,118 @@ export function useCampaignEditor() {
     { value: 'ALL', label: 'Clear every node' },
   ]
 
-  const requirementValueDisplay = computed<number>({
-    get: () => {
-      if (formNode.value.requirementType === 'ACC') {
-        const v = formNode.value.requirementValue * 100
-        return Number.isFinite(v) ? Number(v.toFixed(2)) : 0
-      }
-      return formNode.value.requirementValue
-    },
-    set: (v) => {
-      if (formNode.value.requirementType === 'ACC') {
-        const clamped = Math.max(70, Math.min(100, Number(v) || 70))
-        formNode.value.requirementValue = clamped / 100
-      } else if (formNode.value.requirementType === 'SCORE') {
-        formNode.value.requirementValue = Math.max(0, Math.min(scoreCap.value, Number(v) || 0))
-      } else if (formNode.value.requirementType === 'RANK') {
-        formNode.value.requirementValue = Math.max(1, Math.round(Number(v) || 1))
-      } else {
-        formNode.value.requirementValue = Number(v) || 0
-      }
-    },
-  })
-
   const scoreCap = computed(() => {
     const maxScore = selectedDifficulty.value?.maxScore
     return maxScore && maxScore > 0 ? maxScore : 1_500_000
   })
 
-  const requirementBounds = computed(() => {
-    if (formNode.value.requirementType === 'ACC') return { min: 70, max: 100, step: 0.1, unit: '%' }
-    if (formNode.value.requirementType === 'AP') return { min: 400, max: 1200, step: 1, unit: 'AP' }
-    if (formNode.value.requirementType === 'STREAK_115')
-      return { min: 0, max: 30, step: 1, unit: '' }
-    if (formNode.value.requirementType === 'FC' || formNode.value.requirementType === 'PASS')
-      return { min: 1, max: 1, step: 1, unit: '' }
-    if (formNode.value.requirementType === 'RANK')
-      return { min: 1, max: 500, step: 1, unit: 'rank' }
-    return { min: 0, max: scoreCap.value, step: 1000, unit: '' }
+  const comboCap = computed(() => {
+    const maxCombo = selectedDifficulty.value?.maxCombo
+    return maxCombo && maxCombo > 0 ? maxCombo : 2000
   })
 
-  const requirementNumberBounds = computed(() => {
-    if (formNode.value.requirementType === 'AP') {
-      return { min: 0, max: Number.MAX_SAFE_INTEGER, step: 1 }
-    }
-    if (formNode.value.requirementType === 'RANK') {
-      return { min: 1, max: Number.MAX_SAFE_INTEGER, step: 1 }
-    }
-    return requirementBounds.value
-  })
+  type RequirementMetric = 'acc' | 'ap' | 'score' | 'streak' | 'rank' | 'flag' | 'combo' | 'bombs'
 
-  function formatScoreCompact(value: number): string {
-    if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`
-    if (value >= 1_000) return `${Math.round(value / 1_000)}k`
-    return String(Math.round(value))
+  const REQUIREMENT_METRIC: Record<CampaignRequirementType, RequirementMetric> = {
+    ACC: 'acc',
+    AP: 'ap',
+    SCORE: 'score',
+    STREAK_115: 'streak',
+    RANK: 'rank',
+    FC: 'flag',
+    PASS: 'flag',
+    COMBO: 'combo',
+    BOMB_HITS: 'bombs',
+  }
+
+  function requirementBoundsFor(metric: RequirementMetric) {
+    switch (metric) {
+      case 'acc':
+        return { min: 70, max: 100, step: 0.1, unit: '%' }
+      case 'ap':
+        return { min: 400, max: 1200, step: 1, unit: 'AP' }
+      case 'streak':
+        return { min: 0, max: 30, step: 1, unit: '' }
+      case 'rank':
+        return { min: 1, max: 500, step: 1, unit: 'rank' }
+      case 'combo':
+        return { min: 0, max: comboCap.value, step: 1, unit: 'combo' }
+      case 'bombs':
+        return { min: 0, max: 20, step: 1, unit: 'bombs' }
+      case 'flag':
+        return { min: 1, max: 1, step: 1, unit: '' }
+      default:
+        return { min: 0, max: scoreCap.value, step: 1000, unit: '' }
+    }
+  }
+
+  function requirementNumberBoundsFor(
+    metric: RequirementMetric,
+    bounds: { min: number; max: number },
+  ) {
+    if (metric === 'ap') return { min: 0, max: Number.MAX_SAFE_INTEGER }
+    if (metric === 'rank') return { min: 1, max: Number.MAX_SAFE_INTEGER }
+    if (metric === 'bombs') return { min: 0, max: Number.MAX_SAFE_INTEGER }
+    return { min: bounds.min, max: bounds.max }
+  }
+
+  function defaultRequirementValue(metric: RequirementMetric): number {
+    switch (metric) {
+      case 'acc':
+        return 0.95
+      case 'ap':
+        return 500
+      case 'streak':
+        return 8
+      case 'rank':
+        return 50
+      case 'combo':
+        return Math.round(comboCap.value * 0.8)
+      case 'bombs':
+        return 0
+      case 'flag':
+        return 1
+      default:
+        return Math.round(scoreCap.value * 0.9)
+    }
+  }
+
+  function toDisplayValue(metric: string, raw: number | null): number | null {
+    if (raw == null) return null
+    return metric === 'acc' ? Number((raw * 100).toFixed(2)) : raw
+  }
+
+  function fromDisplayValue(metric: string, display: number | null): number | null {
+    if (display == null) return null
+    return metric === 'acc' ? display / 100 : display
+  }
+
+  interface BoundsDiff {
+    value?: number
+    valueMax?: number
+    clear?: CampaignBoundClear[]
+  }
+
+  function diffBounds(
+    nextValue: number | null,
+    nextMax: number | null,
+    currentValue: number | null,
+    currentMax: number | null,
+  ): BoundsDiff | null {
+    const diff: BoundsDiff = {}
+    const clear: CampaignBoundClear[] = []
+    if (nextValue == null) {
+      if (currentValue != null) clear.push('VALUE')
+    } else if (nextValue !== currentValue) {
+      diff.value = nextValue
+    }
+    if (nextMax == null) {
+      if (currentMax != null) clear.push('VALUE_MAX')
+    } else if (nextMax !== currentMax) {
+      diff.valueMax = nextMax
+    }
+    if (clear.length > 0) diff.clear = clear
+    return Object.keys(diff).length > 0 ? diff : null
   }
 
   const scoreCurves = ref(new Map<string, CurveResponse>())
@@ -1686,8 +1891,8 @@ export function useCampaignEditor() {
     { immediate: true },
   )
 
-  const requirementEquivalents = computed<Array<{ key: string; text: string }>>(() => {
-    const type = formNode.value.requirementType
+  function requirementEquivalentsFor(target: TargetDraft): Array<{ key: string; text: string }> {
+    const type = target.requirementType
     if (type !== 'ACC' && type !== 'AP' && type !== 'SCORE') return []
     const d = selectedDifficulty.value
     if (!d) return []
@@ -1695,7 +1900,8 @@ export function useCampaignEditor() {
     const maxScore = d.maxScore
     const curveId = scoreCurveIdFor(d.categoryId)
     const curve = curveId ? (scoreCurves.value.get(curveId) ?? null) : null
-    const raw = formNode.value.requirementValue
+    const raw = target.requirementValue
+    if (raw == null) return []
 
     let acc: number | null = null
     let ap: number | null = null
@@ -1727,7 +1933,7 @@ export function useCampaignEditor() {
       out.push({ key: 'SCORE', text: `${formatScoreCompact(score)} pts` })
     }
     return out
-  })
+  }
 
   const isMilestone = ref(false)
   let suppressMilestoneAutoOpen = false
@@ -1817,31 +2023,159 @@ export function useCampaignEditor() {
     commitMetaField('completionMode')
   }
 
-  function onRequirementTypeChange(value: string) {
-    const d = selectedDifficulty.value
-    const next = value as CampaignRequirementType
-    formNode.value.requirementType = next
-    if (
-      next === 'RANK' &&
-      !(Number.isInteger(formNode.value.requirementValue) && formNode.value.requirementValue >= 1)
-    ) {
-      formNode.value.requirementValue = 50
-      if (editable.value && d) {
-        requirementDirtyIds.value.add(d.id)
-        void applyNodePatch(d.id, { requirementType: next, requirementValue: 50 })
-        return
-      }
-    }
-    if ((next === 'FC' || next === 'PASS') && formNode.value.requirementValue !== 1) {
-      formNode.value.requirementValue = 1
-      if (editable.value && d) {
-        requirementDirtyIds.value.add(d.id)
-        void applyNodePatch(d.id, { requirementType: next, requirementValue: 1 })
-        return
-      }
-    }
-    commitNodeField('requirementType')
+  const modifierOptions = computed(() =>
+    [...modifierStore.modifiers].sort((a, b) => a.name.localeCompare(b.name)),
+  )
+
+  const nodeModifierById = computed(() => {
+    const map = new Map<string, CampaignModifierRequirement>()
+    for (const m of selectedDifficulty.value?.modifiers ?? []) map.set(m.modifier.id, m.requirement)
+    return map
+  })
+
+  const NEXT_MODIFIER_REQUIREMENT: Record<string, CampaignModifierRequirement | null> = {
+    unset: 'REQUIRED',
+    REQUIRED: 'FORBIDDEN',
+    FORBIDDEN: null,
   }
+
+  function cycleNodeModifier(modifierId: string) {
+    const d = selectedDifficulty.value
+    if (!editable.value || !d) return
+    const next = NEXT_MODIFIER_REQUIREMENT[nodeModifierById.value.get(modifierId) ?? 'unset']
+    const modifiers: CampaignModifierInput[] = d.modifiers
+      .filter((m) => m.modifier.id !== modifierId)
+      .map((m) => ({ modifierId: m.modifier.id, requirement: m.requirement }))
+    if (next) modifiers.push({ modifierId, requirement: next })
+    requirementDirtyIds.value.add(d.id)
+    void applyNodePatch(d.id, { modifiers })
+  }
+
+  const DEFAULT_REQUIREMENT_MAX: Partial<Record<RequirementMetric, number>> = { bombs: 3 }
+
+  function newTargetDraft(type: CampaignRequirementType): TargetDraft {
+    const metric = REQUIREMENT_METRIC[type]
+    return {
+      key: `target-${++targetKeySeq}`,
+      requirementType: type,
+      requirementValue: defaultRequirementValue(metric),
+      requirementValueMax: DEFAULT_REQUIREMENT_MAX[metric] ?? null,
+    }
+  }
+
+  function targetHasValidBounds(target: TargetDraft): boolean {
+    if (REQUIREMENT_METRIC[target.requirementType] === 'flag') return true
+    return hasValidBounds(target.requirementValue, target.requirementValueMax)
+  }
+
+  function commitTargets() {
+    const d = selectedDifficulty.value
+    if (!editable.value || !d) return
+    if (!formTargets.value.every(targetHasValidBounds)) return
+    requirementDirtyIds.value.add(d.id)
+    void applyNodePatch(d.id, {
+      targetMode: formTargetMode.value,
+      targets: formTargets.value.map((t) => ({
+        requirementType: t.requirementType,
+        requirementValue: t.requirementValue,
+        requirementValueMax: t.requirementValueMax,
+      })),
+    })
+  }
+
+  const canAddTarget = computed(
+    () => editable.value && formTargets.value.length < MAX_TARGETS,
+  )
+
+  function addTarget() {
+    if (!canAddTarget.value) return
+    formTargets.value = [...formTargets.value, newTargetDraft('ACC')]
+    commitTargets()
+  }
+
+  function removeTarget(index: number) {
+    if (!editable.value || formTargets.value.length <= 1) return
+    formTargets.value = formTargets.value.filter((_, i) => i !== index)
+    commitTargets()
+  }
+
+  function reorderTargets(from: number, to: number): boolean {
+    if (!editable.value || from === to) return false
+    if (to < 0 || to >= formTargets.value.length) return false
+    const next = [...formTargets.value]
+    const [moved] = next.splice(from, 1)
+    next.splice(to, 0, moved)
+    formTargets.value = next
+    return true
+  }
+
+  function moveTarget(from: number, to: number) {
+    if (reorderTargets(from, to)) commitTargets()
+  }
+
+  function setTargetMode(mode: CampaignTargetMode) {
+    if (!editable.value || formTargetMode.value === mode) return
+    formTargetMode.value = mode
+    commitTargets()
+  }
+
+  function setTargetType(index: number, value: string) {
+    const target = formTargets.value[index]
+    const next = value as CampaignRequirementType
+    if (!target || target.requirementType === next) return
+    const metric = REQUIREMENT_METRIC[next]
+    target.requirementType = next
+    target.requirementValue = defaultRequirementValue(metric)
+    target.requirementValueMax = DEFAULT_REQUIREMENT_MAX[metric] ?? null
+    commitTargets()
+  }
+
+  function setTargetBound(
+    index: number,
+    field: 'requirementValue' | 'requirementValueMax',
+    display: number | null,
+  ) {
+    const target = formTargets.value[index]
+    if (!target) return
+    target[field] = fromDisplayValue(REQUIREMENT_METRIC[target.requirementType], display)
+  }
+
+  function requirementTypeHint(type: CampaignRequirementType): string {
+    switch (type) {
+      case 'RANK':
+        return "Lower is better. Cleared when the player's leaderboard rank on the map is this position or better."
+      case 'PASS':
+        return 'Cleared by any legitimate pass - a completion without the No-Fail modifier.'
+      case 'COMBO':
+        return `An absolute note count, not a percentage. This map tops out at ${comboCap.value}.`
+      default:
+        return ''
+    }
+  }
+
+  const targetRows = computed<CampaignTargetRow[]>(() =>
+    formTargets.value.map((t, index) => {
+      const metric = REQUIREMENT_METRIC[t.requirementType]
+      const bounds = requirementBoundsFor(metric)
+      return {
+        key: t.key,
+        index,
+        requirementType: t.requirementType,
+        lower: toDisplayValue(metric, t.requirementValue),
+        upper: toDisplayValue(metric, t.requirementValueMax),
+        bounds,
+        numberBounds: requirementNumberBoundsFor(metric, bounds),
+        hasBounds: metric !== 'flag',
+        hint: requirementTypeHint(t.requirementType),
+        equivalents: requirementEquivalentsFor(t),
+        unreadable: isUnreadableRequirement(t.requirementType),
+        zeroBound: isZeroBound(t.requirementValue, t.requirementValueMax),
+        invalid: !targetHasValidBounds(t),
+      }
+    }),
+  )
+
+  const targetsUnreadable = computed(() => targetRows.value.some((r) => r.unreadable))
 
   function resetNodeColor(field: 'checkpointColor' | 'borderColor') {
     formNode.value[field] = ''
@@ -2028,25 +2362,33 @@ export function useCampaignEditor() {
     const original = (b as unknown as Record<string, unknown>)[field]
     if (value === original) return
     if (typeof value === 'string' && original == null && value === '') return
-    if (field === 'conditionType' || field === 'conditionValue') {
-      requirementDirtyIds.value.add(b.id)
-    }
+    if (field === 'conditionType') requirementDirtyIds.value.add(b.id)
     const send = value === '' && !BARRIER_CLEARABLE_TEXT.has(field) ? null : value
     void applyBarrierPatch(b.id, { [field]: send } as UpdateCampaignBarrierRequest)
   }
 
-  function commitBarrierValue() {
+  function commitBarrierBounds() {
     const b = selectedBarrier.value
     if (!editable.value || !b) return
-    const m = barrierMeta.value
-    let value = formBarrier.value.conditionValue
-    if (m.metric === 'count') {
-      value = Math.max(1, Math.min(barrierCountMax.value, Math.round(Number(value) || 1)))
+    if (
+      !barrierMeta.value.noValue &&
+      !hasValidBounds(formBarrier.value.conditionValue, formBarrier.value.conditionValueMax)
+    ) {
+      return
     }
-    formBarrier.value = { ...formBarrier.value, conditionValue: value }
-    if (value === b.conditionValue) return
+    const diff = diffBounds(
+      formBarrier.value.conditionValue,
+      formBarrier.value.conditionValueMax,
+      b.conditionValue,
+      b.conditionValueMax,
+    )
+    if (!diff) return
     requirementDirtyIds.value.add(b.id)
-    void applyBarrierPatch(b.id, { conditionValue: value })
+    void applyBarrierPatch(b.id, {
+      conditionValue: diff.value,
+      conditionValueMax: diff.valueMax,
+      clear: diff.clear,
+    })
   }
 
   function resetBarrierColor() {
@@ -2066,6 +2408,8 @@ export function useCampaignEditor() {
     { value: 'AP_MAX', label: 'Best AP' },
     { value: 'STREAK_115_AVERAGE', label: 'Average 115 streak' },
     { value: 'STREAK_115_MAX', label: 'Best 115 streak' },
+    { value: 'AVERAGE_COMBO', label: 'Average combo' },
+    { value: 'AVERAGE_BOMB_HITS', label: 'Average bombs hit' },
     { value: 'AVERAGE_RANK', label: 'Average rank' },
     { value: 'MAX_RANK', label: 'Best rank' },
     { value: 'FC', label: 'Full combo (all)' },
@@ -2075,46 +2419,73 @@ export function useCampaignEditor() {
 
   const barrierMeta = computed(() => barrierConditionMeta(formBarrier.value.conditionType))
 
+  const barrierUnreadable = computed(() => isUnreadableCondition(formBarrier.value.conditionType))
+
+  const barrierZeroBound = computed(() =>
+    isZeroBound(formBarrier.value.conditionValue, formBarrier.value.conditionValueMax),
+  )
+
+  const fractionalVertexCount = computed(() => countFractionalVertices(campaign.value))
+
   const barrierAffectedCount = computed(
     () => selectedBarrier.value?.affectedCampaignDifficultyIds.length ?? 0,
   )
 
   const barrierCountMax = computed(() => Math.max(1, barrierAffectedCount.value))
 
-  const barrierValueDisplay = computed<number>({
-    get: () => {
-      if (barrierMeta.value.metric === 'acc') {
-        const v = formBarrier.value.conditionValue * 100
-        return Number.isFinite(v) ? Number(v.toFixed(2)) : 0
-      }
-      return formBarrier.value.conditionValue
-    },
-    set: (v) => {
-      const m = barrierMeta.value
-      if (m.metric === 'acc') {
-        formBarrier.value.conditionValue = Math.max(0, Math.min(100, Number(v) || 0)) / 100
-      } else if (m.metric === 'rank') {
-        formBarrier.value.conditionValue = Math.max(1, Math.round(Number(v) || 1))
-      } else if (m.metric === 'count') {
-        const n = Math.round(Number(v) || 1)
-        formBarrier.value.conditionValue = Math.max(1, Math.min(barrierCountMax.value, n))
-      } else if (m.metric === 'streak') {
-        formBarrier.value.conditionValue = Math.max(0, Math.round(Number(v) || 0))
-      } else {
-        formBarrier.value.conditionValue = Math.max(0, Number(v) || 0)
-      }
-    },
-  })
+  const barrierLowerDisplay = computed(() =>
+    toDisplayValue(barrierMeta.value.metric, formBarrier.value.conditionValue),
+  )
+
+  const barrierUpperDisplay = computed(() =>
+    toDisplayValue(barrierMeta.value.metric, formBarrier.value.conditionValueMax),
+  )
+
+  function setBarrierBound(field: 'conditionValue' | 'conditionValueMax', display: number | null) {
+    formBarrier.value[field] = fromDisplayValue(barrierMeta.value.metric, display)
+  }
 
   const barrierValueBounds = computed(() => {
-    const m = barrierMeta.value.metric
-    if (m === 'acc') return { min: 70, max: 100, step: 0.1, unit: '%' }
-    if (m === 'ap') return { min: 0, max: 1200, step: 1, unit: 'AP' }
-    if (m === 'streak') return { min: 0, max: 30, step: 1, unit: '' }
-    if (m === 'rank') return { min: 1, max: 500, step: 1, unit: 'rank' }
-    if (m === 'count') return { min: 1, max: barrierCountMax.value, step: 1, unit: 'maps' }
-    return { min: 0, max: 1, step: 1, unit: '' }
+    switch (barrierMeta.value.metric) {
+      case 'acc':
+        return { min: 70, max: 100, step: 0.1, unit: '%' }
+      case 'ap':
+        return { min: 0, max: 1200, step: 1, unit: 'AP' }
+      case 'streak':
+        return { min: 0, max: 30, step: 1, unit: '' }
+      case 'rank':
+        return { min: 1, max: 500, step: 1, unit: 'rank' }
+      case 'count':
+        return { min: 1, max: barrierCountMax.value, step: 1, unit: 'maps' }
+      case 'combo':
+        return { min: 0, max: 2000, step: 1, unit: 'combo' }
+      case 'bombs':
+        return { min: 0, max: 20, step: 1, unit: 'bombs' }
+      default:
+        return { min: 0, max: 1, step: 1, unit: '' }
+    }
   })
+
+  function defaultBarrierValue(metric: string): number {
+    switch (metric) {
+      case 'acc':
+        return 0.9
+      case 'ap':
+        return 500
+      case 'streak':
+        return 8
+      case 'rank':
+        return 50
+      case 'count':
+        return barrierCountMax.value
+      case 'combo':
+        return 500
+      default:
+        return 0
+    }
+  }
+
+  const DEFAULT_BARRIER_MAX: Record<string, number> = { bombs: 3 }
 
   function onBarrierConditionTypeChange(value: string) {
     const next = value as BarrierConditionType
@@ -2123,26 +2494,25 @@ export function useCampaignEditor() {
     const nextMeta = barrierConditionMeta(next)
     const b = selectedBarrier.value
     if (nextMeta.noValue) {
+      formBarrier.value.conditionValue = null
       if (editable.value && b) {
         requirementDirtyIds.value.add(b.id)
         void applyBarrierPatch(b.id, { conditionType: next, conditionValue: null })
         return
       }
     } else if (prevMetric !== nextMeta.metric) {
-      const def =
-        nextMeta.metric === 'acc'
-          ? 0.9
-          : nextMeta.metric === 'ap'
-            ? 500
-            : nextMeta.metric === 'streak'
-              ? 8
-              : nextMeta.metric === 'count'
-                ? barrierCountMax.value
-                : 50
-      formBarrier.value.conditionValue = def
+      const nextValue = defaultBarrierValue(nextMeta.metric)
+      const nextMax = DEFAULT_BARRIER_MAX[nextMeta.metric] ?? null
+      formBarrier.value.conditionValue = nextValue
+      formBarrier.value.conditionValueMax = nextMax
       if (editable.value && b) {
         requirementDirtyIds.value.add(b.id)
-        void applyBarrierPatch(b.id, { conditionType: next, conditionValue: def })
+        void applyBarrierPatch(b.id, {
+          conditionType: next,
+          conditionValue: nextValue,
+          conditionValueMax: nextMax ?? undefined,
+          clear: nextMax == null && b.conditionValueMax != null ? ['VALUE_MAX'] : undefined,
+        })
         return
       }
     }
@@ -2594,8 +2964,9 @@ export function useCampaignEditor() {
     selectedId,
     selectedIdList,
     selectedCount,
-    isMultiSelect,
     canvasMode,
+    gridLock,
+    toggleGridLock,
     itemPickerFor,
     requirementDirtyIds,
     showRepublishWarning,
@@ -2627,6 +2998,13 @@ export function useCampaignEditor() {
     commitNodeField,
     uploadCheckpointAvatar,
     removeCheckpointAvatar,
+    uploadNodeBorder,
+    removeNodeBorder,
+    selectNodeBorderLayer,
+    commitBackgroundPlacement,
+    modifierOptions,
+    nodeModifierById,
+    cycleNodeModifier,
     toggleTag,
     doPlayerPublish,
     performPublish,
@@ -2652,6 +3030,7 @@ export function useCampaignEditor() {
     doReopen,
     doCurate,
     doUncurate,
+    doToggleLoved,
     doToggleOfficial,
     doDeactivate,
     handleMove,
@@ -2672,6 +3051,7 @@ export function useCampaignEditor() {
     campaignGenreBeatsaverSlugs,
     selectedNodeApRankBlocked,
     apRankBlockedNodeIds,
+    usedMapDifficultyIds,
     unrankedNodes,
     showRepoint,
     openRepoint,
@@ -2693,10 +3073,21 @@ export function useCampaignEditor() {
     removeNodeItem,
     requirementTypeOptions,
     completionModeOptions,
-    requirementValueDisplay,
-    requirementBounds,
-    requirementNumberBounds,
-    requirementEquivalents,
+    targetRows,
+    targetsUnreadable,
+    formTargetMode,
+    canAddTarget,
+    addTarget,
+    removeTarget,
+    moveTarget,
+    setTargetMode,
+    setTargetType,
+    setTargetBound,
+    reorderTargets,
+    commitTargets,
+    barrierUnreadable,
+    barrierZeroBound,
+    fractionalVertexCount,
     isMilestone,
     setMilestone,
     defaultColorHex,
@@ -2706,7 +3097,6 @@ export function useCampaignEditor() {
     applyBulkSize,
     applyBulkShape,
     onCompletionModeChange,
-    onRequirementTypeChange,
     resetNodeColor,
     selectBorderShape,
     selectNodeLabelPosition,
@@ -2724,11 +3114,13 @@ export function useCampaignEditor() {
     formBarrier,
     barrierConditionOptions,
     barrierMeta,
-    barrierValueDisplay,
+    barrierLowerDisplay,
+    barrierUpperDisplay,
+    setBarrierBound,
+    commitBarrierBounds,
     barrierValueBounds,
     onBarrierConditionTypeChange,
     commitBarrierField,
-    commitBarrierValue,
     resetBarrierColor,
     selectBarrierLabelPosition,
     hasConnections,

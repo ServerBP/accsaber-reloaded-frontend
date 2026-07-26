@@ -52,6 +52,13 @@ export function setCampaignOfficial(
   return patch<CampaignResponse>(`/admin/campaigns/${campaignId}/official?value=${value}`)
 }
 
+export function setCampaignLoved(
+  campaignId: string,
+  loved: boolean,
+): Promise<CampaignResponse> {
+  return patch<CampaignResponse>(`/admin/campaigns/${campaignId}/loved?loved=${loved}`)
+}
+
 export function deactivateCampaign(campaignId: string): Promise<void> {
   return patch<void>(`/admin/campaigns/${campaignId}/deactivate`)
 }

@@ -46,6 +46,8 @@ const curatedOnly = computed(() => route.query.curated === '1')
 
 const officialOnly = computed(() => route.query.official === '1')
 
+const lovedOnly = computed(() => route.query.loved === '1')
+
 const searchTerm = computed(() => {
   const raw = route.query.q
   return typeof raw === 'string' ? raw.trim() : ''
@@ -114,6 +116,8 @@ const { currentPage, paginationParams, setPage, sortState } = usePageableRoute({
 const SORT_OPTIONS = [
   { key: 'publishedAt', order: 'desc', label: 'Newest' },
   { key: 'voteScore', order: 'desc', label: 'Top rated' },
+  { key: 'totalXp', order: 'desc', label: 'Most XP' },
+  { key: 'totalRewardCount', order: 'desc', label: 'Most loot' },
   { key: 'name', order: 'asc', label: 'A-Z' },
 ] as const
 
@@ -287,6 +291,7 @@ async function loadCampaigns() {
         status: statusFilter.value,
         search: searchTerm.value || undefined,
         official: officialOnly.value || undefined,
+        loved: lovedOnly.value || undefined,
       })
       items.value = page.content
       totalPages.value = page.totalPages || 1
@@ -328,23 +333,12 @@ function setSearch(value: string) {
   router.replace({ query })
 }
 
-function toggleCuratedOnly() {
+function toggleQueryFlag(key: 'curated' | 'official' | 'loved') {
   const query = { ...route.query }
-  if (curatedOnly.value) {
-    delete query.curated
+  if (query[key] === '1') {
+    delete query[key]
   } else {
-    query.curated = '1'
-  }
-  delete query.page
-  router.replace({ query })
-}
-
-function toggleOfficialOnly() {
-  const query = { ...route.query }
-  if (officialOnly.value) {
-    delete query.official
-  } else {
-    query.official = '1'
+    query[key] = '1'
   }
   delete query.page
   router.replace({ query })
@@ -398,6 +392,7 @@ watch(
     pane.value,
     curatedOnly.value,
     officialOnly.value,
+    lovedOnly.value,
     selectedTagIds.value.join(','),
     searchTerm.value,
     paginationParams.value.page,
@@ -489,13 +484,18 @@ watch(
 
       <div class="campaigns-page__toolbar-right">
         <button type="button" class="campaigns-page__chip campaigns-page__chip--toggle"
-          :class="{ 'campaigns-page__chip--active': officialOnly }" @click="toggleOfficialOnly">
+          :class="{ 'campaigns-page__chip--active': officialOnly }" @click="toggleQueryFlag('official')">
           Official only
         </button>
 
         <button type="button" class="campaigns-page__chip campaigns-page__chip--toggle"
-          :class="{ 'campaigns-page__chip--active': curatedOnly }" @click="toggleCuratedOnly">
+          :class="{ 'campaigns-page__chip--active': curatedOnly }" @click="toggleQueryFlag('curated')">
           Curated only
+        </button>
+
+        <button type="button" class="campaigns-page__chip campaigns-page__chip--toggle"
+          :class="{ 'campaigns-page__chip--active': lovedOnly }" @click="toggleQueryFlag('loved')">
+          Loved only
         </button>
 
         <details class="campaigns-page__tags-disclosure"

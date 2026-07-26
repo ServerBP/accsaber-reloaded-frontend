@@ -12,6 +12,7 @@ import Breadcrumbs, { type Crumb } from '@/components/common/Breadcrumbs.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import CampaignCategoryTags from '@/components/domain/CampaignCategoryTags.vue'
+import CampaignModifierBadges from '@/components/domain/CampaignModifierBadges.vue'
 import CampaignRoadmap from '@/components/domain/CampaignRoadmap.vue'
 import CampaignRewardItem from '@/components/domain/CampaignRewardItem.vue'
 import CampaignStatusBadge from '@/components/domain/CampaignStatusBadge.vue'
@@ -35,6 +36,7 @@ import type {
   CampaignDifficultyResponse,
   CampaignProgressResponse,
 } from '@/types/api/campaigns'
+import { campaignBadges } from '@/utils/campaignBadges'
 import {
   campaignDifficultyColor,
   campaignDifficultyGradient,
@@ -43,14 +45,20 @@ import {
 import {
   barrierConditionLabel,
   barrierGoalValue,
-  formatRequirement,
+  barrierReadout,
   formatUserValue,
+  requirementGoalText,
+  requirementLabel,
 } from '@/utils/campaignLayout'
 import { collectMissingPrerequisites } from '@/utils/campaignProgress'
 import { buildMapRoute } from '@/utils/mapRoute'
 import { isAdminSubdomain } from '@/utils/subdomain'
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+
+const loadMarkdownText = () => import('@/components/common/MarkdownText.vue')
+
+const MarkdownText = defineAsyncComponent(loadMarkdownText)
 
 const route = useRoute()
 const router = useRouter()
@@ -107,6 +115,13 @@ async function load() {
     if (fetched.completionItems.length > 0 || fetched.difficulties.some((d) => d.items.length > 0)) {
       void ensureRewardItems()
     }
+    if (
+      fetched.description ||
+      fetched.difficulties.some((d) => d.description) ||
+      fetched.barriers.some((b) => b.description)
+    ) {
+      void loadMarkdownText()
+    }
   } catch (err) {
     if (err instanceof ApiError && err.status === 404) {
       campaign.value = null
@@ -162,6 +177,8 @@ const difficultyStyle = computed(() =>
 const themeTags = computed(
   () => campaign.value?.tags.filter((t) => t.kind === 'THEME' || t.kind === 'GENRE') ?? [],
 )
+
+const hasBadges = computed(() => !!campaign.value && campaignBadges(campaign.value).length > 0)
 
 const modeSentence = computed(() => {
   const c = campaign.value
@@ -289,6 +306,31 @@ const displayedBarrierProgress = computed(() => {
 })
 
 const barrierAccent = computed(() => displayedBarrier.value?.borderColor || 'var(--warning)')
+
+const displayedTargets = computed(() => {
+  const d = displayedDifficulty.value
+  if (!d) return []
+  const progress = displayedProgress.value?.targets ?? []
+  return d.targets.map((t, index) => ({
+    key: t.id ?? String(index),
+    label: requirementLabel(t.requirementType),
+    goal: requirementGoalText(t.requirementType, t.requirementValue, t.requirementValueMax),
+    userValue: formatUserValue(t.requirementType, progress[index]?.userValue ?? null),
+    met: progress[index]?.met ?? false,
+  }))
+})
+
+const isMultiObjective = computed(() => displayedTargets.value.length > 1)
+
+const objectiveModeLabel = computed(() =>
+  displayedDifficulty.value?.targetMode === 'OR' ? 'Clear any one of these' : 'Clear all of these',
+)
+
+const displayedBarrierGoal = computed(() => {
+  const b = displayedBarrier.value
+  if (!b) return null
+  return barrierReadout(b.conditionType, b.conditionValue, b.conditionValueMax)
+})
 
 const barrierSubtitle = computed(() => {
   const b = displayedBarrier.value
@@ -556,6 +598,7 @@ function unpinTooltip() {
           :texts="campaign.texts" :progress="effectiveDifficultyProgress" :barrier-progress="effectiveBarrierProgress"
           :accent-color="accent" :node-accents="nodeAccents" :background-url="campaign.backgroundUrl"
           :background-color="campaign.backgroundColor"
+          :background-placement="campaign.background"
           :show-starfield="!campaign.backgroundUrl" :focus-id="focusNodeId" :default-scale="1.35"
           :selected-id="selectedId" :mark-next="isInProgress && !campaign.progressionAgnostic"
           @select="handleSelect" @hover="handleHover"
@@ -581,10 +624,7 @@ function unpinTooltip() {
                 {{ campaign.creatorAlias || campaign.creatorName || 'AccSaber' }}
               </span>
             </p>
-            <p
-              v-if="campaign.official || campaign.status === 'CURATED'"
-              class="campaign-detail__badge-row"
-            >
+            <p v-if="hasBadges" class="campaign-detail__badge-row">
               <CampaignStatusBadge :campaign="campaign" size="md" />
             </p>
             <p v-if="categoryTags.length" class="campaign-detail__taxonomy">
@@ -696,7 +736,10 @@ function unpinTooltip() {
                   stroke-linecap="round" stroke-linejoin="round" />
               </svg>
             </button>
-            <p v-if="briefingOpen" class="campaign-detail__brief-text">{{ campaign.description }}</p>
+            <MarkdownText
+              v-if="briefingOpen"
+              :content="campaign.description"
+            />
           </section>
 
           <section v-if="campaign.curatorNotes" class="campaign-detail__brief">
@@ -780,26 +823,69 @@ function unpinTooltip() {
               </div>
             </div>
 
-            <div class="campaign-detail__targets">
-              <div class="campaign-detail__target">
-                <span class="campaign-detail__target-label">Target</span>
-                <span class="campaign-detail__target-value" :style="{ color: displayedAccent }">
-                  {{ formatRequirement(displayedDifficulty.requirementType, displayedDifficulty.requirementValue) }}
-                </span>
-              </div>
-              <div v-if="displayedProgress" class="campaign-detail__target">
-                <span class="campaign-detail__target-label">Your best</span>
-                <span class="campaign-detail__target-value">
-                  {{ formatUserValue(displayedDifficulty.requirementType, displayedProgress.userValue) }}
-                </span>
-              </div>
+            <div v-if="displayedTargets.length > 0" class="campaign-detail__objectives">
+              <h3 v-if="isMultiObjective" class="campaign-detail__section-label">
+                {{ objectiveModeLabel }}
+              </h3>
+              <table class="campaign-detail__objective-table">
+                <thead>
+                  <tr>
+                    <td class="campaign-detail__objective-corner" />
+                    <th scope="col">Goal</th>
+                    <th v-if="displayedProgress" scope="col">You</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="t in displayedTargets"
+                    :key="t.key"
+                    :class="{ 'campaign-detail__objective-row--met': t.met }"
+                  >
+                    <th scope="row">
+                      <span
+                        v-if="displayedProgress"
+                        class="campaign-detail__objective-tick"
+                        :class="{ 'campaign-detail__objective-tick--met': t.met }"
+                        aria-hidden="true"
+                      >
+                        <svg
+                          v-if="t.met"
+                          width="10"
+                          height="10"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="3.5"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      </span>
+                      {{ t.label }}
+                    </th>
+                    <td class="campaign-detail__objective-goal" :style="{ color: displayedAccent }">
+                      {{ t.goal }}
+                    </td>
+                    <td v-if="displayedProgress" class="campaign-detail__objective-you">
+                      {{ t.userValue }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div v-if="displayedDifficulty.modifiers.length > 0" class="campaign-detail__mods">
+              <h3 class="campaign-detail__section-label">Modifiers</h3>
+              <CampaignModifierBadges :modifiers="displayedDifficulty.modifiers" />
             </div>
 
             <MapChartStats :source="displayedDifficulty" />
 
-            <p v-if="displayedDifficulty.description" class="campaign-detail__node-desc">
-              {{ displayedDifficulty.description }}
-            </p>
+            <MarkdownText
+              v-if="displayedDifficulty.description"
+              :content="displayedDifficulty.description"
+            />
 
             <div v-if="prereqsFor.length > 0 && !campaign.progressionAgnostic" class="campaign-detail__prereqs">
               <h3 class="campaign-detail__section-label">
@@ -956,13 +1042,13 @@ function unpinTooltip() {
             </div>
 
             <div
-              v-if="displayedBarrier.conditionType !== 'FC' && displayedBarrier.conditionType !== 'PASS'"
+              v-if="displayedBarrierGoal && displayedBarrier.conditionType !== 'FC' && displayedBarrier.conditionType !== 'PASS'"
               class="campaign-detail__targets"
             >
               <div class="campaign-detail__target">
-                <span class="campaign-detail__target-label">Goal</span>
+                <span class="campaign-detail__target-label">{{ displayedBarrierGoal.label }}</span>
                 <span class="campaign-detail__target-value" :style="{ color: barrierAccent }">
-                  {{ barrierGoalValue(displayedBarrier.conditionType, displayedBarrier.conditionValue) }}
+                  {{ displayedBarrierGoal.text }}
                 </span>
               </div>
               <div v-if="displayedBarrierProgress" class="campaign-detail__target">
@@ -973,9 +1059,10 @@ function unpinTooltip() {
               </div>
             </div>
 
-            <p v-if="displayedBarrier.description" class="campaign-detail__node-desc">
-              {{ displayedBarrier.description }}
-            </p>
+            <MarkdownText
+              v-if="displayedBarrier.description"
+              :content="displayedBarrier.description"
+            />
 
             <div
               v-if="displayedBarrier.items.length > 0 || displayedBarrier.xp > 0"
@@ -1447,14 +1534,6 @@ function unpinTooltip() {
   gap: 5px;
 }
 
-.campaign-detail__brief-text {
-  margin: 0;
-  font-family: var(--font-sans);
-  font-size: var(--text-caption);
-  color: var(--text-secondary);
-  line-height: 1.55;
-}
-
 .campaign-detail__brief-toggle {
   display: flex;
   align-items: center;
@@ -1722,14 +1801,92 @@ function unpinTooltip() {
   color: var(--text-primary);
 }
 
-.campaign-detail__node-desc {
-  margin: 0;
-  font-family: var(--font-sans);
-  font-size: var(--text-caption);
-  color: var(--text-secondary);
-  line-height: 1.5;
+.campaign-detail__objective-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
 }
 
+.campaign-detail__objective-table thead th,
+.campaign-detail__objective-corner {
+  padding: 0 0 4px;
+  border-bottom: 1px solid var(--bg-overlay);
+}
+
+.campaign-detail__objective-table thead th {
+  font-family: var(--font-sans);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-align: right;
+  color: var(--text-secondary);
+  padding-left: var(--space-md);
+}
+
+.campaign-detail__objective-table tbody th {
+  padding: 6px 0;
+  text-align: left;
+  font-family: var(--font-sans);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.campaign-detail__objective-table tbody tr + tr th,
+.campaign-detail__objective-table tbody tr + tr td {
+  border-top: 1px solid color-mix(in srgb, var(--bg-overlay) 55%, transparent);
+}
+
+.campaign-detail__objective-tick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  margin-right: 5px;
+  vertical-align: -1px;
+  color: var(--success);
+}
+
+.campaign-detail__objective-tick::before {
+  content: '';
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+}
+
+.campaign-detail__objective-tick--met::before {
+  display: none;
+}
+
+.campaign-detail__objective-row--met th {
+  color: var(--text-primary);
+}
+
+.campaign-detail__objective-goal,
+.campaign-detail__objective-you {
+  padding: 6px 0 6px var(--space-md);
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.campaign-detail__objective-you {
+  color: var(--text-secondary);
+}
+
+.campaign-detail__objective-row--met .campaign-detail__objective-you {
+  color: var(--success);
+}
+
+.campaign-detail__mods,
+.campaign-detail__objectives,
 .campaign-detail__prereqs,
 .campaign-detail__node-rewards {
   display: flex;

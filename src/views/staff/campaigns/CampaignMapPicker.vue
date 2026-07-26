@@ -20,11 +20,15 @@ import { computed, onMounted, ref, watch } from 'vue'
 import MapFilterSidebar from '@/views/maps/MapFilterSidebar.vue'
 import CampaignGlobalMapSearch from './CampaignGlobalMapSearch.vue'
 
-const props = defineProps<{
-  loading?: boolean
-  globalSubmit?: (ids: ImportCampaignMapRequest) => Promise<{ attached: boolean }>
-  initialGenreSlugs?: string[]
-}>()
+const props = withDefaults(
+  defineProps<{
+    loading?: boolean
+    globalSubmit?: (ids: ImportCampaignMapRequest) => Promise<{ attached: boolean }>
+    initialGenreSlugs?: string[]
+    usedDifficultyIds?: string[]
+  }>(),
+  { usedDifficultyIds: () => [] },
+)
 
 const emit = defineEmits<{
   close: []
@@ -60,6 +64,8 @@ const multi = ref(false)
 const staged = ref<PublicMapDifficultyResponse[]>([])
 
 const stagedIds = computed(() => new Set(staged.value.map((d) => d.id)))
+
+const usedIds = computed(() => new Set(props.usedDifficultyIds))
 
 const hasActiveFilters = computed(
   () =>
@@ -277,6 +283,13 @@ function commit() {
                 </span>
                 <span class="map-picker__trailing">
                   <span class="map-picker__diff">
+                    <span
+                      v-if="usedIds.has(diff.id)"
+                      class="map-picker__used"
+                      title="This difficulty is already a node in this campaign. You can still add it again."
+                    >
+                      In campaign
+                    </span>
                     <DifficultyBadge :difficulty="diff.difficulty" />
                     <span v-if="characteristicHint(diff)" class="map-picker__char">
                       {{ characteristicHint(diff) }}
@@ -747,6 +760,20 @@ function commit() {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-tertiary);
+}
+
+.map-picker__used {
+  padding: 2px 6px;
+  font-family: var(--font-sans);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  border: 1px solid var(--bg-overlay);
+  border-radius: 2px;
+  cursor: help;
 }
 
 .map-picker__check {
