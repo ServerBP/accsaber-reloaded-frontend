@@ -308,8 +308,8 @@ function applyPendingHighlight() {
   }, 1600)
 }
 
-async function fetchInventory() {
-  loading.value = true
+async function fetchInventory(silent = false) {
+  if (!silent) loading.value = true
   try {
     const params = {
       ...paginationParams.value,
@@ -590,14 +590,14 @@ async function handleCrateEquip(reward: UserItemResponse) {
   }
 }
 
-function refreshAfterCrate() {
+function refreshInventory(silent = false) {
   if (showUnowned.value) fetchCatalog()
-  else fetchInventory()
+  else fetchInventory(silent)
 }
 
 function handleCrateOpened() {
   crateRefreshed.value = true
-  refreshAfterCrate()
+  refreshInventory()
 }
 
 function handleCrateOverlayClose() {
@@ -606,7 +606,7 @@ function handleCrateOverlayClose() {
   crateOpening.value = null
   crateRefreshed.value = false
   if (rewardLinkId) selectedLinkId.value = rewardLinkId
-  if (!refreshed) refreshAfterCrate()
+  if (!refreshed) refreshInventory()
 }
 
 async function handleDisintegrateConfirm(quantity: number) {
@@ -614,11 +614,15 @@ async function handleDisintegrateConfirm(quantity: number) {
   if (!target) return
   const linkId = target.linkId
   actionBusy.value = true
+  let removed = false
   try {
-    applyDisintegration(await disintegrateItem(linkId, quantity))
+    const res = await disintegrateItem(linkId, quantity)
+    removed = res.remainingQuantity === null
+    applyDisintegration(res)
   } catch (err) {
     const parsed = parseApiError(err, 'Could not disintegrate item.')
     if (parsed.status === 404) {
+      removed = true
       mutateLink(linkId, null)
     } else if (parsed.status === 409 && isOwnProfile.value && authStore.userId) {
       await inventoryStore.fetchEquipped(authStore.userId, true)
@@ -627,6 +631,10 @@ async function handleDisintegrateConfirm(quantity: number) {
   } finally {
     disintegrateTarget.value = null
     actionBusy.value = false
+    if (removed) {
+      mobileDetailOpen.value = false
+      refreshInventory(true)
+    }
   }
 }
 
