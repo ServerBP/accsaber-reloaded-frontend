@@ -42,6 +42,7 @@ const selected = ref(new Set<string>())
 
 const captureItem = ref<ItemResponse | null>(null)
 const captureComp = ref<ComponentPublicInstance | null>(null)
+const flattenText = ref(false)
 
 const typeOptions = computed(() => [
   { value: '', label: 'All types' },
@@ -107,12 +108,12 @@ function invertSelection() {
   for (const item of filtered.value) toggle(item.id)
 }
 
-async function renderItem(item: ItemResponse): Promise<Element> {
+async function renderItem(item: ItemResponse, flatten: boolean): Promise<Element> {
   captureItem.value = item
+  flattenText.value = flatten
   await nextTick()
   const el = captureComp.value?.$el as Element | undefined
   if (!el) throw new Error('Capture surface unavailable')
-  await waitForRenderedAssets(el)
   await waitForRenderedAssets(el)
   return el
 }
@@ -256,12 +257,13 @@ watch(
       <div class="icon-export__capture" aria-hidden="true">
         <ItemIconCapture
           v-if="captureItem"
-          :key="captureItem.id"
+          :key="`${captureItem.id}:${flattenText}`"
           ref="captureComp"
           :item="captureItem"
           :width="captureBox(captureItem.typeKey).width"
           :height="captureBox(captureItem.typeKey).height"
           :base="base"
+          :flatten-text="flattenText"
         />
       </div>
 

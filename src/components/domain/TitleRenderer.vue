@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import TitleAura from '@/components/domain/TitleAura.vue'
 import { useTimeline } from '@/composables/useTimeline'
-import { useThemeStore } from '@/stores/theme'
+import { useThemeBase } from '@/composables/useThemeBase'
 import type { TitleStateValue, TitleValue } from '@/types/api/items'
 import { darken } from '@/utils/color'
 import {
@@ -53,8 +53,8 @@ const needsTimeline = computed(() => {
 
 const { tMs } = useTimeline({ active: () => needsTimeline.value })
 
-const themeStore = useThemeStore()
-const isLightBase = computed(() => themeStore.resolvedBase === 'light')
+const themeBase = useThemeBase()
+const isLightBase = computed(() => themeBase.value === 'light')
 
 const effectiveStates = computed<TitleStateValue[]>(() => {
   if (!isLightBase.value) return props.value.states

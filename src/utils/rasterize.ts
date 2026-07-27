@@ -1,5 +1,14 @@
 const SVG_NS = 'http://www.w3.org/2000/svg'
 const XHTML_NS = 'http://www.w3.org/1999/xhtml'
+const ASSET_TIMEOUT_MS = 6000
+const SETTLE_FRAMES = 4
+
+export interface Rect {
+  x: number
+  y: number
+  w: number
+  h: number
+}
 
 const INHERITED_PROPERTIES = new Set([
   'color',
@@ -202,8 +211,6 @@ const INITIAL_VALUES: Record<string, string> = {
   'opacity': '1',
   'order': '0',
   'overflow-wrap': 'normal',
-  'overflow-x': 'visible',
-  'overflow-y': 'visible',
   'padding-bottom': '0px',
   'padding-left': '0px',
   'padding-right': '0px',
@@ -235,18 +242,27 @@ const PREFIXED_PROPERTIES = new Set([
   'background-clip',
 ])
 
-const SKIPPED_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'LINK', 'META'])
+const SKIPPED_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT'])
 
-export interface RasterizeOptions {
+const GENERIC_FONT_FAMILIES =
+  /^(system-ui|sans-serif|serif|monospace|ui-monospace|cursive|fantasy)$/i
+
+interface RasterizeOptions {
   width: number
   height: number
   scale?: number
-  fontFamilies?: string[]
+  trim?: { size: number; paddingPct: number }
+  probe?: Rect
 }
 
-export interface RasterizeResult {
+interface RasterizeResult {
   blob: Blob
   warnings: string[]
+  probeOpaque?: number
+}
+
+function isInitial(prop: string, value: string): boolean {
+  return !INHERITED_PROPERTIES.has(prop) && INITIAL_VALUES[prop] === value
 }
 
 function serializeStyle(source: Element): string {
@@ -254,15 +270,16 @@ function serializeStyle(source: Element): string {
   const parts: string[] = []
   for (const prop of COPIED_PROPERTIES) {
     const value = computed.getPropertyValue(prop)
-    if (!value) continue
-    if (!INHERITED_PROPERTIES.has(prop) && INITIAL_VALUES[prop] === value) continue
-    parts.push(`${prop}:${value}`)
-    if (PREFIXED_PROPERTIES.has(prop)) parts.push(`-webkit-${prop}:${value}`)
+    if (value && !isInitial(prop, value)) parts.push(`${prop}:${value}`)
+
+    if (!PREFIXED_PROPERTIES.has(prop)) continue
+    const prefixed = computed.getPropertyValue(`-webkit-${prop}`) || value
+    if (prefixed && !isInitial(prop, prefixed)) parts.push(`-webkit-${prop}:${prefixed}`)
   }
   return parts.join(';')
 }
 
-async function blobToDataUrl(blob: Blob): Promise<string> {
+function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => resolve(String(reader.result))
@@ -271,9 +288,7 @@ async function blobToDataUrl(blob: Blob): Promise<string> {
   })
 }
 
-const ASSET_TIMEOUT_MS = 6000
-
-async function inlineImageSource(src: string): Promise<string | null> {
+async function inlineSource(src: string): Promise<string | null> {
   if (src.startsWith('data:')) return src
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), ASSET_TIMEOUT_MS)
@@ -292,59 +307,49 @@ async function inlineImageSource(src: string): Promise<string | null> {
   }
 }
 
-function canvasToDataUrl(canvas: HTMLCanvasElement): string | null {
-  try {
-    return canvas.toDataURL('image/png')
-  } catch {
-    return null
-  }
-}
-
 interface CloneContext {
   tasks: Promise<void>[]
   warnings: string[]
 }
 
+function cloneCanvas(source: HTMLCanvasElement, ctx: CloneContext): Element | null {
+  let dataUrl: string
+  try {
+    dataUrl = source.toDataURL('image/png')
+  } catch {
+    ctx.warnings.push('A canvas layer could not be captured and was skipped.')
+    return null
+  }
+  const img = document.createElementNS(XHTML_NS, 'img')
+  img.setAttribute('src', dataUrl)
+  img.setAttribute('style', serializeStyle(source))
+  return img
+}
+
 function cloneElement(source: Element, ctx: CloneContext): Element | null {
   if (SKIPPED_TAGS.has(source.tagName)) return null
+  if (window.getComputedStyle(source).display === 'none') return null
+  if (source instanceof HTMLCanvasElement) return cloneCanvas(source, ctx)
 
-  const computed = window.getComputedStyle(source)
-  if (computed.display === 'none') return null
-
-  let clone: Element
-
-  if (source instanceof HTMLCanvasElement) {
-    const dataUrl = canvasToDataUrl(source)
-    if (!dataUrl) {
-      ctx.warnings.push('A canvas layer could not be captured and was skipped.')
-      return null
-    }
-    clone = document.createElementNS(XHTML_NS, 'img')
-    clone.setAttribute('src', dataUrl)
-  } else {
-    clone = source.cloneNode(false) as Element
-    while (clone.firstChild) clone.removeChild(clone.firstChild)
-  }
+  const clone = source.cloneNode(false) as Element
 
   if (source instanceof HTMLImageElement && clone instanceof HTMLImageElement) {
     clone.removeAttribute('loading')
     clone.removeAttribute('decoding')
     clone.removeAttribute('srcset')
-    const original = source.currentSrc || source.src
     ctx.tasks.push(
-      inlineImageSource(original).then((dataUrl) => {
-        if (dataUrl) clone.setAttribute('src', dataUrl)
-        else {
-          clone.removeAttribute('src')
-          ctx.warnings.push('An image could not be embedded (blocked by CORS) and was skipped.')
+      inlineSource(source.currentSrc || source.src).then((dataUrl) => {
+        if (dataUrl) {
+          clone.setAttribute('src', dataUrl)
+          return
         }
+        clone.removeAttribute('src')
+        ctx.warnings.push('An image could not be embedded (blocked by CORS) and was skipped.')
       }),
     )
   }
 
   clone.setAttribute('style', serializeStyle(source))
-
-  if (source instanceof HTMLCanvasElement) return clone
 
   for (const child of Array.from(source.childNodes)) {
     if (child.nodeType === Node.TEXT_NODE) {
@@ -359,76 +364,62 @@ function cloneElement(source: Element, ctx: CloneContext): Element | null {
   return clone
 }
 
+const FONT_FACE_RE = /@font-face\s*\{[^}]*\}/g
+
 let fontCssCache: Promise<string> | null = null
 
-function googleFontsHref(): string | null {
+async function loadFontFaceCss(): Promise<string> {
   const link = document.querySelector<HTMLLinkElement>(
     'link[rel="stylesheet"][href*="fonts.googleapis.com/css2"]',
   )
-  return link?.href ?? null
-}
-
-async function loadFontFaceCss(): Promise<string> {
-  const href = googleFontsHref()
-  if (!href) return ''
-  const response = await fetch(href, { mode: 'cors' })
+  if (!link) return ''
+  const response = await fetch(link.href, { mode: 'cors' })
   if (!response.ok) return ''
-  const css = await response.text()
 
-  const blocks = css.match(/@font-face\s*\{[^}]*\}/g) ?? []
-  const latinOnly = blocks.filter((b) => b.includes('U+0000-00FF'))
-  const selected = latinOnly.length > 0 ? latinOnly : blocks
+  const blocks = (await response.text()).match(FONT_FACE_RE) ?? []
+  const latin = blocks.filter((block) => block.includes('U+0000-00FF'))
 
   const resolved = await Promise.all(
-    selected.map(async (block) => {
-      const match = block.match(/url\((https:\/\/[^)]+)\)/)
-      if (!match) return null
-      const dataUrl = await inlineImageSource(match[1])
-      return dataUrl ? block.replace(match[1], dataUrl) : null
+    (latin.length > 0 ? latin : blocks).map(async (block) => {
+      const url = block.match(/url\((https:\/\/[^)]+)\)/)?.[1]
+      if (!url) return null
+      const dataUrl = await inlineSource(url)
+      return dataUrl ? block.replace(url, dataUrl) : null
     }),
   )
-
-  return resolved.filter((b): b is string => b !== null).join('\n')
+  return resolved.filter((block): block is string => block !== null).join('\n')
 }
 
-async function fontFaceCss(families: string[]): Promise<string> {
-  if (families.length === 0) return ''
+async function fontFaceCss(families: Set<string>): Promise<string> {
+  if (families.size === 0) return ''
   if (!fontCssCache) fontCssCache = loadFontFaceCss().catch(() => '')
   const all = await fontCssCache
-  if (!all) return ''
-  const blocks = all.match(/@font-face\s*\{[^}]*\}/g) ?? []
-  const wanted = families.map((f) => f.toLowerCase())
-  return blocks
+  return (all.match(FONT_FACE_RE) ?? [])
     .filter((block) => {
       const name = block.match(/font-family:\s*['"]?([^;'"]+)/)?.[1]?.trim().toLowerCase()
-      return !!name && wanted.includes(name)
+      return !!name && families.has(name)
     })
     .join('\n')
 }
 
-function collectFontFamilies(root: Element): string[] {
-  const found = new Set<string>()
-  const walk = (el: Element) => {
-    if (el.textContent?.trim()) {
-      const family = window.getComputedStyle(el).fontFamily
-      for (const raw of family.split(',')) {
-        const name = raw.trim().replace(/^['"]|['"]$/g, '')
-        if (name && !name.startsWith('-') && !/^(system-ui|sans-serif|serif|monospace|ui-monospace|cursive|fantasy)$/i.test(name)) {
-          found.add(name)
-        }
+function collectFontFamilies(root: Element, found = new Set<string>()): Set<string> {
+  if (root.textContent?.trim()) {
+    for (const raw of window.getComputedStyle(root).fontFamily.split(',')) {
+      const name = raw.trim().replace(/^['"]|['"]$/g, '')
+      if (name && !name.startsWith('-') && !GENERIC_FONT_FAMILIES.test(name)) {
+        found.add(name.toLowerCase())
       }
     }
-    for (const child of Array.from(el.children)) walk(child)
   }
-  walk(root)
-  return Array.from(found)
+  for (const child of Array.from(root.children)) collectFontFamilies(child, found)
+  return found
 }
 
 export async function waitForRenderedAssets(root: Element): Promise<void> {
   if (document.fonts?.ready) await document.fonts.ready
-  const images = Array.from(root.querySelectorAll('img'))
+
   await Promise.all(
-    images.map((img) =>
+    Array.from(root.querySelectorAll('img')).map((img) =>
       img.complete
         ? Promise.resolve()
         : new Promise<void>((resolve) => {
@@ -442,7 +433,10 @@ export async function waitForRenderedAssets(root: Element): Promise<void> {
           }),
     ),
   )
-  await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+
+  for (let i = 0; i < SETTLE_FRAMES; i++) {
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+  }
 }
 
 export async function rasterize(
@@ -459,8 +453,7 @@ export async function rasterize(
   if (!clone) throw new Error('Nothing to capture')
   await Promise.all(ctx.tasks)
 
-  const families = options.fontFamilies ?? collectFontFamilies(source)
-  const fonts = await fontFaceCss(families)
+  const fonts = await fontFaceCss(collectFontFamilies(source))
 
   const wrapper = document.createElementNS(XHTML_NS, 'div')
   wrapper.setAttribute(
@@ -469,12 +462,12 @@ export async function rasterize(
   )
   wrapper.appendChild(clone)
 
-  const serialized = new XMLSerializer().serializeToString(wrapper)
-  const styleTag = fonts ? `<style xmlns="${XHTML_NS}">${fonts}</style>` : ''
   const svg =
     `<svg xmlns="${SVG_NS}" width="${outWidth}" height="${outHeight}" viewBox="0 0 ${outWidth} ${outHeight}">`
-    + `<foreignObject x="0" y="0" width="${outWidth}" height="${outHeight}">${styleTag}${serialized}</foreignObject>`
-    + `</svg>`
+    + `<foreignObject x="0" y="0" width="${outWidth}" height="${outHeight}">`
+    + (fonts ? `<style xmlns="${XHTML_NS}">${fonts}</style>` : '')
+    + new XMLSerializer().serializeToString(wrapper)
+    + `</foreignObject></svg>`
 
   const image = new Image()
   image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
@@ -487,8 +480,89 @@ export async function rasterize(
   if (!context) throw new Error('Canvas 2D context unavailable')
   context.drawImage(image, 0, 0, outWidth, outHeight)
 
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
+  const probeOpaque = options.probe
+    ? countOpaque(canvas, {
+        x: Math.round(options.probe.x * scale),
+        y: Math.round(options.probe.y * scale),
+        w: Math.round(options.probe.w * scale),
+        h: Math.round(options.probe.h * scale),
+      })
+    : undefined
+
+  const finalCanvas = options.trim ? refitToSquare(canvas, options.trim) : canvas
+  const blob = await new Promise<Blob | null>((resolve) => finalCanvas.toBlob(resolve, 'image/png'))
   if (!blob) throw new Error('PNG encoding failed')
 
-  return { blob, warnings: Array.from(new Set(ctx.warnings)) }
+  return { blob, warnings: Array.from(new Set(ctx.warnings)), probeOpaque }
+}
+
+function alphaOf(canvas: HTMLCanvasElement, rect: Rect): Uint8ClampedArray | null {
+  const x = Math.max(0, Math.min(rect.x, canvas.width))
+  const y = Math.max(0, Math.min(rect.y, canvas.height))
+  const w = Math.max(0, Math.min(rect.w, canvas.width - x))
+  const h = Math.max(0, Math.min(rect.h, canvas.height - y))
+  if (w === 0 || h === 0) return null
+  return canvas.getContext('2d')?.getImageData(x, y, w, h).data ?? null
+}
+
+function countOpaque(canvas: HTMLCanvasElement, rect: Rect): number {
+  const data = alphaOf(canvas, rect)
+  if (!data) return 0
+  let count = 0
+  for (let i = 3; i < data.length; i += 4) if (data[i] > 8) count++
+  return count
+}
+
+function alphaBounds(canvas: HTMLCanvasElement): Rect | null {
+  const { width, height } = canvas
+  const data = alphaOf(canvas, { x: 0, y: 0, w: width, h: height })
+  if (!data) return null
+
+  let minX = width
+  let minY = height
+  let maxX = -1
+  let maxY = -1
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (data[(y * width + x) * 4 + 3] < 8) continue
+      if (x < minX) minX = x
+      if (x > maxX) maxX = x
+      if (y < minY) minY = y
+      if (y > maxY) maxY = y
+    }
+  }
+  return maxX < 0 ? null : { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 }
+}
+
+function refitToSquare(
+  source: HTMLCanvasElement,
+  trim: { size: number; paddingPct: number },
+): HTMLCanvasElement {
+  const bounds = alphaBounds(source)
+  if (!bounds) return source
+
+  const out = document.createElement('canvas')
+  out.width = trim.size
+  out.height = trim.size
+  const context = out.getContext('2d')
+  if (!context) return source
+
+  const inner = trim.size * (1 - trim.paddingPct * 2)
+  const scale = Math.min(inner / bounds.w, inner / bounds.h)
+  const drawW = bounds.w * scale
+  const drawH = bounds.h * scale
+
+  context.imageSmoothingQuality = 'high'
+  context.drawImage(
+    source,
+    bounds.x,
+    bounds.y,
+    bounds.w,
+    bounds.h,
+    (trim.size - drawW) / 2,
+    (trim.size - drawH) / 2,
+    drawW,
+    drawH,
+  )
+  return out
 }
