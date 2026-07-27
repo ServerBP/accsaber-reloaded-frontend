@@ -1,11 +1,8 @@
 <script setup lang="ts">
-import BorderDecals from '@/components/domain/BorderDecals.vue'
-import BorderOverlay from '@/components/domain/BorderOverlay.vue'
 import ItemPreview from '@/components/domain/ItemPreview.vue'
-import ProfileBorderRenderer from '@/components/domain/ProfileBorderRenderer.vue'
-import type { BorderColorValue, BorderShapeValue, ItemResponse } from '@/types/api/items'
-import { SUPPORTER_TIER_PALETTE } from '@/types/api/supporters'
-import { readBorderColorValue, readBorderShapeValue } from '@/utils/items'
+import type { ItemResponse } from '@/types/api/items'
+import { DEFAULT_AVATAR_MASK } from '@/utils/avatarBox'
+import { readBorderShapeValue } from '@/utils/items'
 import { computed } from 'vue'
 
 const props = defineProps<{
@@ -15,94 +12,43 @@ const props = defineProps<{
   base: 'dark' | 'light'
 }>()
 
-const RING_SHAPE: BorderShapeValue = {
-  viewBox: '0 0 100 100',
-  states: [
-    {
-      atMs: 0,
-      paths: [
-        {
-          d: 'M10,4 L90,4 Q96,4 96,10 L96,90 Q96,96 90,96 L10,96 Q4,96 4,90 L4,10 Q4,4 10,4 Z',
-          fill: 'none',
-          stroke: 'currentColor',
-          strokeWidth: 8,
-          strokeLinejoin: 'round',
-        },
-      ],
-    },
-  ],
-}
+const AVATAR_INSET_PCT = 5.7
+const AVATAR_SCALE = 0.886
 
-const typeKey = computed(() => props.item.typeKey)
-
-const isShapeItem = computed(() => typeKey.value === 'profile_border_shape')
-const isColorItem = computed(() => typeKey.value === 'profile_border_color')
-const isBorder = computed(() => isShapeItem.value || isColorItem.value)
-
-const shapeValue = computed<BorderShapeValue | null>(() =>
-  isShapeItem.value ? readBorderShapeValue(props.item.value) : null,
+const shapeValue = computed(() =>
+  props.item.typeKey === 'profile_border_shape' ? readBorderShapeValue(props.item.value) : null,
 )
 
-const colorValue = computed<BorderColorValue | null>(() =>
-  isColorItem.value ? readBorderColorValue(props.item.value) : null,
-)
-
-const shapePreviewColor = computed<BorderColorValue | null>(() => {
-  if (shapeValue.value?.renderMode !== 'pixel') return null
-  const tier = SUPPORTER_TIER_PALETTE.bronze
-  return {
-    states: [
-      {
-        atMs: 0,
-        fill: {
-          type: 'pixel_metal',
-          shadow: tier.shadow,
-          base: tier.base,
-          highlight: tier.highlight,
-        },
-      },
-    ],
-  }
+const avatarHoleMask = computed<string | null>(() => {
+  if (!shapeValue.value) return null
+  const mask = shapeValue.value.avatarMask ?? DEFAULT_AVATAR_MASK
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">`
+    + `<g transform="translate(${AVATAR_INSET_PCT},${AVATAR_INSET_PCT}) scale(${AVATAR_SCALE})">`
+    + `<path d="${mask}" fill="#ffffff"/></g></svg>`
+  return `url("data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}")`
 })
 
-const renderShape = computed<BorderShapeValue | null>(() =>
-  isColorItem.value ? RING_SHAPE : shapeValue.value,
-)
-
-const renderColor = computed<BorderColorValue | null>(() =>
-  isColorItem.value ? colorValue.value : shapePreviewColor.value,
-)
-
-const decals = computed(() => shapeValue.value?.decals ?? [])
-const overlay = computed(() =>
-  shapeValue.value?.overlay?.enabled ? shapeValue.value.overlay : null,
-)
-
-const hostStyle = computed(() => ({
-  width: `${props.width}px`,
-  height: `${props.height}px`,
-}))
+const hostStyle = computed(() => {
+  const style: Record<string, string> = {
+    width: `${props.width}px`,
+    height: `${props.height}px`,
+  }
+  if (avatarHoleMask.value) style['--avatar-hole'] = avatarHoleMask.value
+  return style
+})
 </script>
 
 <template>
   <div
     class="icon-capture token-defaults"
+    :class="{ 'icon-capture--hole': !!avatarHoleMask }"
     :data-theme="base"
     :style="hostStyle"
     data-fx-static
     aria-hidden="true"
   >
-    <div v-if="isBorder" class="icon-capture__border">
-      <ProfileBorderRenderer :shape="renderShape" :color="renderColor" />
-      <BorderDecals v-if="decals.length" class="icon-capture__layer" :decals="decals" />
-      <BorderOverlay
-        v-if="overlay"
-        class="icon-capture__layer"
-        :overlay="overlay"
-        :color="renderColor"
-      />
-    </div>
-    <ItemPreview v-else :item="item" />
+    <ItemPreview :item="item" />
   </div>
 </template>
 
@@ -117,14 +63,18 @@ const hostStyle = computed(() => ({
   color: var(--text-primary);
 }
 
-.icon-capture__border {
-  position: relative;
-  width: 78%;
-  aspect-ratio: 1 / 1;
-  color: var(--text-secondary);
+.icon-capture :deep(.item-preview__shape-avatar) {
+  display: none;
 }
 
-.icon-capture__layer {
-  z-index: 3;
+.icon-capture--hole :deep(.item-preview__shape-wrap) {
+  mask-image: var(--avatar-hole), linear-gradient(#fff, #fff);
+  -webkit-mask-image: var(--avatar-hole), linear-gradient(#fff, #fff);
+  mask-size: 100% 100%, 100% 100%;
+  -webkit-mask-size: 100% 100%, 100% 100%;
+  mask-repeat: no-repeat, no-repeat;
+  -webkit-mask-repeat: no-repeat, no-repeat;
+  mask-composite: exclude;
+  -webkit-mask-composite: xor;
 }
 </style>

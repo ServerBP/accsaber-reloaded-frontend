@@ -8,10 +8,11 @@ export interface CaptureBox {
   height: number
 }
 
-const WIDE_TYPES = new Set<ItemTypeKey>(['title'])
+const TEXT_DRIVEN_TYPES = new Set<ItemTypeKey>(['title', 'perk'])
 
 export function captureBox(typeKey: ItemTypeKey): CaptureBox {
-  return WIDE_TYPES.has(typeKey) ? { width: 512, height: 160 } : { width: 256, height: 256 }
+  const side = TEXT_DRIVEN_TYPES.has(typeKey) ? 128 : 256
+  return { width: side, height: side }
 }
 
 export function iconFileName(item: ItemResponse): string {
@@ -23,7 +24,7 @@ export function iconFileName(item: ItemResponse): string {
 }
 
 export interface IconExportOptions {
-  scale: number
+  size: number
 }
 
 export interface IconExportFailure {
@@ -92,7 +93,10 @@ export function useItemIconExport(renderItem: RenderItem) {
         try {
           const host = await renderItem(item)
           const box = captureBox(item.typeKey)
-          const result = await rasterize(host, { ...box, scale: options.scale })
+          const result = await rasterize(host, {
+            ...box,
+            scale: options.size / box.width,
+          })
           for (const warning of result.warnings) {
             if (!warnings.value.includes(warning)) warnings.value.push(warning)
           }

@@ -271,14 +271,24 @@ async function blobToDataUrl(blob: Blob): Promise<string> {
   })
 }
 
+const ASSET_TIMEOUT_MS = 6000
+
 async function inlineImageSource(src: string): Promise<string | null> {
   if (src.startsWith('data:')) return src
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), ASSET_TIMEOUT_MS)
   try {
-    const response = await fetch(src, { mode: 'cors', credentials: 'omit' })
+    const response = await fetch(src, {
+      mode: 'cors',
+      credentials: 'omit',
+      signal: controller.signal,
+    })
     if (!response.ok) return null
     return await blobToDataUrl(await response.blob())
   } catch {
     return null
+  } finally {
+    clearTimeout(timer)
   }
 }
 
@@ -422,8 +432,13 @@ export async function waitForRenderedAssets(root: Element): Promise<void> {
       img.complete
         ? Promise.resolve()
         : new Promise<void>((resolve) => {
-            img.addEventListener('load', () => resolve(), { once: true })
-            img.addEventListener('error', () => resolve(), { once: true })
+            const done = () => {
+              clearTimeout(timer)
+              resolve()
+            }
+            const timer = setTimeout(done, ASSET_TIMEOUT_MS)
+            img.addEventListener('load', done, { once: true })
+            img.addEventListener('error', done, { once: true })
           }),
     ),
   )

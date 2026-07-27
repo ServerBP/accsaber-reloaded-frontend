@@ -36,7 +36,7 @@ const includeInactive = ref(false)
 const includeImageBacked = ref(false)
 
 const base = ref<'dark' | 'light'>('dark')
-const scale = ref(2)
+const size = ref(512)
 
 const selected = ref(new Set<string>())
 
@@ -59,10 +59,10 @@ const iconOptions = [
   { value: 'existing', label: 'Only existing icons' },
 ]
 
-const scaleOptions = [
-  { value: '1', label: 'Standard (256px)' },
-  { value: '2', label: 'Retina (512px)' },
-  { value: '4', label: 'Large (1024px)' },
+const sizeOptions = [
+  { value: '256', label: '256 x 256' },
+  { value: '512', label: '512 x 512' },
+  { value: '1024', label: '1024 x 1024' },
 ]
 
 const baseOptions = [
@@ -151,7 +151,7 @@ async function fetchItems() {
 async function startExport() {
   const targets = selectedItems.value
   if (targets.length === 0) return
-  await run(targets, { scale: scale.value })
+  await run(targets, { size: size.value })
   captureItem.value = null
   if (uploaded.value.length > 0) {
     const byId = new Map(uploaded.value.map((i) => [i.id, i]))
@@ -299,9 +299,9 @@ watch(
           @update:model-value="(v: string) => base = v as 'dark' | 'light'"
         />
         <BaseSelect
-          :model-value="String(scale)"
-          :options="scaleOptions"
-          @update:model-value="(v: string) => scale = Number(v)"
+          :model-value="String(size)"
+          :options="sizeOptions"
+          @update:model-value="(v: string) => size = Number(v)"
         />
         <div class="icon-export__footer-actions">
           <BaseButton
