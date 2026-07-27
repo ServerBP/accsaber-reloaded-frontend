@@ -95,3 +95,7 @@ desktop.ini
 # Compiled config files (we author .ts, these are auto-generated)
 vite.config.js
 eslint.config.js
+
+# Cloudflare wrangler
+.wrangler
+.dev.vars*

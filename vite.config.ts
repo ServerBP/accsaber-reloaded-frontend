@@ -5,6 +5,7 @@ import { resolve } from 'node:path'
 import type { Plugin } from 'vite'
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import { cloudflare } from "@cloudflare/vite-plugin";
 
 function apiProxy(target: string): Plugin {
   const url = new URL(target)
@@ -84,6 +85,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       vue(),
+      cloudflare(),
       apiProxy(proxyTarget),
       externalProxy('/proxy/beatsaver', 'https://api.beatsaver.com'),
       externalProxy('/proxy/beatleader', 'https://api.beatleader.com'),

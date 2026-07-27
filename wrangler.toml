@@ -1,0 +1,7 @@
+"$schema" = "./node_modules/wrangler/config-schema.json"
+name = "accsaber-reloaded-frontend"
+# Set this to today's date
+compatibility_date = "2026-07-27"
+
+[assets]
+not_found_handling = "single-page-application"
