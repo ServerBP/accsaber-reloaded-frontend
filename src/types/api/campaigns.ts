@@ -207,6 +207,7 @@ export interface CampaignDifficultyProgressResponse {
   userScore: number | null
   completed: boolean
   unlocked: boolean
+  pathCompleted: boolean
   rewardsEarned: boolean
 }
 
@@ -217,13 +218,20 @@ export interface BarrierProgressResponse {
   unlocked: boolean
 }
 
+export interface CampaignCurrentMilestoneResponse {
+  nodeId: string
+  label: string | null
+  depth: number
+}
+
 export interface CampaignProgressResponse {
-  id: string
+  id: string | null
   campaign: CampaignResponse
   progressStatus: UserCampaignStatus | null
   startedAt: string | null
   completedAt: string | null
   completedDifficulties: number
+  currentMilestone: CampaignCurrentMilestoneResponse | null
   difficulties: CampaignDifficultyProgressResponse[]
   barriers: BarrierProgressResponse[]
 }

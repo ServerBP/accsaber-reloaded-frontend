@@ -17,12 +17,18 @@ import CampaignRoadmap from '@/components/domain/CampaignRoadmap.vue'
 import CampaignRewardItem from '@/components/domain/CampaignRewardItem.vue'
 import CampaignStatusBadge from '@/components/domain/CampaignStatusBadge.vue'
 import CampaignVoteControl from '@/components/domain/CampaignVoteControl.vue'
+import CountryFlag from '@/components/domain/CountryFlag.vue'
 import CampaignLeaderboardTray from '@/views/campaign/CampaignLeaderboardTray.vue'
 import CampaignRewardNotice from '@/views/campaign/CampaignRewardNotice.vue'
 import ComplexityBadge from '@/components/domain/ComplexityBadge.vue'
 import DifficultyBadge from '@/components/domain/DifficultyBadge.vue'
 import MapChartStats from '@/components/domain/MapChartStats.vue'
-import { pickCoverUrl } from '@/composables/useAvatarFallback'
+import {
+  onAvatarError,
+  pickAvatarFallback,
+  pickAvatarUrl,
+  pickCoverUrl,
+} from '@/composables/useAvatarFallback'
 import { useItemCatalog } from '@/composables/useItemCatalog'
 import { useAuthStore } from '@/stores/auth'
 import { useCategoryStore } from '@/stores/categories'
@@ -34,6 +40,7 @@ import type {
   CampaignDetailResponse,
   CampaignDifficultyProgressResponse,
   CampaignDifficultyResponse,
+  CampaignLeaderboardPlayer,
   CampaignProgressResponse,
 } from '@/types/api/campaigns'
 import { campaignBadges } from '@/utils/campaignBadges'
@@ -70,7 +77,7 @@ const { itemsById: rewardItemsById, ensureLoaded: ensureRewardItems } = useItemC
 const themeBackdropActive = computed(() => readBackdropConfig(themeStore.activeTokens) !== null)
 
 const campaign = ref<CampaignDetailResponse | null>(null)
-const progress = ref<CampaignProgressResponse | null>(null)
+const myProgress = ref<CampaignProgressResponse | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
 const selectedId = ref<string | null>(null)
@@ -80,6 +87,85 @@ const abandoning = ref(false)
 const actionError = ref<string | null>(null)
 
 const idOrSlug = computed(() => String(route.params.campaignId ?? ''))
+
+const spectatePlayer = ref<CampaignLeaderboardPlayer | null>(null)
+const spectateProgress = ref<CampaignProgressResponse | null>(null)
+const spectateLoading = ref(false)
+const spectateError = ref<string | null>(null)
+
+const spectateUserId = computed(() => {
+  const raw = route.query.viewing
+  const value = Array.isArray(raw) ? raw[0] : raw
+  return value ? String(value) : null
+})
+
+const isSpectating = computed(() => spectateUserId.value !== null)
+
+const spectateName = computed(
+  () => spectatePlayer.value?.userName ?? (isSpectating.value ? 'this player' : ''),
+)
+
+const activeProgress = computed(() =>
+  isSpectating.value ? spectateProgress.value : myProgress.value,
+)
+
+let spectateSeq = 0
+
+async function loadSpectatedProgress() {
+  const userId = spectateUserId.value
+  const campaignId = campaign.value?.id
+  if (!userId || !campaignId) {
+    spectateProgress.value = null
+    spectateError.value = null
+    spectateLoading.value = false
+    return
+  }
+  const seq = ++spectateSeq
+  spectateLoading.value = true
+  spectateError.value = null
+  spectateProgress.value = null
+  try {
+    const { getUser, getUserCampaignProgress } = await import('@/api/users')
+    if (spectatePlayer.value?.userId !== userId) {
+      spectatePlayer.value = null
+      void getUser(userId).then((user) => {
+        if (seq !== spectateSeq) return
+        spectatePlayer.value = {
+          userId: user.id,
+          userName: user.name,
+          country: user.country,
+          avatarUrl: user.avatarUrl,
+          cdnAvatarUrl: user.cdnAvatarUrl ?? undefined,
+        }
+      }, () => {})
+    }
+    const result = await getUserCampaignProgress(userId, campaignId)
+    if (seq !== spectateSeq) return
+    spectateProgress.value = result
+  } catch (err) {
+    if (seq !== spectateSeq) return
+    spectateError.value = getApiErrorMessage(err, 'Failed to load this run')
+  } finally {
+    if (seq === spectateSeq) spectateLoading.value = false
+  }
+}
+
+function spectate(player: CampaignLeaderboardPlayer) {
+  if (player.userId === spectateUserId.value) return
+  spectatePlayer.value = player
+  void router.replace({ query: { ...route.query, viewing: player.userId } })
+}
+
+function stopSpectating() {
+  spectateSeq++
+  spectatePlayer.value = null
+  spectateProgress.value = null
+  spectateError.value = null
+  spectateLoading.value = false
+  const query = { ...route.query }
+  delete query.viewing
+  void router.replace({ query })
+}
 
 async function load() {
   loading.value = true
@@ -104,13 +190,13 @@ async function load() {
     campaign.value = fetched
     if (auth.isLoggedIn) {
       try {
-        progress.value = await getMyCampaignProgress(fetched.id)
+        myProgress.value = await getMyCampaignProgress(fetched.id)
       } catch (e) {
         if (!(e instanceof ApiError && e.status === 404)) throw e
-        progress.value = null
+        myProgress.value = null
       }
     } else {
-      progress.value = null
+      myProgress.value = null
     }
     if (fetched.completionItems.length > 0 || fetched.difficulties.some((d) => d.items.length > 0)) {
       void ensureRewardItems()
@@ -144,6 +230,10 @@ watch(() => idOrSlug.value, () => {
 
 watch(() => auth.isLoggedIn, (next, prev) => {
   if (next !== prev) void load()
+})
+
+watch([spectateUserId, () => campaign.value?.id], () => {
+  void loadSpectatedProgress()
 })
 
 const categoryTags = computed(
@@ -189,7 +279,7 @@ const modeSentence = computed(() => {
   return `${goal}${order}.${retro}`
 })
 
-const completedCount = computed(() => progress.value?.completedDifficulties ?? 0)
+const completedCount = computed(() => activeProgress.value?.completedDifficulties ?? 0)
 
 const totalCount = computed(
   () =>
@@ -203,9 +293,33 @@ const completionPct = computed(() => {
   return Math.round((completedCount.value / totalCount.value) * 100)
 })
 
-const isInProgress = computed(() => progress.value?.progressStatus === 'IN_PROGRESS')
-const isCompleted = computed(() => progress.value?.progressStatus === 'COMPLETED')
-const isAbandoned = computed(() => progress.value?.progressStatus === 'ABANDONED')
+const isInProgress = computed(() => activeProgress.value?.progressStatus === 'IN_PROGRESS')
+const isCompleted = computed(() => activeProgress.value?.progressStatus === 'COMPLETED')
+const isAbandoned = computed(() => activeProgress.value?.progressStatus === 'ABANDONED')
+
+const myIsInProgress = computed(() => myProgress.value?.progressStatus === 'IN_PROGRESS')
+const myIsCompleted = computed(() => myProgress.value?.progressStatus === 'COMPLETED')
+const myIsAbandoned = computed(() => myProgress.value?.progressStatus === 'ABANDONED')
+
+const spectateStatusLabel = computed(() => {
+  if (isCompleted.value) return 'Completed'
+  if (isAbandoned.value) return 'Abandoned'
+  if (isInProgress.value) return 'In progress'
+  return 'Not started'
+})
+
+const spectateMilestone = computed(() => {
+  const milestone = activeProgress.value?.currentMilestone
+  if (!milestone) return null
+  if (milestone.label) return milestone.label
+  return campaign.value?.difficulties.find((d) => d.id === milestone.nodeId)?.songName ?? null
+})
+
+const spectateStartedAt = computed(() => {
+  const started = activeProgress.value?.startedAt
+  if (!started) return null
+  return new Date(started).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+})
 
 const isOwner = computed(
   () =>
@@ -227,14 +341,14 @@ function goToEditor() {
 }
 
 const effectiveDifficultyProgress = computed<CampaignDifficultyProgressResponse[] | undefined>(() => {
-  const diffs = progress.value?.difficulties
+  const diffs = activeProgress.value?.difficulties
   if (!diffs) return undefined
   if (isAbandoned.value) return diffs.map((p) => ({ ...p, unlocked: false, completed: false }))
   return diffs
 })
 
 const effectiveBarrierProgress = computed<BarrierProgressResponse[] | undefined>(() => {
-  const barrs = progress.value?.barriers
+  const barrs = activeProgress.value?.barriers
   if (!barrs) return undefined
   if (isAbandoned.value) return barrs.map((p) => ({ ...p, unlocked: false, satisfied: false }))
   return barrs
@@ -271,7 +385,7 @@ const difficultiesById = computed(() => {
 })
 
 const displayedRewardPending = computed(() => {
-  if (!rewardsActive.value) return false
+  if (!rewardsActive.value || isSpectating.value) return false
   const d = displayedDifficulty.value
   const p = displayedProgress.value
   return !!d && !!p && !!d.checkpointLabel && d.items.length > 0 && p.completed && !p.rewardsEarned
@@ -342,8 +456,20 @@ const barrierSubtitle = computed(() => {
   return `${lead} across ${n} ${maps}`
 })
 
+function shortName(name: string): string {
+  return name.length > 12 ? `${name.slice(0, 11)}…` : name
+}
+
+const viewerLabel = computed(() => (isSpectating.value ? shortName(spectateName.value) : 'You'))
+
+const viewerPossessive = computed(() =>
+  isSpectating.value ? `${shortName(spectateName.value)}'s` : 'Your',
+)
+
 const barrierProgressLabel = computed(() =>
-  displayedBarrier.value?.conditionType === 'COMPLETION_COUNT' ? 'Completed' : 'Your best',
+  displayedBarrier.value?.conditionType === 'COMPLETION_COUNT'
+    ? 'Completed'
+    : `${viewerPossessive.value} best`,
 )
 
 const prereqsFor = computed(() => {
@@ -405,7 +531,7 @@ const focusNodeId = computed<string | null>(() => {
   const c = campaign.value
   if (!c || c.difficulties.length === 0) return null
 
-  const cleared = progress.value?.difficulties.filter((p) => p.completed) ?? []
+  const cleared = activeProgress.value?.difficulties.filter((p) => p.completed) ?? []
 
   const rootId = () =>
     c.difficulties.find((d) => d.prerequisites.length === 0)?.id
@@ -434,7 +560,8 @@ const focusNodeId = computed<string | null>(() => {
   }
 
   if (isInProgress.value && !c.progressionAgnostic) {
-    const frontier = progress.value?.difficulties.filter((p) => p.unlocked && !p.completed) ?? []
+    const frontier =
+      activeProgress.value?.difficulties.filter((p) => p.unlocked && !p.completed) ?? []
     if (frontier.length > 0) {
       let next = { id: frontier[0].node.id, depth: Infinity }
       for (const f of frontier) {
@@ -466,7 +593,7 @@ function scheduleProgressRefresh(campaignId: string) {
     progressRefreshTimer = null
     if (campaign.value?.id !== campaignId) return
     try {
-      progress.value = await getMyCampaignProgress(campaignId)
+      myProgress.value = await getMyCampaignProgress(campaignId)
     } catch {
     }
   }, 2500)
@@ -478,7 +605,7 @@ async function onStart() {
   actionError.value = null
   try {
     await startCampaign(campaign.value.id)
-    progress.value = await getMyCampaignProgress(campaign.value.id)
+    myProgress.value = await getMyCampaignProgress(campaign.value.id)
     if (campaign.value.legacy) scheduleProgressRefresh(campaign.value.id)
   } catch (err) {
     actionError.value = getApiErrorMessage(err, 'Failed to start campaign')
@@ -494,7 +621,7 @@ async function onAbandon() {
   actionError.value = null
   try {
     await abandonCampaign(campaign.value.id)
-    progress.value = await getMyCampaignProgress(campaign.value.id)
+    myProgress.value = await getMyCampaignProgress(campaign.value.id)
   } catch (err) {
     actionError.value = getApiErrorMessage(err, 'Failed to abandon campaign')
   } finally {
@@ -604,14 +731,83 @@ function unpinTooltip() {
           @select="handleSelect" @hover="handleHover"
           @deselect="handleDeselect" />
 
-        <Breadcrumbs class="campaign-detail__breadcrumbs" :crumbs="breadcrumbs" />
+        <div class="campaign-detail__topbar">
+          <Breadcrumbs class="campaign-detail__breadcrumbs" :crumbs="breadcrumbs" />
+
+          <Transition name="campaign-detail__spectate-fade">
+            <div v-if="isSpectating" class="campaign-detail__spectate">
+              <button
+                type="button"
+                class="campaign-detail__spectate-back"
+                @click="stopSpectating"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <line x1="19" y1="12" x2="5" y2="12" />
+                  <polyline points="12 19 5 12 12 5" />
+                </svg>
+                {{ auth.isLoggedIn ? 'Back to your run' : 'Stop viewing' }}
+              </button>
+
+              <span class="campaign-detail__spectate-rule" aria-hidden="true" />
+
+              <p class="campaign-detail__spectate-who" role="status">
+                <img
+                  v-if="spectatePlayer"
+                  class="campaign-detail__spectate-avatar"
+                  :src="pickAvatarUrl(spectatePlayer)"
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  @error="onAvatarError(pickAvatarFallback(spectatePlayer))($event)"
+                />
+                <span class="campaign-detail__spectate-name">{{ spectateName }}</span>
+                <CountryFlag v-if="spectatePlayer?.country" :country="spectatePlayer.country" />
+              </p>
+
+              <span v-if="spectateLoading" class="campaign-detail__spectate-note">Loading run</span>
+              <span v-else-if="spectateError" class="campaign-detail__spectate-note campaign-detail__spectate-note--error">
+                {{ spectateError }}
+              </span>
+              <template v-else>
+                <span class="campaign-detail__spectate-stat">
+                  {{ completedCount }}<span class="campaign-detail__spectate-slash">/</span>{{ totalCount }}
+                </span>
+                <span class="campaign-detail__spectate-stat campaign-detail__spectate-stat--muted">
+                  {{ completionPct }}%
+                </span>
+                <span
+                  class="campaign-detail__spectate-pill"
+                  :class="{ 'campaign-detail__spectate-pill--done': isCompleted }"
+                >
+                  {{ spectateStatusLabel }}
+                </span>
+              </template>
+
+              <router-link
+                v-if="spectateUserId"
+                class="campaign-detail__spectate-profile"
+                :to="{ name: 'player-profile', params: { userId: spectateUserId } }"
+              >
+                Profile
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <line x1="7" y1="17" x2="17" y2="7" />
+                  <polyline points="8 7 17 7 17 16" />
+                </svg>
+              </router-link>
+            </div>
+          </Transition>
+        </div>
       </main>
 
       <CampaignLeaderboardTray
         v-if="campaign.status !== 'DRAFT'"
         :campaign="campaign"
         :node-id="lbNodeId"
+        :spectating-user-id="spectateUserId"
         @update:node-id="lbNodeId = $event"
+        @spectate="spectate"
       />
 
       <div class="campaign-detail__floats">
@@ -646,15 +842,16 @@ function unpinTooltip() {
           <CampaignVoteControl class="campaign-detail__vote" :campaign="campaign" size="md" />
 
           <div class="campaign-detail__actions">
-            <template v-if="!auth.isLoggedIn">
+            <template v-if="isSpectating" />
+            <template v-else-if="!auth.isLoggedIn">
               <p class="campaign-detail__hint">Sign in to track progress and start this campaign.</p>
             </template>
-            <template v-else-if="isInProgress">
+            <template v-else-if="myIsInProgress">
               <BaseButton variant="default" size="md" :loading="abandoning" @click="onAbandon">
                 Abandon campaign
               </BaseButton>
             </template>
-            <template v-else-if="isCompleted">
+            <template v-else-if="myIsCompleted">
               <span class="campaign-detail__status">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                   stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -685,7 +882,7 @@ function unpinTooltip() {
             </BaseButton>
 
             <p v-if="actionError" class="campaign-detail__error" role="alert">{{ actionError }}</p>
-            <p v-if="isAbandoned" class="campaign-detail__hint">
+            <p v-if="!isSpectating && myIsAbandoned" class="campaign-detail__hint">
               Previously abandoned. Beginning again resets progress.
             </p>
 
@@ -699,30 +896,52 @@ function unpinTooltip() {
             </button>
           </div>
 
-          <section class="campaign-detail__progress" aria-label="Your progression">
-            <div class="campaign-detail__progress-row">
-              <span class="campaign-detail__progress-label">Cleared</span>
-              <span class="campaign-detail__progress-count">
-                <span class="campaign-detail__progress-num">{{ completedCount }}</span>
-                <span class="campaign-detail__progress-sep">of</span>
-                <span class="campaign-detail__progress-total">{{ totalCount }}</span>
-              </span>
-            </div>
-            <div class="campaign-detail__progress-track"
-              :aria-valuenow="completionPct" aria-valuemin="0" aria-valuemax="100" role="progressbar">
-              <div class="campaign-detail__progress-fill"
-                :style="{ transform: `scaleX(${completionPct / 100})`, background: accent }" />
-            </div>
-            <div class="campaign-detail__progress-foot">
-              <span>{{ completionPct }}% complete</span>
-              <span class="campaign-detail__xp-note">
-                <CampaignRewardNotice
-                  v-if="campaign.completionXp > 0"
-                  :curated="campaign.status === 'CURATED'"
-                />
-                +{{ campaign.completionXp.toLocaleString() }} XP on finish
-              </span>
-            </div>
+          <section
+            class="campaign-detail__progress"
+            :class="{ 'campaign-detail__progress--spectating': isSpectating }"
+            :aria-label="isSpectating ? `${spectateName}'s progression` : 'Your progression'"
+          >
+            <h2 v-if="isSpectating" class="campaign-detail__progress-subject">
+              {{ spectateName }}'s run
+            </h2>
+
+            <template v-if="isSpectating && spectateLoading">
+              <SkeletonLoader variant="stat-block" />
+            </template>
+            <p v-else-if="isSpectating && spectateError" class="campaign-detail__error" role="alert">
+              {{ spectateError }}
+            </p>
+            <template v-else>
+              <div class="campaign-detail__progress-row">
+                <span class="campaign-detail__progress-label">Cleared</span>
+                <span class="campaign-detail__progress-count">
+                  <span class="campaign-detail__progress-num">{{ completedCount }}</span>
+                  <span class="campaign-detail__progress-sep">of</span>
+                  <span class="campaign-detail__progress-total">{{ totalCount }}</span>
+                </span>
+              </div>
+              <div class="campaign-detail__progress-track"
+                :aria-valuenow="completionPct" aria-valuemin="0" aria-valuemax="100" role="progressbar">
+                <div class="campaign-detail__progress-fill"
+                  :style="{ transform: `scaleX(${completionPct / 100})`, background: accent }" />
+              </div>
+              <div class="campaign-detail__progress-foot">
+                <span>{{ completionPct }}% complete</span>
+                <span v-if="!isSpectating" class="campaign-detail__xp-note">
+                  <CampaignRewardNotice
+                    v-if="campaign.completionXp > 0"
+                    :curated="campaign.status === 'CURATED'"
+                  />
+                  +{{ campaign.completionXp.toLocaleString() }} XP on finish
+                </span>
+                <span v-else>{{ spectateStatusLabel }}</span>
+              </div>
+              <p v-if="isSpectating && (spectateStartedAt || spectateMilestone)"
+                class="campaign-detail__progress-meta">
+                <span v-if="spectateStartedAt">Started {{ spectateStartedAt }}</span>
+                <span v-if="spectateMilestone">Furthest: {{ spectateMilestone }}</span>
+              </p>
+            </template>
           </section>
 
           <section v-if="campaign.description" class="campaign-detail__brief">
@@ -832,7 +1051,7 @@ function unpinTooltip() {
                   <tr>
                     <td class="campaign-detail__objective-corner" />
                     <th scope="col">Goal</th>
-                    <th v-if="displayedProgress" scope="col">You</th>
+                    <th v-if="displayedProgress" scope="col">{{ viewerLabel }}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1128,12 +1347,174 @@ function unpinTooltip() {
   z-index: 1;
 }
 
-.campaign-detail__breadcrumbs {
+.campaign-detail__topbar {
   position: absolute;
   top: var(--space-md);
   left: var(--space-md);
+  right: calc(var(--space-md) * 2 + 340px);
   z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  min-width: 0;
+  pointer-events: none;
+}
+
+.campaign-detail__breadcrumbs {
+  flex-shrink: 0;
   pointer-events: auto;
+}
+
+.campaign-detail__spectate {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+  padding: 5px var(--space-sm) 5px 6px;
+  background: var(--bg-surface);
+  border: 1px solid color-mix(in srgb, var(--page-accent) 45%, var(--bg-overlay));
+  border-radius: 4px;
+  pointer-events: auto;
+}
+
+.campaign-detail__spectate-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  padding: 3px 7px 3px 5px;
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease;
+}
+
+.campaign-detail__spectate-back:hover,
+.campaign-detail__spectate-back:focus-visible {
+  outline: none;
+  color: var(--text-primary);
+  border-color: var(--bg-overlay);
+}
+
+.campaign-detail__spectate-rule {
+  width: 1px;
+  height: 18px;
+  flex-shrink: 0;
+  background: var(--bg-overlay);
+}
+
+.campaign-detail__spectate-who {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+}
+
+.campaign-detail__spectate-avatar {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: var(--radius-avatar);
+  object-fit: cover;
+  background: var(--bg-elevated);
+}
+
+.campaign-detail__spectate-name {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.campaign-detail__spectate-stat {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.campaign-detail__spectate-stat--muted {
+  color: var(--text-secondary);
+}
+
+.campaign-detail__spectate-slash {
+  padding: 0 1px;
+  color: var(--text-tertiary);
+}
+
+.campaign-detail__spectate-note {
+  flex-shrink: 0;
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  color: var(--text-tertiary);
+}
+
+.campaign-detail__spectate-note--error {
+  color: var(--error);
+}
+
+.campaign-detail__spectate-pill {
+  flex-shrink: 0;
+  padding: 2px 6px;
+  font-family: var(--font-sans);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  border: 1px solid var(--bg-overlay);
+  border-radius: 2px;
+}
+
+.campaign-detail__spectate-pill--done {
+  color: var(--success);
+  border-color: color-mix(in srgb, var(--success) 45%, transparent);
+}
+
+.campaign-detail__spectate-profile {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  font-family: var(--font-sans);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  text-decoration: none;
+  transition: color 120ms ease;
+}
+
+.campaign-detail__spectate-profile:hover,
+.campaign-detail__spectate-profile:focus-visible {
+  color: var(--page-accent);
+}
+
+.campaign-detail__spectate-fade-enter-active,
+.campaign-detail__spectate-fade-leave-active {
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+
+.campaign-detail__spectate-fade-enter-from,
+.campaign-detail__spectate-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 
 .campaign-detail__floats {
@@ -1441,6 +1822,37 @@ function unpinTooltip() {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.campaign-detail__progress--spectating {
+  padding: var(--space-sm) var(--space-sm) 10px;
+  border: 1px solid color-mix(in srgb, var(--page-accent) 40%, var(--bg-overlay));
+  border-radius: 4px;
+}
+
+.campaign-detail__progress-subject {
+  margin: 0 0 2px;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.campaign-detail__progress-meta {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 2px 0 0;
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  color: var(--text-tertiary);
+  line-height: 1.5;
+}
+
+.campaign-detail__progress-meta span + span::before {
+  content: '·';
+  margin: 0 6px;
+  color: var(--text-tertiary);
 }
 
 .campaign-detail__progress-row {
@@ -2004,6 +2416,21 @@ function unpinTooltip() {
     overflow: visible;
   }
 
+  .campaign-detail__topbar {
+    right: var(--space-md);
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+  }
+
+  .campaign-detail__spectate {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+
+  .campaign-detail__spectate-rule {
+    display: none;
+  }
+
   .campaign-detail__canvas {
     position: relative;
     height: clamp(360px, 55vh, 560px);
@@ -2027,6 +2454,11 @@ function unpinTooltip() {
 @media (prefers-reduced-motion: reduce) {
   .campaign-detail__progress-fill,
   .campaign-detail__node {
+    transition: none;
+  }
+
+  .campaign-detail__spectate-fade-enter-active,
+  .campaign-detail__spectate-fade-leave-active {
     transition: none;
   }
 }

@@ -23,10 +23,12 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 const props = defineProps<{
   campaign: CampaignDetailResponse
   nodeId: string | null
+  spectatingUserId?: string | null
 }>()
 
 const emit = defineEmits<{
   'update:nodeId': [id: string | null]
+  spectate: [player: CampaignLeaderboardPlayer]
 }>()
 
 const PAGE_SIZE = 50
@@ -180,6 +182,10 @@ function progressPct(entry: CampaignLeaderboardEntry): number {
 function goBack() {
   emit('update:nodeId', null)
 }
+
+function isSpectating(player: CampaignLeaderboardPlayer): boolean {
+  return !!props.spectatingUserId && props.spectatingUserId === player.userId
+}
 </script>
 
 <template>
@@ -303,11 +309,15 @@ function goBack() {
         <EmptyState v-else-if="isEmpty" :message="emptyMessage" />
 
         <template v-else-if="drillNode">
-          <router-link
+          <button
             v-for="entry in nodeEntries"
             :key="entry.player.userId"
+            type="button"
             class="lb__row"
-            :to="{ name: 'player-profile', params: { userId: entry.player.userId } }"
+            :class="{ 'lb__row--active': isSpectating(entry.player) }"
+            :aria-current="isSpectating(entry.player) ? 'true' : undefined"
+            :title="`View ${entry.player.userName}'s run`"
+            @click="emit('spectate', entry.player)"
           >
             <span class="lb__rank" :class="getRankClass(entry.rank)">#{{ entry.rank }}</span>
             <img
@@ -329,16 +339,22 @@ function goBack() {
               </span>
             </span>
             <span class="lb__stat">{{ pct(entry.accuracy) }}</span>
-          </router-link>
+          </button>
         </template>
 
         <template v-else>
-          <router-link
+          <button
             v-for="entry in entries"
             :key="entry.player.userId"
+            type="button"
             class="lb__row"
-            :class="{ 'lb__row--tall': activeBoard === 'PROGRESS' }"
-            :to="{ name: 'player-profile', params: { userId: entry.player.userId } }"
+            :class="{
+              'lb__row--tall': activeBoard === 'PROGRESS',
+              'lb__row--active': isSpectating(entry.player),
+            }"
+            :aria-current="isSpectating(entry.player) ? 'true' : undefined"
+            :title="`View ${entry.player.userName}'s run`"
+            @click="emit('spectate', entry.player)"
           >
             <span
               v-if="entry.rank != null"
@@ -414,7 +430,7 @@ function goBack() {
                 </span>
               </span>
             </template>
-          </router-link>
+          </button>
         </template>
       </div>
 
@@ -579,13 +595,20 @@ function goBack() {
 
 .lb__row {
   display: flex;
+  width: 100%;
   align-items: center;
   gap: var(--space-sm);
-  padding: 7px var(--space-sm);
+  padding: 6px var(--space-sm);
+  font: inherit;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
   border-radius: 3px;
-  text-decoration: none;
   color: inherit;
-  transition: background 120ms ease;
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease;
 }
 
 .lb__row:nth-child(even) {
@@ -594,6 +617,17 @@ function goBack() {
 
 .lb__row:hover {
   background: var(--bg-elevated);
+}
+
+.lb__row:focus-visible {
+  outline: none;
+  border-color: var(--page-accent, var(--accent));
+}
+
+.lb__row--active,
+.lb__row--active:nth-child(even) {
+  background: var(--bg-elevated);
+  border-color: var(--page-accent, var(--accent));
 }
 
 .lb__rank {

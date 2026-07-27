@@ -52,7 +52,7 @@ export function getUserCampaignProgress(
   userId: string,
   campaignId: string,
 ): Promise<CampaignProgressResponse> {
-  return get<CampaignProgressResponse>(`/users/${userId}/campaigns/${campaignId}/progress`)
+  return get<CampaignProgressResponse>(`/users/${userId}/campaigns/${campaignId}`)
 }
 
 export function getUserOverallStatistics(
