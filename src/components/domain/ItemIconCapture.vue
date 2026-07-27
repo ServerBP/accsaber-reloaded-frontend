@@ -16,6 +16,9 @@ const props = defineProps<{
 
 const BORDER_WRAP_PCT = 60
 const AVATAR_OF_WRAP = 0.886
+const GEAR_NATIVE_PCT = 74
+const ICON_IMG_MAX = 0.8
+const GEAR_CAPTURE_PCT = GEAR_NATIVE_PCT / ICON_IMG_MAX
 
 provideThemeBase(computed(() => props.base))
 
@@ -114,6 +117,11 @@ const hostStyle = computed(() => {
 .icon-capture--border :deep(.item-preview__shape-wrap),
 .icon-capture--border :deep(.item-preview__color-swatch) {
   width: v-bind('`${BORDER_WRAP_PCT}%`');
+}
+
+.icon-capture :deep(.item-preview__saber),
+.icon-capture :deep(.item-preview__pedestal) {
+  width: v-bind('`${GEAR_CAPTURE_PCT}%`');
 }
 
 .icon-capture--hole {

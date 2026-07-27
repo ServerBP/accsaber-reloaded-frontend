@@ -53,11 +53,17 @@ export function useItemIconExport(renderItem: RenderItem) {
   const failures = ref<IconExportFailure[]>([])
   const warnings = ref<string[]>([])
   const uploaded = ref<ItemResponse[]>([])
+  const previews = ref<Record<string, string>>({})
 
   let abort = false
 
   function cancel() {
     abort = true
+  }
+
+  function clearPreviews() {
+    for (const url of Object.values(previews.value)) URL.revokeObjectURL(url)
+    previews.value = {}
   }
 
   function reset() {
@@ -67,6 +73,7 @@ export function useItemIconExport(renderItem: RenderItem) {
     failures.value = []
     warnings.value = []
     uploaded.value = []
+    clearPreviews()
   }
 
   function addWarning(message: string) {
@@ -100,7 +107,7 @@ export function useItemIconExport(renderItem: RenderItem) {
     uploaded.value.push(await uploadItemIcon(item.id, file))
   }
 
-  async function run(items: ItemResponse[], options: { size: number }) {
+  async function run(items: ItemResponse[], options: { size: number; upload: boolean }) {
     if (running.value) return
     abort = false
     reset()
@@ -125,6 +132,12 @@ export function useItemIconExport(renderItem: RenderItem) {
           continue
         }
 
+        if (!options.upload) {
+          previews.value = { ...previews.value, [item.id]: URL.createObjectURL(blob) }
+          completed.value += 1
+          continue
+        }
+
         const task: Promise<void> = upload(item, blob)
           .catch((err) => addFailure(item, parseApiError(err, 'Upload failed').message))
           .finally(() => {
@@ -141,5 +154,17 @@ export function useItemIconExport(renderItem: RenderItem) {
     }
   }
 
-  return { running, total, completed, currentName, failures, warnings, uploaded, run, cancel }
+  return {
+    running,
+    total,
+    completed,
+    currentName,
+    failures,
+    warnings,
+    uploaded,
+    previews,
+    run,
+    cancel,
+    clearPreviews,
+  }
 }

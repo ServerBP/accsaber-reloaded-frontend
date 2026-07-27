@@ -126,8 +126,10 @@ const {
   failures,
   warnings,
   uploaded,
+  previews,
   run,
   cancel,
+  clearPreviews,
 } = useItemIconExport(renderItem)
 
 const progressPct = computed(() =>
@@ -149,10 +151,17 @@ async function fetchItems() {
   }
 }
 
+async function startPreview() {
+  const targets = selectedItems.value
+  if (targets.length === 0) return
+  await run(targets, { size: size.value, upload: false })
+  captureItem.value = null
+}
+
 async function startExport() {
   const targets = selectedItems.value
   if (targets.length === 0) return
-  await run(targets, { size: size.value })
+  await run(targets, { size: size.value, upload: true })
   captureItem.value = null
   if (uploaded.value.length > 0) {
     const byId = new Map(uploaded.value.map((i) => [i.id, i]))
@@ -171,6 +180,7 @@ watch(
   async (open) => {
     if (!open) {
       captureItem.value = null
+      clearPreviews()
       return
     }
     await itemTypeStore.fetchItemTypes()
@@ -189,8 +199,9 @@ watch(
   >
     <div class="icon-export">
       <p class="icon-export__intro">
-        Renders each item's live preview to a transparent PNG and uploads it as that item's icon.
-        Border shapes and colours export as frames with an empty centre so a profile picture fits inside.
+        Renders each item's live preview to a transparent PNG and uploads it as that item's icon,
+        replacing any icon it already has. Border shapes and colours export as frames with an empty
+        centre so a profile picture fits inside.
       </p>
 
       <div class="icon-export__filters">
@@ -209,9 +220,9 @@ watch(
         <label class="icon-export__check">
           <input v-model="includeInactive" type="checkbox" /> Include inactive
         </label>
-        <label class="icon-export__check">
+        <label class="icon-export__check icon-export__check--warn">
           <input v-model="includeImageBacked" type="checkbox" />
-          Include image-backed types (badges, backgrounds)
+          Include badges and backgrounds (overwrites their source asset, not just the icon)
         </label>
       </div>
 
@@ -244,8 +255,9 @@ watch(
           :disabled="running"
           @click="toggle(item.id)"
         >
-          <span class="icon-export__art">
-            <ItemIconCapture :item="item" :width="64" :height="64" :base="base" />
+          <span class="icon-export__art" :class="{ 'icon-export__art--png': previews[item.id] }">
+            <img v-if="previews[item.id]" :src="previews[item.id]" :alt="item.name" />
+            <ItemIconCapture v-else :item="item" :width="64" :height="64" :base="base" />
           </span>
           <span class="icon-export__label">{{ item.name }}</span>
           <span class="icon-export__meta">
@@ -313,6 +325,11 @@ watch(
           >Stop</BaseButton>
           <BaseButton :disabled="running" @click="handleClose">Close</BaseButton>
           <BaseButton
+            :loading="running"
+            :disabled="selectedItems.length === 0"
+            @click="startPreview"
+          >Preview</BaseButton>
+          <BaseButton
             variant="primary"
             :loading="running"
             :disabled="selectedItems.length === 0"
@@ -357,6 +374,10 @@ watch(
   font-size: var(--text-caption);
   color: var(--text-secondary);
   cursor: pointer;
+}
+
+.icon-export__check--warn {
+  color: var(--warning);
 }
 
 .icon-export__bulk {
@@ -437,6 +458,22 @@ watch(
   justify-content: center;
   width: 64px;
   height: 64px;
+}
+
+.icon-export__art--png {
+  background-image:
+    linear-gradient(45deg, var(--bg-overlay) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--bg-overlay) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--bg-overlay) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--bg-overlay) 75%);
+  background-size: 12px 12px;
+  background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+}
+
+.icon-export__art img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .icon-export__label {
