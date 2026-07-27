@@ -260,8 +260,8 @@ watch(
           :key="`${captureItem.id}:${flattenText}`"
           ref="captureComp"
           :item="captureItem"
-          :width="captureBox(captureItem.typeKey).width"
-          :height="captureBox(captureItem.typeKey).height"
+          :width="captureBox().width"
+          :height="captureBox().height"
           :base="base"
           :flatten-text="flattenText"
         />

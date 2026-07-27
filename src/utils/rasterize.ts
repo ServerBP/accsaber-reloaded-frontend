@@ -251,7 +251,6 @@ interface RasterizeOptions {
   width: number
   height: number
   scale?: number
-  trim?: { size: number; paddingPct: number }
   probe?: Rect
 }
 
@@ -489,80 +488,23 @@ export async function rasterize(
       })
     : undefined
 
-  const finalCanvas = options.trim ? refitToSquare(canvas, options.trim) : canvas
-  const blob = await new Promise<Blob | null>((resolve) => finalCanvas.toBlob(resolve, 'image/png'))
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
   if (!blob) throw new Error('PNG encoding failed')
 
   return { blob, warnings: Array.from(new Set(ctx.warnings)), probeOpaque }
 }
 
-function alphaOf(canvas: HTMLCanvasElement, rect: Rect): Uint8ClampedArray | null {
+function countOpaque(canvas: HTMLCanvasElement, rect: Rect): number {
   const x = Math.max(0, Math.min(rect.x, canvas.width))
   const y = Math.max(0, Math.min(rect.y, canvas.height))
   const w = Math.max(0, Math.min(rect.w, canvas.width - x))
   const h = Math.max(0, Math.min(rect.h, canvas.height - y))
-  if (w === 0 || h === 0) return null
-  return canvas.getContext('2d')?.getImageData(x, y, w, h).data ?? null
-}
+  if (w === 0 || h === 0) return 0
 
-function countOpaque(canvas: HTMLCanvasElement, rect: Rect): number {
-  const data = alphaOf(canvas, rect)
+  const data = canvas.getContext('2d')?.getImageData(x, y, w, h).data
   if (!data) return 0
+
   let count = 0
-  for (let i = 3; i < data.length; i += 4) if (data[i] > 8) count++
+  for (let i = 3; i < data.length; i += 4) if (data[i] > 128) count++
   return count
-}
-
-function alphaBounds(canvas: HTMLCanvasElement): Rect | null {
-  const { width, height } = canvas
-  const data = alphaOf(canvas, { x: 0, y: 0, w: width, h: height })
-  if (!data) return null
-
-  let minX = width
-  let minY = height
-  let maxX = -1
-  let maxY = -1
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      if (data[(y * width + x) * 4 + 3] < 8) continue
-      if (x < minX) minX = x
-      if (x > maxX) maxX = x
-      if (y < minY) minY = y
-      if (y > maxY) maxY = y
-    }
-  }
-  return maxX < 0 ? null : { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 }
-}
-
-function refitToSquare(
-  source: HTMLCanvasElement,
-  trim: { size: number; paddingPct: number },
-): HTMLCanvasElement {
-  const bounds = alphaBounds(source)
-  if (!bounds) return source
-
-  const out = document.createElement('canvas')
-  out.width = trim.size
-  out.height = trim.size
-  const context = out.getContext('2d')
-  if (!context) return source
-
-  const inner = trim.size * (1 - trim.paddingPct * 2)
-  const scale = Math.min(inner / bounds.w, inner / bounds.h)
-  const drawW = bounds.w * scale
-  const drawH = bounds.h * scale
-
-  context.imageSmoothingQuality = 'high'
-  context.drawImage(
-    source,
-    bounds.x,
-    bounds.y,
-    bounds.w,
-    bounds.h,
-    (trim.size - drawW) / 2,
-    (trim.size - drawH) / 2,
-    drawW,
-    drawH,
-  )
-  return out
 }

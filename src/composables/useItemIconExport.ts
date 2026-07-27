@@ -1,22 +1,18 @@
 import { parseApiError } from '@/api/client'
 import { uploadItemIcon } from '@/api/admin/items'
-import type { ItemResponse, ItemTypeKey } from '@/types/api/items'
+import type { ItemResponse } from '@/types/api/items'
 import { rasterize, type Rect } from '@/utils/rasterize'
 import { ref } from 'vue'
 
-const TEXT_DRIVEN_TYPES = new Set<ItemTypeKey>(['title', 'perk'])
+const CAPTURE_SIDE = 256
 const UPLOAD_CONCURRENCY = 3
-const TRIM_PADDING_PCT = 0.08
+const MIN_TEXT_COVERAGE = 0.01
 
 const FLAT_TEXT_NOTE =
   'Some gradient titles were exported in a flat colour - this browser dropped the gradient clip on their letters.'
 
-function isTextDriven(typeKey: ItemTypeKey): boolean {
-  return TEXT_DRIVEN_TYPES.has(typeKey)
-}
-
-export function captureBox(typeKey: ItemTypeKey): { width: number; height: number } {
-  return isTextDriven(typeKey) ? { width: 512, height: 256 } : { width: 256, height: 256 }
+export function captureBox(): { width: number; height: number } {
+  return { width: CAPTURE_SIDE, height: CAPTURE_SIDE }
 }
 
 function iconFileName(item: ItemResponse): string {
@@ -83,23 +79,18 @@ export function useItemIconExport(renderItem: RenderItem) {
 
   async function capture(item: ItemResponse, size: number): Promise<Blob> {
     let host = await renderItem(item, false)
-    const box = captureBox(item.typeKey)
+    const box = captureBox()
 
     const probe = item.typeKey === 'title' ? textRegion(host) : null
     if (probe) {
       const check = await rasterize(host, { ...box, scale: 1, probe })
-      if ((check.probeOpaque ?? 0) === 0) {
+      if ((check.probeOpaque ?? 0) < probe.w * probe.h * MIN_TEXT_COVERAGE) {
         host = await renderItem(item, true)
         addWarning(FLAT_TEXT_NOTE)
       }
     }
 
-    const textDriven = isTextDriven(item.typeKey)
-    const result = await rasterize(host, {
-      ...box,
-      scale: (textDriven ? size * 2 : size) / box.width,
-      trim: textDriven ? { size, paddingPct: TRIM_PADDING_PCT } : undefined,
-    })
+    const result = await rasterize(host, { ...box, scale: size / box.width })
     result.warnings.forEach(addWarning)
     return result.blob
   }
