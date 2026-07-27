@@ -1,4 +1,5 @@
-:root {
+:root,
+.token-defaults {
   /* --- Base Palette (Dark Mode - Default) --- */
   --bg-base: #08080d;
   --bg-surface: #11111c;

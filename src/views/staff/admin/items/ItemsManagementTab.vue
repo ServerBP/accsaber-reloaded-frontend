@@ -5,6 +5,7 @@ import BaseInput from '@/components/common/BaseInput.vue'
 import BaseModal from '@/components/common/BaseModal.vue'
 import BaseSelect from '@/components/common/BaseSelect.vue'
 import ImageUploader from '@/components/common/ImageUploader.vue'
+import ItemIconExportModal from './ItemIconExportModal.vue'
 import SchemaValueForm from './value-form/SchemaValueForm.vue'
 import {
   createItem,
@@ -38,6 +39,7 @@ const typeFilter = ref<string>('')
 
 const editing = ref<ItemResponse | null>(null)
 const modalOpen = ref(false)
+const iconExportOpen = ref(false)
 const submitting = ref(false)
 const activeToggling = ref(false)
 
@@ -401,6 +403,10 @@ async function handleReactivate(item: ItemResponse) {
   })
 }
 
+function onIconsExported(updated: ItemResponse[]) {
+  for (const item of updated) applyUpdatedItem(item)
+}
+
 function onUnlockLevelInput(raw: string) {
   const n = parseNullableNumber(raw)
   form.value.unlockLevel = n == null ? null : Math.trunc(n)
@@ -421,8 +427,15 @@ onMounted(async () => {
       <label class="items-mgmt__check">
         <input v-model="includeInactive" type="checkbox" /> Include inactive
       </label>
+      <BaseButton size="sm" @click="iconExportOpen = true">Export icons</BaseButton>
       <BaseButton variant="primary" size="sm" @click="openCreate">New item</BaseButton>
     </header>
+
+    <ItemIconExportModal
+      :open="iconExportOpen"
+      @close="iconExportOpen = false"
+      @updated="onIconsExported"
+    />
 
     <AdminTable :items="visibleItems" :loading="loading" empty-message="No items">
       <template #head>
