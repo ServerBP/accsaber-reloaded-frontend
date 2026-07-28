@@ -332,6 +332,20 @@ function navigateToCountryRank() {
   if (countryRankRoute.value) router.push(countryRankRoute.value)
 }
 
+async function redirectToCanonicalProfile(canonicalId: string): Promise<boolean> {
+  try {
+    const failure = await router.replace({
+      name: route.name as string,
+      params: { ...route.params, userId: canonicalId },
+      query: route.query,
+      hash: route.hash,
+    })
+    return !failure
+  } catch {
+    return false
+  }
+}
+
 async function fetchProfile() {
   loading.value = true
   error.value = false
@@ -348,6 +362,7 @@ async function fetchProfile() {
     const { getUser, getUserLevel, getUserAllStatistics } = await import('@/api/users')
 
     const userRes = await getUser(userId.value)
+    if (userRes.id !== userId.value && (await redirectToCanonicalProfile(userRes.id))) return
     user.value = userRes
 
     if (userRes.banned || isBlockedByMe.value) {

@@ -364,6 +364,11 @@ function selectItem(linkId: string) {
   }
 }
 
+function reportActionError(err: unknown, fallback: string) {
+  const parsed = parseApiError(err, fallback)
+  showFeedback('error', parsed.fieldErrors[0]?.message ?? parsed.message)
+}
+
 async function handleEquip(linkId: string) {
   if (isLockedLink(linkId)) return
   const target = items.value.find((u) => u.linkId === linkId)
@@ -381,7 +386,8 @@ async function handleEquip(linkId: string) {
         )
       }
     }
-  } catch {
+  } catch (err) {
+    reportActionError(err, 'Could not equip item.')
   } finally {
     actionBusy.value = false
   }
@@ -393,7 +399,8 @@ async function handleSelectVariant(linkId: string, variantKey: string) {
   actionBusy.value = true
   try {
     await inventoryStore.equip(target.linkId, props.userId, variantKey)
-  } catch {
+  } catch (err) {
+    reportActionError(err, 'Could not switch variant.')
   } finally {
     actionBusy.value = false
   }
@@ -403,7 +410,8 @@ async function handleUnequip(typeKeyArg: string) {
   actionBusy.value = true
   try {
     await inventoryStore.unequip(typeKeyArg as ItemTypeKey, props.userId)
-  } catch {
+  } catch (err) {
+    reportActionError(err, 'Could not unequip item.')
   } finally {
     actionBusy.value = false
   }
@@ -426,7 +434,8 @@ async function handleApplyThemeMode(linkId: string, alt: boolean) {
       tokens,
       buildEffectLayers(target.modifiers, target.unusualEffect),
     )
-  } catch {
+  } catch (err) {
+    reportActionError(err, 'Could not apply theme.')
   } finally {
     actionBusy.value = false
   }
