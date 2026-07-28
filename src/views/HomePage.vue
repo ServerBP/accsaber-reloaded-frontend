@@ -152,24 +152,22 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <template v-if="!isLoggedIn">
-        <div class="hero__stats">
-          <div class="hero__stat">
-            <span class="hero__stat-value">128K+</span>
-            <span class="hero__stat-label">Total Players</span>
-          </div>
-          <div class="hero__stat">
-            <span class="hero__stat-value">540+</span>
-            <span class="hero__stat-label">Ranked Maps</span>
-          </div>
+      <div v-if="!isLoggedIn" class="hero__stats">
+        <div class="hero__stat">
+          <span class="hero__stat-value">128K+</span>
+          <span class="hero__stat-label">Total Players</span>
         </div>
-      </template>
+        <div class="hero__stat">
+          <span class="hero__stat-value">540+</span>
+          <span class="hero__stat-label">Ranked Maps</span>
+        </div>
+      </div>
 
       <div v-if="isLoggedIn" class="hero__activity">
         <FollowedActivity />
       </div>
 
-      <div class="hero__scroll-hint" aria-hidden="true">
+      <div v-if="!isLoggedIn" class="hero__scroll-hint" aria-hidden="true">
         <svg class="hero__scroll-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
           stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="7 13 12 18 17 13" />
@@ -656,11 +654,18 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
+  pointer-events: none;
   animation: scroll-float 2s ease-in-out infinite;
 }
 
 .hero__scroll-arrow {
   color: var(--accent-overall);
+}
+
+@media (max-height: 720px) {
+  .hero__scroll-hint {
+    display: none;
+  }
 }
 
 @keyframes scroll-float {
