@@ -112,7 +112,7 @@ export const SCORE_DETAIL_METRICS: { key: MetricType; label: string }[] = [
 
 export const MAP_STATS_METRICS: { key: MetricType; label: string }[] = [
   { key: 'ap', label: 'Max AP' },
-  { key: 'avgAccuracy', label: 'Avg Accuracy' },
+  { key: 'avgAp', label: 'Avg AP' },
   { key: 'rankedPlays', label: 'Total Scores' },
 ]
 

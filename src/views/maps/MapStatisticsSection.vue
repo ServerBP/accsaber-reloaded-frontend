@@ -22,6 +22,10 @@ const complexityHistory = ref<MapComplexityHistoryResponse[]>([])
 const selectedMetric = ref<MetricType>('ap')
 const selectedRange = ref<TimeRange>('all')
 
+const selectedMetricLabel = computed(
+  () => MAP_STATS_METRICS.find((m) => m.key === selectedMetric.value)?.label ?? '',
+)
+
 const statsChartPoints = computed<TimeSeriesPoint[]>(() => {
   const metric = selectedMetric.value
   return historicStats.value
@@ -29,7 +33,7 @@ const statsChartPoints = computed<TimeSeriesPoint[]>(() => {
     .map((s) => ({
       timestamp: new Date(s.createdAt).getTime(),
       value: metric === 'ap' ? s.maxAp
-        : metric === 'avgAccuracy' ? s.averageAp
+        : metric === 'avgAp' ? s.averageAp
         : s.totalScores,
     }))
     .filter((p) => p.value != null && Number.isFinite(p.value))
@@ -199,7 +203,7 @@ watch(selectedRange, fetchHistoricStats)
 
     <section v-if="difficultyId" class="map-stats__section">
       <h2 class="map-stats__heading">Statistics Over Time</h2>
-      <TimeSeriesChart :data="statsChartPoints" :metric-label="selectedMetric" :accent-color="accentColor"
+      <TimeSeriesChart :data="statsChartPoints" :metric-label="selectedMetricLabel" :accent-color="accentColor"
         :available-metrics="MAP_STATS_METRICS" :selected-metric="selectedMetric" :selected-range="selectedRange"
         @update:selected-metric="selectedMetric = $event as MetricType"
         @update:selected-range="selectedRange = $event" />
