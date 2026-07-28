@@ -48,16 +48,16 @@ npm install
 npm run dev
 ```
 
-Available at `http://localhost:5173`. The dev server proxies API requests based on `VITE_DEV_PROXY_TARGET` in `.env.development`:
+Available at `http://localhost:5173`. The dev server proxies API requests based on `API_PROXY_TARGET` in `.env.development`:
 
 ```
-VITE_DEV_PROXY_TARGET=https://api.accsaber.com
+API_PROXY_TARGET=https://api.accsaber.com
 ```
 
 To proxy against a local backend instead:
 
 ```
-VITE_DEV_PROXY_TARGET=http://localhost:8080
+API_PROXY_TARGET=http://localhost:8080
 ```
 
 ## Project Structure
@@ -84,12 +84,11 @@ src/
 
 ## Configuration Reference
 
-| Variable | Used By | Required | Description |
+| Variable | Both | Required | Description |
 |---|---|---|---|
-| `API_PROXY_TARGET` | Docker | Yes | Backend URL that nginx proxies `/v1/` to |
+| `API_PROXY_TARGET` | Docker | Yes | Backend URL that `/v1/` is proxied to |
 | `VITE_ADMIN_URL` | Both | Yes | Admin panel URL |
 | `VITE_RANKING_URL` | Both | Yes | Ranking staff panel URL |
-| `VITE_DEV_PROXY_TARGET` | Vite | No | Dev server proxy target (`.env.development` only) |
 | `VITE_WS_BASE` | Vite | No | WebSocket URL (`.env.development` only) |
 
 ### Important Note on AI Usage

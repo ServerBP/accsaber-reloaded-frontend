@@ -2,6 +2,9 @@
 name = "accsaber-reloaded-frontend"
 # Set this to today's date
 compatibility_date = "2026-07-27"
+main = "./worker/index.ts"
+
 
 [assets]
 not_found_handling = "single-page-application"
+# run_worker_first = [ "/api/*", "/proxy/*" ]
