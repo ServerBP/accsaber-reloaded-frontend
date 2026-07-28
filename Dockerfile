@@ -13,7 +13,7 @@ RUN VITE_API_BASE=$VITE_API_BASE VITE_WS_BASE=$VITE_WS_BASE npm run build-only
 FROM nginx:alpine
 COPY docker/nginx.conf.template /etc/nginx/nginx.conf.template
 COPY docker/security-headers.conf /etc/nginx/security-headers.conf
-COPY --from=build /app/dist /usr/share/nginx/html
+COPY --from=build /app/dist/client /usr/share/nginx/html
 EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=3s --retries=3 CMD wget -qO- http://127.0.0.1/health || exit 1
 CMD ["/bin/sh", "-c", "test -n \"$API_PROXY_TARGET\" || { echo 'ERROR: API_PROXY_TARGET is required'; exit 1; } && export OG_RESOLVER=\"${OG_RESOLVER:-$(awk '/^nameserver/{print $2; exit}' /etc/resolv.conf)}\" && envsubst '${API_PROXY_TARGET} ${OG_RESOLVER}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'"]
