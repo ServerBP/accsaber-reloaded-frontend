@@ -2,17 +2,14 @@
 import { computed, defineAsyncComponent } from 'vue'
 import { useRoute } from 'vue-router'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
+import { usePageMeta } from '@/composables/usePageMeta'
+import { adminTabLabel, DEFAULT_ADMIN_TAB, isAdminTab, type AdminTab } from '@/utils/adminTabs'
 
 const route = useRoute()
 
-type AdminTab = 'users' | 'duplicates' | 'staff' | 'milestones' | 'campaigns' | 'curves' | 'news' | 'events' | 'broadcast' | 'operations' | 'items'
-
-const VALID_TABS: AdminTab[] = ['users', 'duplicates', 'staff', 'milestones', 'campaigns', 'curves', 'news', 'events', 'broadcast', 'operations', 'items']
-
-const activeTab = computed<AdminTab>(() => {
-  const t = route.query.tab as string
-  return (VALID_TABS.includes(t as AdminTab) ? t : 'users') as AdminTab
-})
+const activeTab = computed<AdminTab>(() =>
+  isAdminTab(route.query.tab) ? route.query.tab : DEFAULT_ADMIN_TAB,
+)
 
 const tabComponents: Record<AdminTab, ReturnType<typeof defineAsyncComponent>> = {
   users: defineAsyncComponent(() => import('./admin/AdminUsersTab.vue')),
@@ -29,6 +26,11 @@ const tabComponents: Record<AdminTab, ReturnType<typeof defineAsyncComponent>> =
 }
 
 const activeComponent = computed(() => tabComponents[activeTab.value])
+
+usePageMeta({
+  title: computed(() => `${adminTabLabel(activeTab.value)} | AccSaber Admin`),
+  description: 'AccSaber administration.',
+})
 </script>
 
 <template>

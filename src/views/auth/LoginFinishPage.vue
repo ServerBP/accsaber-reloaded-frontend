@@ -1,10 +1,16 @@
 <script setup lang="ts">
 import { buildOAuthStartUrl, getDefaultCallbackUrl } from '@/api/auth'
+import { usePageMeta } from '@/composables/usePageMeta'
 import type { OAuthProvider } from '@/types/api/player-auth'
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
+
+usePageMeta({
+  title: 'Link Your Account | AccSaber',
+  description: 'Finish linking your account to AccSaber.',
+})
 const pendingLinkToken = ref<string | null>(null)
 
 onMounted(() => {

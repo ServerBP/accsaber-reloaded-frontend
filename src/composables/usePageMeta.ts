@@ -56,7 +56,10 @@ function applyMeta(meta: { title: string; description: string; image: string; ur
   setNameMeta('twitter:image', meta.image)
 }
 
+let activeOwner: symbol | null = null
+
 export function usePageMeta(meta: PageMeta) {
+  const owner = Symbol('page-meta')
   const type = meta.type ?? 'website'
   const titleRef = toRef(meta.title)
   const descriptionRef = toRef(meta.description)
@@ -64,6 +67,7 @@ export function usePageMeta(meta: PageMeta) {
   const urlRef = toRef(meta.url)
 
   function update() {
+    activeOwner = owner
     applyMeta({
       title: titleRef.value ?? DEFAULT_TITLE,
       description: descriptionRef.value ?? DEFAULT_DESCRIPTION,
@@ -77,6 +81,8 @@ export function usePageMeta(meta: PageMeta) {
   watch(refs, update, { immediate: true })
 
   onUnmounted(() => {
+    if (activeOwner !== owner) return
+    activeOwner = null
     applyMeta({
       title: DEFAULT_TITLE,
       description: DEFAULT_DESCRIPTION,

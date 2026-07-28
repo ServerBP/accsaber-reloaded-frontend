@@ -1,11 +1,17 @@
 <script setup lang="ts">
 import { isRankingSubdomain, rankingDashboardRoute } from '@/router'
+import { usePageMeta } from '@/composables/usePageMeta'
 import { useAuthStore } from '@/stores/auth'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
 const authStore = useAuthStore()
+
+usePageMeta({
+  title: 'Signing In | AccSaber',
+  description: 'Completing your sign-in to AccSaber.',
+})
 
 const errorCode = ref<string | null>(null)
 const errorMessage = ref<string | null>(null)

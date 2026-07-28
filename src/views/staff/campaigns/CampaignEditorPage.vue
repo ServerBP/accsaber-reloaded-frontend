@@ -17,6 +17,7 @@ import {
   type PresencePeer,
 } from '@/composables/useCampaignPresence'
 import { useCampaignChat } from '@/composables/useCampaignChat'
+import { usePageMeta } from '@/composables/usePageMeta'
 import { pickCoverUrl } from '@/composables/useAvatarFallback'
 import { useThemeStore } from '@/stores/theme'
 import { readBackdropConfig } from '@/utils/themeBackdrop'
@@ -36,6 +37,15 @@ import { useCampaignTutorial } from './useCampaignTutorial'
 
 const editor = useCampaignEditor()
 provide(CAMPAIGN_EDITOR_KEY, editor)
+
+usePageMeta({
+  title: computed(() =>
+    editor.campaign.value?.name
+      ? `Editing ${editor.campaign.value.name} | AccSaber`
+      : 'New Campaign | AccSaber',
+  ),
+  description: 'Campaign editor.',
+})
 
 const {
   auth,

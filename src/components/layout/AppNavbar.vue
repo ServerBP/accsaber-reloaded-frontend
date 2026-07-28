@@ -12,6 +12,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useBrandLogo } from '@/composables/useBrandLogo'
 import { useCurrentEvent } from '@/composables/useCurrentEvent'
 import { useOwnProfileLink } from '@/composables/useOwnProfileLink'
+import { ADMIN_TABS } from '@/utils/adminTabs'
 import { isAdminSubdomain, isCreativesSubdomain, isRankingSubdomain, isStaffSubdomain } from '@/utils/subdomain'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
@@ -55,19 +56,10 @@ const morePublicNavItems: NavItem[] = [
   { to: '/ranked-queue', label: 'Ranking Queue' },
 ]
 
-const adminNavItems: NavItem[] = [
-  { to: '/?tab=users', label: 'Users' },
-  { to: '/?tab=staff', label: 'Staff' },
-  { to: '/?tab=milestones', label: 'Milestones' },
-  { to: '/?tab=campaigns', label: 'Campaigns' },
-  { to: '/?tab=items', label: 'Items' },
-  { to: '/?tab=curves', label: 'Curves' },
-  { to: '/?tab=news', label: 'News' },
-  { to: '/?tab=events', label: 'Events' },
-  { to: '/?tab=broadcast', label: 'Broadcast' },
-  { to: '/?tab=operations', label: 'Operations' },
-  { to: '/?tab=duplicates', label: 'Duplicates' },
-]
+const adminNavItems: NavItem[] = ADMIN_TABS.map((tab) => ({
+  to: `/?tab=${tab.key}`,
+  label: tab.label,
+}))
 
 const rankingPrefix = isRankingSubdomain ? '' : '/staff/ranking'
 

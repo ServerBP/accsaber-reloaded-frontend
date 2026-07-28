@@ -4,6 +4,12 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import BaseButton from '@/components/common/BaseButton.vue'
 import BaseInput from '@/components/common/BaseInput.vue'
+import { usePageMeta } from '@/composables/usePageMeta'
+
+usePageMeta({
+  title: 'Staff Login | AccSaber Admin',
+  description: 'Staff sign-in for AccSaber administration.',
+})
 
 const auth = useAuthStore()
 const router = useRouter()

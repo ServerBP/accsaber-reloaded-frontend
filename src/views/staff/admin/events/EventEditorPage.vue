@@ -17,6 +17,7 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import ImageUploader from '@/components/common/ImageUploader.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import { useNow } from '@/composables/useNow'
+import { usePageMeta } from '@/composables/usePageMeta'
 import type {
   EventBonusItem,
   EventRequest,
@@ -43,6 +44,14 @@ const now = useNow(30000)
 const eventId = computed(() => String(route.params.eventId))
 
 const event = ref<EventResponse | null>(null)
+
+usePageMeta({
+  title: computed(() =>
+    event.value ? `${event.value.title} | AccSaber Admin` : 'Event | AccSaber Admin',
+  ),
+  description: 'Event editor.',
+})
+
 const missions = ref<MissionTemplateResponse[]>([])
 const loading = ref(true)
 const errorMsg = ref<string | null>(null)

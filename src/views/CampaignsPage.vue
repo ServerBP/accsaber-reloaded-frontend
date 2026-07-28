@@ -21,6 +21,7 @@ import type {
 import type { Page } from '@/types/pagination'
 import type { CampaignStatus } from '@/types/enums'
 import { isAdminSubdomain } from '@/utils/subdomain'
+import { usePageMeta } from '@/composables/usePageMeta'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -30,6 +31,11 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const categoryStore = useCategoryStore()
+
+usePageMeta({
+  title: 'Campaigns | AccSaber',
+  description: 'Community-made map progression campaigns on AccSaber.',
+})
 
 const isCurator = computed(() => auth.hasRole('CAMPAIGN_CURATOR'))
 const canReview = computed(() => isCurator.value && isAdminSubdomain)

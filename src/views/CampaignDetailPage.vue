@@ -30,6 +30,7 @@ import {
   pickCoverUrl,
 } from '@/composables/useAvatarFallback'
 import { useItemCatalog } from '@/composables/useItemCatalog'
+import { usePageMeta } from '@/composables/usePageMeta'
 import { useAuthStore } from '@/stores/auth'
 import { useCategoryStore } from '@/stores/categories'
 import { useThemeStore } from '@/stores/theme'
@@ -77,6 +78,16 @@ const { itemsById: rewardItemsById, ensureLoaded: ensureRewardItems } = useItemC
 const themeBackdropActive = computed(() => readBackdropConfig(themeStore.activeTokens) !== null)
 
 const campaign = ref<CampaignDetailResponse | null>(null)
+
+usePageMeta({
+  title: computed(() =>
+    campaign.value ? `${campaign.value.name} | AccSaber Campaigns` : 'Campaign | AccSaber',
+  ),
+  description: computed(() =>
+    campaign.value ? `The ${campaign.value.name} campaign on AccSaber.` : undefined,
+  ),
+})
+
 const myProgress = ref<CampaignProgressResponse | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)

@@ -1,8 +1,14 @@
 <script setup lang="ts">
 import { defineAsyncComponent } from 'vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
+import { usePageMeta } from '@/composables/usePageMeta'
 
 const CreativesCratesTab = defineAsyncComponent(() => import('./CreativesCratesTab.vue'))
+
+usePageMeta({
+  title: 'Crates | AccSaber Creatives',
+  description: 'Crate authoring tools for AccSaber creatives.',
+})
 </script>
 
 <template>

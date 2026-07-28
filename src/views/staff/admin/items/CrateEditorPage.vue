@@ -32,6 +32,7 @@ import ImageUploader from '@/components/common/ImageUploader.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import CrateOpenAnimation from '@/components/domain/CrateOpenAnimation.vue'
 import CratePreviewModal from '@/components/domain/CratePreviewModal.vue'
+import { usePageMeta } from '@/composables/usePageMeta'
 import type {
   ItemModifierResponse,
   ItemRarity,
@@ -52,6 +53,14 @@ const router = useRouter()
 const crateId = computed(() => String(route.params.crateItemId))
 
 const crate = ref<ItemResponse | null>(null)
+
+usePageMeta({
+  title: computed(() =>
+    crate.value ? `${crate.value.name} | AccSaber Admin` : 'Crate | AccSaber Admin',
+  ),
+  description: 'Crate editor.',
+})
+
 const contents = ref<CrateContentResponse[]>([])
 const allItems = ref<ItemResponse[]>([])
 const attachedModifiers = ref<CrateModifierResponse[]>([])

@@ -3,6 +3,7 @@ import logoUrl from '@/assets/logo.png'
 import { buildOAuthStartUrl } from '@/api/auth'
 import BaseButton from '@/components/common/BaseButton.vue'
 import BaseInput from '@/components/common/BaseInput.vue'
+import { usePageMeta } from '@/composables/usePageMeta'
 import { creativesDashboardRoute } from '@/router'
 import { useAuthStore } from '@/stores/auth'
 import type { OAuthProvider } from '@/types/api/player-auth'
@@ -10,6 +11,11 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 type Mode = 'providers' | 'password'
+
+usePageMeta({
+  title: 'Login | AccSaber Creatives',
+  description: 'Sign-in for AccSaber creatives.',
+})
 
 const auth = useAuthStore()
 const router = useRouter()
