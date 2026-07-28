@@ -29,12 +29,12 @@ async function load(crateId: string) {
   const token = ++requestId
   loading.value = true
   try {
-    const { getStaffCrateContents, getStaffCrateModifiers, getStaffCrateUnusualEffects } =
-      await import('@/api/staff/crates')
+    const [{ getAdminCrateContents }, { getCrateModifiers, getCrateUnusualEffects }] =
+      await Promise.all([import('@/api/admin/crates'), import('@/api/crates')])
     const [contentList, modifierList, effectList] = await Promise.all([
-      getStaffCrateContents(crateId),
-      getStaffCrateModifiers(crateId),
-      getStaffCrateUnusualEffects(crateId),
+      getAdminCrateContents(crateId),
+      getCrateModifiers(crateId),
+      getCrateUnusualEffects(crateId),
     ])
     if (token !== requestId) return
     contents.value = contentList

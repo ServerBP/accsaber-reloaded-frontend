@@ -1,17 +1,4 @@
-import {
-  addCampaignBarrier,
-  addCampaignDifficulty,
-  createCampaign,
-  addCampaignText,
-  deactivateCampaignBarrier,
-  deactivateCampaignDifficulty,
-  deactivateCampaignText,
-  updateAdminCampaignDifficultyMap,
-  updateCampaign,
-  updateCampaignBarrier,
-  updateCampaignDifficulty,
-  updateCampaignText,
-} from '@/api/admin/campaigns'
+import { createCampaign } from '@/api/admin/campaigns'
 import {
   addPlayerCampaignBarrier,
   addPlayerCampaignDifficulty,
@@ -514,13 +501,6 @@ export function useCampaignEditor() {
     () => isCreator.value && !!campaign.value?.seekingCuration && !isCurator.value,
   )
 
-  const useAdminEndpoint = computed(() => {
-    if (!campaign.value) return false
-    if (isCreator.value && campaign.value.status === 'DRAFT') return false
-    if (isCollaborator.value && campaign.value.status === 'DRAFT') return false
-    return isCurator.value
-  })
-
   const CURATOR_EDITABLE_STATUSES = new Set<CampaignStatus>(['DRAFT', 'EDITING', 'CURATED'])
 
   const editable = computed(() => {
@@ -966,9 +946,7 @@ export function useCampaignEditor() {
     clearFieldErrors(keys)
     try {
       actionError.value = null
-      const updated = useAdminEndpoint.value
-        ? await updateCampaign(c.id, patch)
-        : await updatePlayerCampaign(c.id, patch)
+      const updated = await updatePlayerCampaign(c.id, patch)
       if (campaign.value) {
         const merged = { ...campaign.value, ...updated }
         if (patch.background !== undefined) {
@@ -986,9 +964,7 @@ export function useCampaignEditor() {
   async function applyNodePatch(id: string, patch: UpdateCampaignDifficultyRequest) {
     try {
       actionError.value = null
-      const updated = useAdminEndpoint.value
-        ? await updateCampaignDifficulty(id, patch)
-        : await updatePlayerCampaignDifficulty(id, patch)
+      const updated = await updatePlayerCampaignDifficulty(id, patch)
       mergeDifficulty(updated)
     } catch (err) {
       actionError.value = getApiErrorMessage(err, 'Failed to update node')
@@ -998,9 +974,7 @@ export function useCampaignEditor() {
   async function applyBarrierPatch(id: string, patch: UpdateCampaignBarrierRequest) {
     try {
       actionError.value = null
-      const updated = useAdminEndpoint.value
-        ? await updateCampaignBarrier(id, patch)
-        : await updatePlayerCampaignBarrier(id, patch)
+      const updated = await updatePlayerCampaignBarrier(id, patch)
       if (campaign.value) {
         campaign.value = {
           ...campaign.value,
@@ -1047,20 +1021,12 @@ export function useCampaignEditor() {
 
   function patchVertexPosition(id: string, positionX: number, positionY: number) {
     const patch = { positionX, positionY }
-    if (isBarrierId(id)) {
-      return useAdminEndpoint.value
-        ? updateCampaignBarrier(id, patch)
-        : updatePlayerCampaignBarrier(id, patch)
-    }
+    if (isBarrierId(id)) return updatePlayerCampaignBarrier(id, patch)
     if (isTextId(id)) {
       if (isPendingText(id)) return Promise.resolve()
-      return useAdminEndpoint.value
-        ? updateCampaignText(id, patch)
-        : updatePlayerCampaignText(id, patch)
+      return updatePlayerCampaignText(id, patch)
     }
-    return useAdminEndpoint.value
-      ? updateCampaignDifficulty(id, patch)
-      : updatePlayerCampaignDifficulty(id, patch)
+    return updatePlayerCampaignDifficulty(id, patch)
   }
 
   const CLEARABLE_META_TEXT_FIELDS = new Set<string>(['backgroundColor'])
@@ -1116,28 +1082,28 @@ export function useCampaignEditor() {
     const d = selectedDifficulty.value
     if (!editable.value || !d) return
     const { uploadCampaignCheckpointAvatar } = await import('@/api/cdn')
-    mergeDifficulty(await uploadCampaignCheckpointAvatar(d.id, file, useAdminEndpoint.value))
+    mergeDifficulty(await uploadCampaignCheckpointAvatar(d.id, file))
   }
 
   async function removeCheckpointAvatar() {
     const d = selectedDifficulty.value
     if (!editable.value || !d) return
     const { deleteCampaignCheckpointAvatar } = await import('@/api/cdn')
-    mergeDifficulty(await deleteCampaignCheckpointAvatar(d.id, useAdminEndpoint.value))
+    mergeDifficulty(await deleteCampaignCheckpointAvatar(d.id))
   }
 
   async function uploadNodeBorder(file: File) {
     const d = selectedDifficulty.value
     if (!editable.value || !d) return
     const { uploadCampaignNodeBorder } = await import('@/api/cdn')
-    mergeDifficulty(await uploadCampaignNodeBorder(d.id, file, useAdminEndpoint.value))
+    mergeDifficulty(await uploadCampaignNodeBorder(d.id, file))
   }
 
   async function removeNodeBorder() {
     const d = selectedDifficulty.value
     if (!editable.value || !d) return
     const { deleteCampaignNodeBorder } = await import('@/api/cdn')
-    mergeDifficulty(await deleteCampaignNodeBorder(d.id, useAdminEndpoint.value))
+    mergeDifficulty(await deleteCampaignNodeBorder(d.id))
   }
 
   function selectNodeBorderLayer(layer: CampaignNodeBorderLayer) {
@@ -1185,7 +1151,6 @@ export function useCampaignEditor() {
   const { uploadBackground, removeBackground, uploadIcon, removeIcon } = useCampaignAssets({
     campaign,
     load,
-    useAdminEndpoint,
   })
 
   function wouldCreateCycle(fromId: string, toId: string): boolean {
@@ -1294,9 +1259,7 @@ export function useCampaignEditor() {
       actionError.value = null
       const payload = { prerequisites: toPrerequisiteInputs(next) }
       if (barrier) {
-        const updated = useAdminEndpoint.value
-          ? await updateCampaignBarrier(toId, payload)
-          : await updatePlayerCampaignBarrier(toId, payload)
+        const updated = await updatePlayerCampaignBarrier(toId, payload)
         if (campaign.value) {
           campaign.value = {
             ...campaign.value,
@@ -1304,9 +1267,7 @@ export function useCampaignEditor() {
           }
         }
       } else {
-        const updated = useAdminEndpoint.value
-          ? await updateCampaignDifficulty(toId, payload)
-          : await updatePlayerCampaignDifficulty(toId, payload)
+        const updated = await updatePlayerCampaignDifficulty(toId, payload)
         if (campaign.value) {
           campaign.value = {
             ...campaign.value,
@@ -1467,9 +1428,7 @@ export function useCampaignEditor() {
           positionY: cell.y,
           xp: 0,
         }
-        const created = useAdminEndpoint.value
-          ? await addCampaignDifficulty(c.id, req)
-          : await addPlayerCampaignDifficulty(c.id, req)
+        const created = await addPlayerCampaignDifficulty(c.id, req)
         createdIds.push(created.id)
       }
       if (!opts.keepOpen) {
@@ -1526,11 +1485,7 @@ export function useCampaignEditor() {
     actionPending.value = true
     actionError.value = null
     try {
-      if (useAdminEndpoint.value) {
-        await updateAdminCampaignDifficultyMap(nodeId, ids)
-      } else {
-        await updateCampaignDifficultyMap(nodeId, ids)
-      }
+      await updateCampaignDifficultyMap(nodeId, ids)
       await load(true)
       closeRepoint()
       return { attached: false }
@@ -1597,11 +1552,7 @@ export function useCampaignEditor() {
         return
       }
       const ids: ImportCampaignMapRequest = { blLeaderboardId: bl, ssLeaderboardId: ss }
-      if (useAdminEndpoint.value) {
-        await updateAdminCampaignDifficultyMap(d.id, ids)
-      } else {
-        await updateCampaignDifficultyMap(d.id, ids)
-      }
+      await updateCampaignDifficultyMap(d.id, ids)
       await load(true)
     } catch (err) {
       actionError.value = getApiErrorMessage(err, 'Failed to refresh version')
@@ -1638,11 +1589,7 @@ export function useCampaignEditor() {
     actionPending.value = true
     actionError.value = null
     try {
-      if (useAdminEndpoint.value) {
-        await deactivateCampaignDifficulty(campaign.value.id, d.id)
-      } else {
-        await deletePlayerCampaignDifficulty(campaign.value.id, d.id)
-      }
+      await deletePlayerCampaignDifficulty(campaign.value.id, d.id)
       clearSelection()
       await load(true)
     } catch (err) {
@@ -2225,19 +2172,14 @@ export function useCampaignEditor() {
     try {
       for (const id of ids) {
         if (isBarrierId(id)) {
-          if (useAdminEndpoint.value) await deactivateCampaignBarrier(campaign.value.id, id)
-          else await deletePlayerCampaignBarrier(campaign.value.id, id)
+          await deletePlayerCampaignBarrier(campaign.value.id, id)
         } else if (isTextId(id)) {
           if (isPendingText(id)) {
             pendingTextIds.delete(id)
             cancelledTextIds.add(id)
-          } else if (useAdminEndpoint.value) {
-            await deactivateCampaignText(campaign.value.id, id)
           } else {
             await deletePlayerCampaignText(campaign.value.id, id)
           }
-        } else if (useAdminEndpoint.value) {
-          await deactivateCampaignDifficulty(campaign.value.id, id)
         } else {
           await deletePlayerCampaignDifficulty(campaign.value.id, id)
         }
@@ -2322,21 +2264,15 @@ export function useCampaignEditor() {
         ],
         affectedCampaignDifficultyIds: [payload.fromId],
       }
-      const created = useAdminEndpoint.value
-        ? await addCampaignBarrier(c.id, req)
-        : await addPlayerCampaignBarrier(c.id, req)
+      const created = await addPlayerCampaignBarrier(c.id, req)
       const nextPrereqs = targetPrereqs
         .filter((p) => p.comesFromCampaignDifficultyId !== payload.fromId)
         .concat({ comesFromCampaignDifficultyId: created.id, color: edgeColor })
       const rewire = { prerequisites: toPrerequisiteInputs(nextPrereqs) }
       if (isBarrierId(payload.toId)) {
-        await (useAdminEndpoint.value
-          ? updateCampaignBarrier(payload.toId, rewire)
-          : updatePlayerCampaignBarrier(payload.toId, rewire))
+        await updatePlayerCampaignBarrier(payload.toId, rewire)
       } else {
-        await (useAdminEndpoint.value
-          ? updateCampaignDifficulty(payload.toId, rewire)
-          : updatePlayerCampaignDifficulty(payload.toId, rewire))
+        await updatePlayerCampaignDifficulty(payload.toId, rewire)
       }
       barrierPlacementMode.value = false
       await load(true)
@@ -2574,11 +2510,7 @@ export function useCampaignEditor() {
     actionPending.value = true
     actionError.value = null
     try {
-      if (useAdminEndpoint.value) {
-        await deactivateCampaignBarrier(campaign.value.id, b.id)
-      } else {
-        await deletePlayerCampaignBarrier(campaign.value.id, b.id)
-      }
+      await deletePlayerCampaignBarrier(campaign.value.id, b.id)
       clearSelection()
       await load(true)
     } catch (err) {
@@ -2609,9 +2541,7 @@ export function useCampaignEditor() {
     }
     try {
       actionError.value = null
-      const updated = useAdminEndpoint.value
-        ? await updateCampaignText(id, req)
-        : await updatePlayerCampaignText(id, req)
+      const updated = await updatePlayerCampaignText(id, req)
       if (campaign.value) {
         const merged =
           selectedId.value === id ? { ...updated, content: formText.value.content } : updated
@@ -2682,9 +2612,7 @@ export function useCampaignEditor() {
     activeTray.value = 'text'
 
     const req: CampaignTextRequest = { content: 'New text', positionX, positionY }
-    const request = useAdminEndpoint.value
-      ? addCampaignText(c.id, req)
-      : addPlayerCampaignText(c.id, req)
+    const request = addPlayerCampaignText(c.id, req)
     void request.then(
       (created) => finalizeTextCreate(tempId, created),
       (err) => rollbackTextCreate(tempId, err),
@@ -2698,8 +2626,7 @@ export function useCampaignEditor() {
       const campaignId = campaign.value?.id
       if (campaignId) {
         try {
-          if (useAdminEndpoint.value) await deactivateCampaignText(campaignId, created.id)
-          else await deletePlayerCampaignText(campaignId, created.id)
+          await deletePlayerCampaignText(campaignId, created.id)
         } catch {
           void 0
         }
@@ -2778,11 +2705,7 @@ export function useCampaignEditor() {
     actionPending.value = true
     actionError.value = null
     try {
-      if (useAdminEndpoint.value) {
-        await deactivateCampaignText(campaign.value.id, t.id)
-      } else {
-        await deletePlayerCampaignText(campaign.value.id, t.id)
-      }
+      await deletePlayerCampaignText(campaign.value.id, t.id)
       clearSelection()
       await load(true)
     } catch (err) {

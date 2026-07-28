@@ -31,10 +31,13 @@ async function loadCatalog() {
   if (loaded.value || loading.value) return
   loading.value = true
   try {
-    const { getStaffItems, getStaffUnusualEffects } = await import('@/api/staff/items')
+    const [{ getAdminItems }, { getAdminUnusualEffects }] = await Promise.all([
+      import('@/api/admin/items'),
+      import('@/api/admin/unusual-effects'),
+    ])
     const [itemList, effectList] = await Promise.all([
-      getStaffItems({ includeInactive: true }),
-      getStaffUnusualEffects(true),
+      getAdminItems({ includeInactive: true }),
+      getAdminUnusualEffects(true),
       modifierStore.fetchModifiers(),
     ])
     items.value = itemList

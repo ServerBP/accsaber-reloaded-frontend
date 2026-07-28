@@ -32,83 +32,67 @@ function multipartFile(file: File): FormData {
 export function uploadCampaignBackground(
   campaignId: string,
   file: File,
-  admin = false,
 ): Promise<CampaignResponse> {
-  const base = admin ? '/admin/campaigns' : '/campaigns'
   return postMultipart<CampaignResponse>(
-    `${base}/${campaignId}/background`,
+    `/campaigns/${campaignId}/background`,
     multipartFile(file),
   )
 }
 
 export function deleteCampaignBackground(
   campaignId: string,
-  admin = false,
 ): Promise<CampaignResponse> {
-  const base = admin ? '/admin/campaigns' : '/campaigns'
-  return del<CampaignResponse>(`${base}/${campaignId}/background`)
+  return del<CampaignResponse>(`/campaigns/${campaignId}/background`)
 }
 
 export function uploadCampaignIcon(
   campaignId: string,
   file: File,
-  admin = false,
 ): Promise<CampaignResponse> {
-  const base = admin ? '/admin/campaigns' : '/campaigns'
   return postMultipart<CampaignResponse>(
-    `${base}/${campaignId}/icon`,
+    `/campaigns/${campaignId}/icon`,
     multipartFile(file),
   )
 }
 
 export function deleteCampaignIcon(
   campaignId: string,
-  admin = false,
 ): Promise<CampaignResponse> {
-  const base = admin ? '/admin/campaigns' : '/campaigns'
-  return del<CampaignResponse>(`${base}/${campaignId}/icon`)
+  return del<CampaignResponse>(`/campaigns/${campaignId}/icon`)
 }
 
 export function uploadCampaignCheckpointAvatar(
   difficultyId: string,
   file: File,
-  admin = false,
 ): Promise<CampaignDifficultyResponse> {
-  const base = admin ? '/admin/campaigns' : '/campaigns'
   return postMultipart<CampaignDifficultyResponse>(
-    `${base}/difficulties/${difficultyId}/checkpoint-avatar`,
+    `/campaigns/difficulties/${difficultyId}/checkpoint-avatar`,
     multipartFile(file),
   )
 }
 
 export function deleteCampaignCheckpointAvatar(
   difficultyId: string,
-  admin = false,
 ): Promise<CampaignDifficultyResponse> {
-  const base = admin ? '/admin/campaigns' : '/campaigns'
   return del<CampaignDifficultyResponse>(
-    `${base}/difficulties/${difficultyId}/checkpoint-avatar`,
+    `/campaigns/difficulties/${difficultyId}/checkpoint-avatar`,
   )
 }
 
 export function uploadCampaignNodeBorder(
   difficultyId: string,
   file: File,
-  admin = false,
 ): Promise<CampaignDifficultyResponse> {
-  const base = admin ? '/admin/campaigns' : '/campaigns'
   return postMultipart<CampaignDifficultyResponse>(
-    `${base}/difficulties/${difficultyId}/node-border`,
+    `/campaigns/difficulties/${difficultyId}/node-border`,
     multipartFile(file),
   )
 }
 
 export function deleteCampaignNodeBorder(
   difficultyId: string,
-  admin = false,
 ): Promise<CampaignDifficultyResponse> {
-  const base = admin ? '/admin/campaigns' : '/campaigns'
-  return del<CampaignDifficultyResponse>(`${base}/difficulties/${difficultyId}/node-border`)
+  return del<CampaignDifficultyResponse>(`/campaigns/difficulties/${difficultyId}/node-border`)
 }
 
 export function uploadMyAvatar(file: File): Promise<UserResponse> {

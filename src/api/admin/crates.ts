@@ -31,7 +31,7 @@ export function deleteAdminCrateContent(crateId: string, rewardId: string): Prom
 }
 
 export function getAdminCrateModifiers(crateId: string): Promise<CrateModifierResponse[]> {
-  return get<CrateModifierResponse[]>(`/admin/crates/${crateId}/modifiers`)
+  return get<CrateModifierResponse[]>(`/crates/${crateId}/modifiers`)
 }
 
 export function putAdminCrateModifier(
@@ -49,7 +49,7 @@ export function deleteAdminCrateModifier(crateId: string, modifierId: string): P
 }
 
 export function getAdminCrateUnusualEffects(crateId: string): Promise<UnusualEffectResponse[]> {
-  return get<UnusualEffectResponse[]>(`/admin/crates/${crateId}/unusual-effects`)
+  return get<UnusualEffectResponse[]>(`/crates/${crateId}/unusual-effects`)
 }
 
 export function putAdminCrateUnusualEffect(

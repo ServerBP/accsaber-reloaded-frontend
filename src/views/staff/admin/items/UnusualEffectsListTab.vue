@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import {
   createAdminUnusualEffect,
-  deactivateAdminUnusualEffect,
+  setAdminUnusualEffectActive,
   getAdminUnusualEffects,
-  reactivateAdminUnusualEffect,
   updateAdminUnusualEffect,
 } from '@/api/admin/unusual-effects'
 import { parseApiError } from '@/api/client'
@@ -134,13 +133,8 @@ const togglingId = ref<string | null>(null)
 async function toggleActive(effect: UnusualEffectResponse) {
   togglingId.value = effect.id
   try {
-    if (effect.active) {
-      await deactivateAdminUnusualEffect(effect.id)
-      effects.value = effects.value.map((e) => (e.id === effect.id ? { ...e, active: false } : e))
-    } else {
-      const updated = await reactivateAdminUnusualEffect(effect.id)
-      effects.value = effects.value.map((e) => (e.id === updated.id ? updated : e))
-    }
+    const updated = await setAdminUnusualEffectActive(effect.id, !effect.active)
+    effects.value = effects.value.map((e) => (e.id === updated.id ? updated : e))
   } finally {
     togglingId.value = null
   }

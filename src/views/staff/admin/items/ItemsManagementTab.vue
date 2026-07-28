@@ -9,11 +9,10 @@ import ItemIconExportModal from './ItemIconExportModal.vue'
 import SchemaValueForm from './value-form/SchemaValueForm.vue'
 import {
   createItem,
-  deleteItem,
   deleteItemIcon,
   deprecateItem,
   getAdminItems,
-  reactivateItem,
+  setItemActive,
   updateItem,
   uploadItemIcon,
 } from '@/api/admin/items'
@@ -251,12 +250,7 @@ async function toggleActive() {
   activeToggling.value = true
   resetErrors()
   try {
-    if (editing.value.active) {
-      await deleteItem(editing.value.id)
-      applyUpdatedItem({ ...editing.value, active: false })
-    } else {
-      applyUpdatedItem(await reactivateItem(editing.value.id))
-    }
+    applyUpdatedItem(await setItemActive(editing.value.id, !editing.value.active))
   } catch (e) {
     formError.value = parseApiError(e, 'Failed to change active state').message
   } finally {
@@ -388,18 +382,15 @@ async function handleDeprecate(item: ItemResponse) {
 async function handleDelete(item: ItemResponse) {
   if (!confirm(`Delete "${item.name}"? This deactivates the item (reversible).`)) return
   await withBusy(item.id, async () => {
-    await deleteItem(item.id)
-    if (includeInactive.value) {
-      applyUpdatedItem({ ...item, active: false })
-    } else {
-      items.value = items.value.filter((i) => i.id !== item.id)
-    }
+    const updated = await setItemActive(item.id, false)
+    if (includeInactive.value) applyUpdatedItem(updated)
+    else items.value = items.value.filter((i) => i.id !== item.id)
   })
 }
 
 async function handleReactivate(item: ItemResponse) {
   await withBusy(item.id, async () => {
-    applyUpdatedItem(await reactivateItem(item.id))
+    applyUpdatedItem(await setItemActive(item.id, true))
   })
 }
 

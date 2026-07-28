@@ -17,8 +17,7 @@ import {
   deleteItemIcon,
   getAdminItem,
   getAdminItems,
-  reactivateItem,
-  deleteItem as retireItem,
+  setItemActive,
   updateItem,
   uploadItemIcon,
 } from '@/api/admin/items'
@@ -228,9 +227,7 @@ async function togglePublish() {
   statusBusy.value = true
   errorMsg.value = null
   try {
-    crate.value = target
-      ? await reactivateItem(crate.value.id)
-      : await retireItem(crate.value.id).then(() => getAdminItem(crateId.value))
+    crate.value = await setItemActive(crate.value.id, target)
     syncFormFromCrate()
   } catch (e) {
     errorMsg.value = getApiErrorMessage(e, 'Failed to change crate status')

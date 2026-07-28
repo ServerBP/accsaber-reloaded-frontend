@@ -10,5 +10,7 @@ export function getUserMissions(
 }
 
 export function getUserCompletedMissions(userId: string): Promise<MissionResponse[]> {
-  return get<MissionResponse[]>(`/admin/missions/users/${userId}/completed`)
+  return get<MissionResponse[]>(
+    `/admin/missions/users/${userId}${buildQuery({ completed: true })}`,
+  )
 }

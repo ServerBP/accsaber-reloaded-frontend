@@ -33,8 +33,8 @@ async function load() {
       crates.value = []
       return
     }
-    const { getStaffItems } = await import('@/api/staff/items')
-    const items = await getStaffItems({ typeId: crateTypeId.value, includeInactive: true })
+    const { getAdminItems } = await import('@/api/admin/items')
+    const items = await getAdminItems({ typeId: crateTypeId.value, includeInactive: true })
     crates.value = items
   } catch {
     errored.value = true

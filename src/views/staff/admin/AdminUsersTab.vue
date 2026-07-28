@@ -70,27 +70,20 @@ function handleAdminUserAvatarError(item: LeaderboardResponse, event: Event) {
   }
 }
 
-async function banUser(user: LeaderboardResponse) {
+async function setBanned(user: LeaderboardResponse, banned: boolean) {
   actionLoading.value[user.userId] = true
   try {
-    const { banUser: api } = await import('@/api/admin/users')
-    await api(user.userId)
-    bannedSet.value.add(user.userId)
+    const { setUserBanned } = await import('@/api/admin/users')
+    await setUserBanned(user.userId, banned)
+    if (banned) bannedSet.value.add(user.userId)
+    else bannedSet.value.delete(user.userId)
   } finally {
     delete actionLoading.value[user.userId]
   }
 }
 
-async function unbanUser(user: LeaderboardResponse) {
-  actionLoading.value[user.userId] = true
-  try {
-    const { unbanUser: api } = await import('@/api/admin/users')
-    await api(user.userId)
-    bannedSet.value.delete(user.userId)
-  } finally {
-    delete actionLoading.value[user.userId]
-  }
-}
+const banUser = (user: LeaderboardResponse) => setBanned(user, true)
+const unbanUser = (user: LeaderboardResponse) => setBanned(user, false)
 
 const missionsModalOpen = ref(false)
 const missionsTarget = ref<LeaderboardResponse | null>(null)
@@ -124,13 +117,14 @@ async function saveCountryOverride() {
     countryError.value = 'Use a 2-letter ISO code (e.g. US, DE, JP).'
     return
   }
+  const userId = countryTarget.value.userId
   countryLoading.value = true
   countryError.value = ''
   try {
     const { setCountryOverride } = await import('@/api/admin/users')
-    const updated = await setCountryOverride(countryTarget.value.userId, { country: code })
-    const idx = users.value.findIndex((u) => u.userId === updated.id)
-    if (idx !== -1) users.value[idx] = { ...users.value[idx], country: updated.country }
+    await setCountryOverride(userId, code)
+    const idx = users.value.findIndex((u) => u.userId === userId)
+    if (idx !== -1) users.value[idx] = { ...users.value[idx], country: code }
     countryModalOpen.value = false
   } catch {
     countryError.value = 'Failed to set country override.'
@@ -141,17 +135,20 @@ async function saveCountryOverride() {
 
 async function clearCountry() {
   if (!countryTarget.value) return
-  if (!confirm('Clear country override and restore the provider-reported country?')) return
+  if (
+    !confirm(
+      'Lift the country override? The current country stays as it is, but the next platform refresh can change it again.',
+    )
+  )
+    return
   countryLoading.value = true
   countryError.value = ''
   try {
-    const { clearCountryOverride } = await import('@/api/admin/users')
-    const updated = await clearCountryOverride(countryTarget.value.userId)
-    const idx = users.value.findIndex((u) => u.userId === updated.id)
-    if (idx !== -1) users.value[idx] = { ...users.value[idx], country: updated.country }
+    const { setCountryOverride } = await import('@/api/admin/users')
+    await setCountryOverride(countryTarget.value.userId, null)
     countryModalOpen.value = false
   } catch {
-    countryError.value = 'Failed to clear override.'
+    countryError.value = 'Failed to lift the override.'
   } finally {
     countryLoading.value = false
   }

@@ -1,7 +1,5 @@
 import {
   curateCampaign,
-  deactivateCampaign,
-  publishCampaign,
   reopenCampaignForEdit,
   setCampaignLoved,
   setCampaignOfficial,
@@ -97,7 +95,7 @@ export function useCampaignLifecycle(ctx: LifecycleContext) {
     actionPending.value = true
     actionError.value = null
     try {
-      await publishCampaign(campaign.value.id)
+      await publishPlayerCampaign(campaign.value.id)
       await load()
     } catch (err) {
       actionError.value = getApiErrorMessage(err, 'Failed to publish campaign')
@@ -185,7 +183,7 @@ export function useCampaignLifecycle(ctx: LifecycleContext) {
     actionPending.value = true
     actionError.value = null
     try {
-      await deactivateCampaign(campaign.value.id)
+      await deletePlayerCampaign(campaign.value.id)
       await load()
     } catch (err) {
       actionError.value = getApiErrorMessage(err, 'Failed to deactivate campaign')

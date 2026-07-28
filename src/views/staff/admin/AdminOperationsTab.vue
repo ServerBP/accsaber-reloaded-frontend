@@ -1,13 +1,23 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onUnmounted, ref } from 'vue'
 import BaseButton from '@/components/common/BaseButton.vue'
 import BaseInput from '@/components/common/BaseInput.vue'
+import { parseApiError } from '@/api/client'
+import type { JobResponse } from '@/types/api/jobs'
 import { useCategoryStore } from '@/stores/categories'
 
 const categoryStore = useCategoryStore()
 
 interface OpState { loading: boolean; result: string | null; ok: boolean }
 function makeOp(): OpState { return { loading: false, result: null, ok: false } }
+
+function describeFailure(err: unknown): string {
+  const parsed = parseApiError(err, 'Failed. Check server logs.')
+  if (parsed.fieldErrors.length > 0) {
+    return parsed.fieldErrors.map((f) => `${f.field}: ${f.message}`).join(' ')
+  }
+  return parsed.message
+}
 
 async function run(op: OpState, fn: () => Promise<void>, msg: string) {
   op.loading = true
@@ -16,9 +26,25 @@ async function run(op: OpState, fn: () => Promise<void>, msg: string) {
     await fn()
     op.ok = true
     op.result = msg
-  } catch {
+  } catch (err) {
     op.ok = false
-    op.result = 'Failed. Check server logs.'
+    op.result = describeFailure(err)
+  } finally {
+    op.loading = false
+  }
+}
+
+async function runJobOp(op: OpState, fn: () => Promise<JobResponse>, label: string) {
+  op.loading = true
+  op.result = null
+  try {
+    const job = await fn()
+    op.ok = true
+    op.result = `${label} started (job ${job.id.slice(0, 8)}).`
+    void refreshJobs()
+  } catch (err) {
+    op.ok = false
+    op.result = describeFailure(err)
   } finally {
     op.loading = false
   }
@@ -34,33 +60,34 @@ const apAll = ref(makeOp())
 async function recalcApByDifficulty() {
   if (!apDiffId.value) return
   const id = apDiffId.value
-  run(apByDiff.value, async () => {
+  await runJobOp(apByDiff.value, async () => {
     const { recalculateApByDifficulty } = await import('@/api/admin/recalculation')
-    await recalculateApByDifficulty(id)
+    const job = await recalculateApByDifficulty(id)
     apDiffId.value = ''
-  }, 'AP recalculation queued for difficulty.')
+    return job
+  }, 'AP recalculation')
 }
 
 async function recalcRawAp() {
-  run(apRaw.value, async () => {
+  await runJobOp(apRaw.value, async () => {
     const { recalculateRawAp } = await import('@/api/admin/recalculation')
-    await recalculateRawAp()
-  }, 'Raw AP recalculation queued.')
+    return recalculateRawAp()
+  }, 'Raw AP recalculation')
 }
 
 async function recalcWeightedAp() {
-  run(apWeighted.value, async () => {
+  await runJobOp(apWeighted.value, async () => {
     const { recalculateWeightedAp } = await import('@/api/admin/recalculation')
-    await recalculateWeightedAp()
-  }, 'Weighted AP recalculation queued.')
+    return recalculateWeightedAp()
+  }, 'Weighted AP recalculation')
 }
 
 async function recalcAllAp() {
   if (!confirm('Recalculate ALL AP (raw + weighted)? This is heavy.')) return
-  run(apAll.value, async () => {
+  await runJobOp(apAll.value, async () => {
     const { recalculateAllAp } = await import('@/api/admin/recalculation')
-    await recalculateAllAp()
-  }, 'Full AP recalculation queued.')
+    return recalculateAllAp()
+  }, 'Full AP recalculation')
 }
 
 const xpScores = ref(makeOp())
@@ -68,18 +95,18 @@ const xpSums = ref(makeOp())
 
 async function recalcScoreXp() {
   if (!confirm('Reweight XP for all scores?')) return
-  run(xpScores.value, async () => {
+  await runJobOp(xpScores.value, async () => {
     const { recalculateScoreXp } = await import('@/api/admin/recalculation')
-    await recalculateScoreXp()
-  }, 'Score XP reweight queued.')
+    return recalculateScoreXp()
+  }, 'Score XP reweight')
 }
 
 async function recalcXpSums() {
   if (!confirm('Recalculate XP sums for all users?')) return
-  run(xpSums.value, async () => {
+  await runJobOp(xpSums.value, async () => {
     const { recalculateXpSums } = await import('@/api/admin/recalculation')
-    await recalculateXpSums()
-  }, 'XP sum recalculation queued.')
+    return recalculateXpSums()
+  }, 'XP total recalculation')
 }
 
 const playerStats = ref(makeOp())
@@ -87,28 +114,26 @@ const statsUserId = ref('')
 const statsCategoryId = ref('')
 
 async function recalcPlayerStats() {
-  if (!statsUserId.value) return
+  if (!statsUserId.value || !statsCategoryId.value) return
   run(playerStats.value, async () => {
     const { recalculatePlayerStats } = await import('@/api/admin/recalculation')
-    await recalculatePlayerStats(statsUserId.value, statsCategoryId.value || undefined)
+    await recalculatePlayerStats(statsUserId.value, statsCategoryId.value)
     statsUserId.value = ''
-  }, 'Player stats recalculation queued.')
+  }, 'Player stats recalculated.')
 }
 const backfill = ref(makeOp())
 const backfillDiffId = ref('')
 
 async function backfillScores() {
   const id = backfillDiffId.value.trim()
-  run(backfill.value, async () => {
+  if (!id && !confirm('Backfill ALL scores? This is very heavy.')) return
+  await runJobOp(backfill.value, async () => {
     const mod = await import('@/api/admin/recalculation')
-    if (id) {
-      await mod.backfillScoresByDifficulty(id)
-      backfillDiffId.value = ''
-    } else {
-      if (!confirm('Backfill ALL scores? This is very heavy.')) throw new Error('cancelled')
-      await mod.backfillAllScores()
-    }
-  }, id ? 'Backfill queued for difficulty.' : 'Full score backfill queued.')
+    if (!id) return mod.backfillAllScores()
+    const job = await mod.backfillScoresByDifficulty(id)
+    backfillDiffId.value = ''
+    return job
+  }, id ? 'Difficulty score backfill' : 'Full score backfill')
 }
 
 const userBackfill = ref(makeOp())
@@ -119,15 +144,15 @@ async function backfillUserScores() {
   if (!raw) return
   const ids = raw.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean)
   if (!ids.length) return
-  run(userBackfill.value, async () => {
+  await runJobOp(userBackfill.value, async () => {
     const mod = await import('@/api/admin/recalculation')
-    if (ids.length === 1) {
-      await mod.backfillScoresByUser(ids[0])
-    } else {
-      await mod.backfillScoresByUsers(ids)
-    }
+    const job =
+      ids.length === 1
+        ? await mod.backfillScoresByUser(ids[0])
+        : await mod.backfillScoresByUsers(ids)
     userBackfillIds.value = ''
-  }, `Backfill queued for ${ids.length} user${ids.length === 1 ? '' : 's'}.`)
+    return job
+  }, `Score backfill for ${ids.length} user${ids.length === 1 ? '' : 's'}`)
 }
 
 const removeScoreOp = ref(makeOp())
@@ -155,10 +180,35 @@ const milestoneBackfillAll = ref(makeOp())
 
 async function backfillAllMilestonesOp() {
   if (!confirm('Backfill every active milestone for all users? This is very heavy.')) return
-  run(milestoneBackfillAll.value, async () => {
+  await runJobOp(milestoneBackfillAll.value, async () => {
     const { backfillAllMilestones } = await import('@/api/admin/milestones')
-    await backfillAllMilestones()
-  }, 'Milestone backfill queued.')
+    return backfillAllMilestones()
+  }, 'Milestone backfill')
+}
+
+const cdnCovers = ref(makeOp())
+const cdnAvatars = ref(makeOp())
+const songSuggest = ref(makeOp())
+
+async function backfillCovers() {
+  await runJobOp(cdnCovers.value, async () => {
+    const { backfillCdnMapCovers } = await import('@/api/admin/recalculation')
+    return backfillCdnMapCovers()
+  }, 'Map cover mirror')
+}
+
+async function backfillAvatars() {
+  await runJobOp(cdnAvatars.value, async () => {
+    const { backfillCdnAvatars } = await import('@/api/admin/recalculation')
+    return backfillCdnAvatars()
+  }, 'Avatar mirror')
+}
+
+async function regenerateSongSuggestOp() {
+  await runJobOp(songSuggest.value, async () => {
+    const { regenerateSongSuggest } = await import('@/api/admin/recalculation')
+    return regenerateSongSuggest()
+  }, 'SongSuggest regeneration')
 }
 
 const playerRefresh = ref(makeOp())
@@ -181,6 +231,51 @@ async function refreshAll() {
     await refreshAllPlayers()
   }, 'All-player refresh queued.')
 }
+
+const jobs = ref<JobResponse[]>([])
+const jobsLoading = ref(false)
+const jobsError = ref<string | null>(null)
+let jobPoll: ReturnType<typeof setTimeout> | null = null
+
+const RUNNING_POLL_MS = 4000
+
+async function refreshJobs() {
+  jobsLoading.value = true
+  try {
+    const { getJobs } = await import('@/api/admin/jobs')
+    jobs.value = await getJobs()
+    jobsError.value = null
+  } catch (err) {
+    jobsError.value = describeFailure(err)
+  } finally {
+    jobsLoading.value = false
+    scheduleJobPoll()
+  }
+}
+
+function scheduleJobPoll() {
+  if (jobPoll) clearTimeout(jobPoll)
+  jobPoll = null
+  if (!jobs.value.some((j) => j.status === 'RUNNING')) return
+  jobPoll = setTimeout(() => {
+    void refreshJobs()
+  }, RUNNING_POLL_MS)
+}
+
+function jobDuration(job: JobResponse): string {
+  const end = job.finishedAt ? Date.parse(job.finishedAt) : Date.now()
+  const seconds = Math.max(0, Math.round((end - Date.parse(job.startedAt)) / 1000))
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m ${seconds % 60}s`
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
+}
+
+void refreshJobs()
+
+onUnmounted(() => {
+  if (jobPoll) clearTimeout(jobPoll)
+})
 
 const wsStatus = ref<Record<string, unknown> | null>(null)
 const wsLoading = ref(false)
@@ -213,8 +308,26 @@ async function reconnect(platform: 'beatleader' | 'scoresaber') {
   <div class="tab">
     <div class="tab__header">
       <h2 class="tab__title">Operations</h2>
-      <p class="tab__subtitle">All recalculation and import operations are queued asynchronously.</p>
+      <p class="tab__subtitle">Heavy operations run as background jobs. Track them below.</p>
     </div>
+
+    <section class="jobs">
+      <div class="jobs__header">
+        <h3 class="jobs__title">Jobs</h3>
+        <BaseButton size="sm" :loading="jobsLoading" @click="refreshJobs">Refresh</BaseButton>
+      </div>
+      <p v-if="jobsError" class="result result--err">{{ jobsError }}</p>
+      <p v-else-if="jobs.length === 0" class="jobs__empty">No jobs have run since the last restart.</p>
+      <ul v-else class="jobs__list">
+        <li v-for="job in jobs" :key="job.id" class="job" :class="`job--${job.status.toLowerCase()}`">
+          <span class="job__type">{{ job.type }}</span>
+          <span class="job__status">{{ job.status }}</span>
+          <span class="job__detail">{{ job.detail || '-' }}</span>
+          <span class="job__duration">{{ jobDuration(job) }}</span>
+          <span v-if="job.error" class="job__error">{{ job.error }}</span>
+        </li>
+      </ul>
+    </section>
 
     <div class="grid">
       <div class="op-card">
@@ -235,13 +348,9 @@ async function reconnect(platform: 'beatleader' | 'scoresaber') {
           <span class="op-card__title">Player Stats</span>
           <span class="scope scope--targeted">targeted</span>
         </div>
-        <p class="op-card__desc">Recalculate statistics for a specific player. Optionally filter to one category.</p>
+        <p class="op-card__desc">Recalculate statistics for a specific player in one category.</p>
         <BaseInput v-model="statsUserId" placeholder="User ID" />
         <div class="cat-row">
-          <button
-            class="cat-btn" :class="{ 'cat-btn--active': !statsCategoryId }"
-            @click="statsCategoryId = ''"
-          >All</button>
           <button
             v-for="cat in categoryStore.categories" :key="cat.id"
             class="cat-btn" :class="{ 'cat-btn--active': statsCategoryId === cat.id }"
@@ -249,7 +358,7 @@ async function reconnect(platform: 'beatleader' | 'scoresaber') {
           >{{ cat.name }}</button>
         </div>
         <div class="op-card__foot">
-          <BaseButton variant="primary" :loading="playerStats.loading" :disabled="!statsUserId" @click="recalcPlayerStats">Run</BaseButton>
+          <BaseButton variant="primary" :loading="playerStats.loading" :disabled="!statsUserId || !statsCategoryId" @click="recalcPlayerStats">Run</BaseButton>
           <span v-if="playerStats.result" class="result" :class="playerStats.ok ? 'result--ok' : 'result--err'">{{ playerStats.result }}</span>
         </div>
       </div>
@@ -321,6 +430,42 @@ async function reconnect(platform: 'beatleader' | 'scoresaber') {
         <div class="op-card__foot">
           <BaseButton variant="destructive" :loading="milestoneBackfillAll.loading" @click="backfillAllMilestonesOp">Run</BaseButton>
           <span v-if="milestoneBackfillAll.result" class="result" :class="milestoneBackfillAll.ok ? 'result--ok' : 'result--err'">{{ milestoneBackfillAll.result }}</span>
+        </div>
+      </div>
+
+      <div class="op-card">
+        <div class="op-card__head">
+          <span class="op-card__title">Mirror Map Covers</span>
+          <span class="scope scope--broad">broad</span>
+        </div>
+        <p class="op-card__desc">Copy missing map cover art onto the CDN.</p>
+        <div class="op-card__foot">
+          <BaseButton :loading="cdnCovers.loading" @click="backfillCovers">Run</BaseButton>
+          <span v-if="cdnCovers.result" class="result" :class="cdnCovers.ok ? 'result--ok' : 'result--err'">{{ cdnCovers.result }}</span>
+        </div>
+      </div>
+
+      <div class="op-card">
+        <div class="op-card__head">
+          <span class="op-card__title">Mirror Avatars</span>
+          <span class="scope scope--broad">broad</span>
+        </div>
+        <p class="op-card__desc">Copy missing player avatars onto the CDN.</p>
+        <div class="op-card__foot">
+          <BaseButton :loading="cdnAvatars.loading" @click="backfillAvatars">Run</BaseButton>
+          <span v-if="cdnAvatars.result" class="result" :class="cdnAvatars.ok ? 'result--ok' : 'result--err'">{{ cdnAvatars.result }}</span>
+        </div>
+      </div>
+
+      <div class="op-card">
+        <div class="op-card__head">
+          <span class="op-card__title">SongSuggest Data</span>
+          <span class="scope scope--broad">broad</span>
+        </div>
+        <p class="op-card__desc">Regenerate the SongSuggest export from current ranked data.</p>
+        <div class="op-card__foot">
+          <BaseButton :loading="songSuggest.loading" @click="regenerateSongSuggestOp">Run</BaseButton>
+          <span v-if="songSuggest.result" class="result" :class="songSuggest.ok ? 'result--ok' : 'result--err'">{{ songSuggest.result }}</span>
         </div>
       </div>
 
@@ -414,6 +559,40 @@ async function reconnect(platform: 'beatleader' | 'scoresaber') {
 .tab__subtitle { font-size: var(--text-caption); color: var(--text-secondary); margin: 0; }
 
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--space-md); }
+
+.jobs { display: flex; flex-direction: column; gap: var(--space-md); }
+.jobs__header { display: flex; align-items: center; justify-content: space-between; }
+.jobs__title { font-size: var(--text-body); font-weight: 600; color: var(--text-primary); margin: 0; }
+.jobs__empty { font-size: var(--text-caption); color: var(--text-secondary); margin: 0; }
+.jobs__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+
+.job {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) 92px minmax(0, 3fr) 64px;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-surface);
+  border: 1px solid var(--bg-overlay);
+  border-radius: var(--radius-card);
+  font-size: var(--text-caption);
+}
+.job--running { border-color: color-mix(in srgb, var(--info) 35%, var(--bg-overlay)); }
+.job--failed { border-color: color-mix(in srgb, var(--error) 35%, var(--bg-overlay)); }
+
+.job__type { font-family: var(--font-mono); color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; }
+.job__status { font-family: var(--font-mono); font-weight: 600; color: var(--text-secondary); }
+.job--running .job__status { color: var(--info); }
+.job--succeeded .job__status { color: var(--success); }
+.job--failed .job__status { color: var(--error); }
+.job__detail { color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.job__duration { font-family: var(--font-mono); color: var(--text-tertiary); text-align: right; }
+.job__error { grid-column: 1 / -1; color: var(--error); font-family: var(--font-mono); overflow-wrap: anywhere; }
+
+@media (max-width: 768px) {
+  .job { grid-template-columns: minmax(0, 1fr) auto; }
+  .job__detail, .job__duration { grid-column: 1 / -1; text-align: left; }
+}
 
 .op-card {
   background: var(--bg-surface);

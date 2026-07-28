@@ -137,10 +137,9 @@ async function fetchDifficulties() {
 
     const { getDeactivatedDifficulties } = await import('@/api/ranking/maps')
     const res = await getDeactivatedDifficulties(params as never)
-    const list = Array.isArray(res) ? res : (res?.content ?? [])
-    difficulties.value = list
-    totalPages.value = Array.isArray(res) ? 1 : (res?.totalPages ?? 0)
-    totalElements.value = Array.isArray(res) ? list.length : (res?.totalElements ?? list.length)
+    difficulties.value = res.content
+    totalPages.value = res.totalPages
+    totalElements.value = res.totalElements
   } catch {
     difficulties.value = []
     totalPages.value = 0

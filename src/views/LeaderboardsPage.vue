@@ -268,19 +268,15 @@ async function fetchFromApi(cacheKey: Record<string, unknown>) {
   } else {
     const categoryId = categoryStore.getCategoryId(activeCategory.value)
     if (!categoryId) return
-    const { getLeaderboard, getCountryLeaderboard } = await import('@/api/leaderboards')
+    const { getLeaderboard } = await import('@/api/leaderboards')
     const params = {
       ...paginationParams.value,
       search: searchQuery.value.trim() || undefined,
+      country: countryFilter.value || undefined,
       inactiveUsers,
       relation,
     }
-    let res: Page<LeaderboardResponse>
-    if (countryFilter.value) {
-      res = await getCountryLeaderboard(categoryId, countryFilter.value, params)
-    } else {
-      res = await getLeaderboard(categoryId, params)
-    }
+    const res: Page<LeaderboardResponse> = await getLeaderboard(categoryId, params)
     apPageData.value = res
     lbCache.setCache(cacheKey, res)
   }

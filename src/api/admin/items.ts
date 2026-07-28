@@ -32,12 +32,8 @@ export function updateItemType(
   return patch<ItemTypeResponse>(`/admin/item-types/${id}`, req)
 }
 
-export function deleteItemType(id: string): Promise<void> {
-  return del<void>(`/admin/item-types/${id}`)
-}
-
-export function reactivateItemType(id: string): Promise<ItemTypeResponse> {
-  return post<ItemTypeResponse>(`/admin/item-types/${id}/reactivate`)
+export function setItemTypeActive(id: string, active: boolean): Promise<ItemTypeResponse> {
+  return patch<ItemTypeResponse>(`/admin/item-types/${id}/active${buildQuery({ active })}`)
 }
 
 export function getAdminItems(params?: AdminItemListParams): Promise<ItemResponse[]> {
@@ -56,12 +52,8 @@ export function updateItem(id: string, req: UpdateItemRequest): Promise<ItemResp
   return patch<ItemResponse>(`/admin/items/${id}`, req)
 }
 
-export function deleteItem(id: string): Promise<void> {
-  return del<void>(`/admin/items/${id}`)
-}
-
-export function reactivateItem(id: string): Promise<ItemResponse> {
-  return post<ItemResponse>(`/admin/items/${id}/reactivate`)
+export function setItemActive(id: string, active: boolean): Promise<ItemResponse> {
+  return patch<ItemResponse>(`/admin/items/${id}/active${buildQuery({ active })}`)
 }
 
 export function deprecateItem(id: string): Promise<ItemResponse> {

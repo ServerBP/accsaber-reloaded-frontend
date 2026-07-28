@@ -3,7 +3,8 @@ import type {
   UnusualEffectResponse,
   UpdateUnusualEffectRequest,
 } from '@/types/api/items'
-import { del, get, patch, post } from '../client'
+import { get, patch, post } from '../client'
+import { buildQuery } from '../utils'
 
 export function getAdminUnusualEffects(includeInactive = false): Promise<UnusualEffectResponse[]> {
   return get<UnusualEffectResponse[]>(
@@ -24,10 +25,11 @@ export function updateAdminUnusualEffect(
   return patch<UnusualEffectResponse>(`/admin/unusual-effects/${id}`, req)
 }
 
-export function deactivateAdminUnusualEffect(id: string): Promise<void> {
-  return del<void>(`/admin/unusual-effects/${id}`)
-}
-
-export function reactivateAdminUnusualEffect(id: string): Promise<UnusualEffectResponse> {
-  return post<UnusualEffectResponse>(`/admin/unusual-effects/${id}/reactivate`)
+export function setAdminUnusualEffectActive(
+  id: string,
+  active: boolean,
+): Promise<UnusualEffectResponse> {
+  return patch<UnusualEffectResponse>(
+    `/admin/unusual-effects/${id}/active${buildQuery({ active })}`,
+  )
 }

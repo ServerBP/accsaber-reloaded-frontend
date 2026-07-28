@@ -7,5 +7,5 @@ export function getMyMissions(params?: MissionListParams): Promise<MissionRespon
 }
 
 export function getMyCompletedMissions(): Promise<MissionResponse[]> {
-  return get<MissionResponse[]>('/users/me/missions/completed')
+  return get<MissionResponse[]>(`/users/me/missions${buildQuery({ completed: true })}`)
 }

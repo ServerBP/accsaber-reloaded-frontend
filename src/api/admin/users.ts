@@ -1,25 +1,15 @@
-import type { UserResponse } from '@/types/api/users'
-import { del, patch, post } from '../client'
+import { patch } from '../client'
+import { buildQuery } from '../utils'
 
-export function banUser(userId: string): Promise<void> {
-  return post<void>(`/admin/users/${userId}/ban`)
+export function setUserBanned(userId: string, banned: boolean): Promise<void> {
+  return patch<void>(`/admin/users/${userId}/ban${buildQuery({ banned })}`)
 }
 
-export function unbanUser(userId: string): Promise<void> {
-  return post<void>(`/admin/users/${userId}/unban`)
+export interface CountryOverrideRequest {
+  country: string | null
 }
 
-export interface SetCountryOverrideRequest {
-  country: string
-}
-
-export function setCountryOverride(
-  userId: string,
-  req: SetCountryOverrideRequest,
-): Promise<UserResponse> {
-  return patch<UserResponse>(`/admin/users/${userId}/country`, req)
-}
-
-export function clearCountryOverride(userId: string): Promise<UserResponse> {
-  return del<UserResponse>(`/admin/users/${userId}/country-override`)
+export function setCountryOverride(userId: string, country: string | null): Promise<void> {
+  const req: CountryOverrideRequest = { country }
+  return patch<void>(`/admin/users/${userId}/country`, req)
 }

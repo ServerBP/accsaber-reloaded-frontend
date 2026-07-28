@@ -6,9 +6,8 @@ import BaseModal from '@/components/common/BaseModal.vue'
 import BaseSelect from '@/components/common/BaseSelect.vue'
 import {
   createItemType,
-  deleteItemType,
+  setItemTypeActive,
   getAdminItemTypes,
-  reactivateItemType,
   updateItemType,
 } from '@/api/admin/items'
 import { useItemTypeStore } from '@/stores/itemTypes'
@@ -133,23 +132,22 @@ async function withBusy(id: string, fn: () => Promise<void>) {
   }
 }
 
-async function handleDelete(type: ItemTypeResponse) {
-  if (!confirm(`Delete type "${type.name}"? This deactivates the type.`)) return
+async function setActive(type: ItemTypeResponse, active: boolean) {
   await withBusy(type.id, async () => {
-    await deleteItemType(type.id)
-    const idx = types.value.findIndex((t) => t.id === type.id)
-    if (idx >= 0) types.value[idx] = { ...type, active: false }
-    await itemTypeStore.fetchItemTypes(true)
-  })
-}
-
-async function handleReactivate(type: ItemTypeResponse) {
-  await withBusy(type.id, async () => {
-    const updated = await reactivateItemType(type.id)
+    const updated = await setItemTypeActive(type.id, active)
     const idx = types.value.findIndex((t) => t.id === updated.id)
     if (idx >= 0) types.value[idx] = updated
     await itemTypeStore.fetchItemTypes(true)
   })
+}
+
+async function handleDelete(type: ItemTypeResponse) {
+  if (!confirm(`Delete type "${type.name}"? This deactivates the type.`)) return
+  await setActive(type, false)
+}
+
+function handleReactivate(type: ItemTypeResponse) {
+  return setActive(type, true)
 }
 
 onMounted(fetchTypes)

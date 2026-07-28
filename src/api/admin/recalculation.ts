@@ -1,60 +1,90 @@
+import type { JobResponse, LeaderboardPlatform } from '@/types/api/jobs'
 import type { UserResponse } from '@/types/api/users'
 import { get, post } from '../client'
 import { buildQuery } from '../utils'
+import { runJob } from './jobs'
 
-// --- AP recalculation ---
+// --- AP recalculation (background jobs) ---
 
-export function recalculateApByDifficulty(difficultyId: string): Promise<void> {
-  return post<void>(`/admin/recalculate/ap/difficulty/${difficultyId}`)
+export function recalculateApByDifficulty(difficultyId: string): Promise<JobResponse> {
+  return runJob({ type: 'RECALCULATE_AP_DIFFICULTY', difficultyId })
 }
 
-export function recalculateRawAp(): Promise<void> {
-  return post<void>('/admin/recalculate/ap/raw')
+export function recalculateApByDifficulties(difficultyIds: string[]): Promise<JobResponse> {
+  return runJob({ type: 'RECALCULATE_AP_DIFFICULTIES', difficultyIds })
 }
 
-export function recalculateWeightedAp(): Promise<void> {
-  return post<void>('/admin/recalculate/ap/weighted')
+export function recalculateRawAp(): Promise<JobResponse> {
+  return runJob({ type: 'RECALCULATE_AP_RAW' })
 }
 
-export function recalculateAllAp(): Promise<void> {
-  return post<void>('/admin/recalculate/ap/all')
+export function recalculateWeightedAp(): Promise<JobResponse> {
+  return runJob({ type: 'RECALCULATE_AP_WEIGHTED' })
 }
 
-// --- XP recalculation ---
-
-export function recalculateScoreXp(): Promise<void> {
-  return post<void>('/admin/recalculate/xp/scores')
+export function recalculateAllAp(): Promise<JobResponse> {
+  return runJob({ type: 'RECALCULATE_AP_ALL' })
 }
 
-export function recalculateXpSums(): Promise<void> {
-  return post<void>('/admin/recalculate/xp/sum')
+// --- XP recalculation (background jobs) ---
+
+export function recalculateScoreXp(): Promise<JobResponse> {
+  return runJob({ type: 'RECALCULATE_XP_SCORES' })
 }
 
-// --- Stats recalculation ---
+export function recalculateXpSums(): Promise<JobResponse> {
+  return runJob({ type: 'RECALCULATE_XP_TOTALS' })
+}
 
-export function recalculatePlayerStats(userId: string, categoryId?: string): Promise<void> {
+// --- Score backfill (background jobs) ---
+
+export function backfillAllScores(): Promise<JobResponse> {
+  return runJob({ type: 'BACKFILL_SCORES_ALL' })
+}
+
+export function backfillScoresByDifficulty(difficultyId: string): Promise<JobResponse> {
+  return runJob({ type: 'BACKFILL_SCORES_DIFFICULTY', difficultyId })
+}
+
+export function backfillScoresByDifficulties(difficultyIds: string[]): Promise<JobResponse> {
+  return runJob({ type: 'BACKFILL_SCORES_DIFFICULTIES', difficultyIds })
+}
+
+export function backfillScoresByUser(userId: string): Promise<JobResponse> {
+  return runJob({ type: 'BACKFILL_SCORES_USER', userId })
+}
+
+export function backfillScoresByUsers(userIds: string[]): Promise<JobResponse> {
+  return runJob({ type: 'BACKFILL_SCORES_USERS', userIds })
+}
+
+export function gapFillScores(since: string, platform?: LeaderboardPlatform): Promise<JobResponse> {
+  return runJob({ type: 'BACKFILL_SCORES_GAP_FILL', since, platform })
+}
+
+// --- CDN backfill (background jobs) ---
+
+export function backfillCdnMapCovers(force = false): Promise<JobResponse> {
+  return runJob({ type: 'BACKFILL_CDN_MAP_COVERS', force })
+}
+
+export function backfillCdnAvatars(force = false): Promise<JobResponse> {
+  return runJob({ type: 'BACKFILL_CDN_AVATARS', force })
+}
+
+// --- Song suggest (background job) ---
+
+export function regenerateSongSuggest(): Promise<JobResponse> {
+  return runJob({ type: 'REGENERATE_SONG_SUGGEST' })
+}
+
+// --- Stats recalculation (synchronous) ---
+
+export function recalculatePlayerStats(userId: string, categoryId: string): Promise<void> {
   return post<void>(`/admin/recalculate/stats/player/${userId}${buildQuery({ categoryId })}`)
 }
 
-// --- Score backfill ---
-
-export function backfillAllScores(): Promise<void> {
-  return post<void>('/admin/import/scores/backfill-all')
-}
-
-export function backfillScoresByDifficulty(difficultyId: string): Promise<void> {
-  return post<void>(`/admin/import/scores/backfill/${difficultyId}`)
-}
-
-export function backfillScoresByUser(userId: string): Promise<void> {
-  return post<void>(`/admin/import/scores/backfill-user/${userId}`)
-}
-
-export function backfillScoresByUsers(userIds: string[]): Promise<void> {
-  return post<void>('/admin/import/scores/backfill-users', userIds)
-}
-
-// --- Score removal ---
+// --- Score removal (synchronous) ---
 
 export interface RemoveScoreParams {
   userId: string
@@ -64,6 +94,12 @@ export interface RemoveScoreParams {
 
 export function removeScore(params: RemoveScoreParams): Promise<void> {
   return post<void>(`/admin/recalculate/scores/remove${buildQuery(params)}`)
+}
+
+// --- CDN maintenance (synchronous) ---
+
+export function repairCdnPermissions(): Promise<number> {
+  return post<number>('/admin/cdn/repair-permissions')
 }
 
 // --- Player refresh ---

@@ -16,28 +16,28 @@ usePageMeta({
 })
 
 async function fetchPage(params: StaffNewsListParams) {
-  const { listMyNews } = await import('@/api/ranking/news')
-  return listMyNews(params)
+  const { listAllNews } = await import('@/api/admin/news')
+  return listAllNews({ ...params, mine: true })
 }
 
 async function onCreate(req: CreateNewsRequest) {
-  const { createRankingNews } = await import('@/api/ranking/news')
-  return createRankingNews(req)
+  const { createAdminNews } = await import('@/api/admin/news')
+  return createAdminNews(req)
 }
 
 async function onUpdate(id: string, req: UpdateNewsRequest) {
-  const { updateRankingNews } = await import('@/api/ranking/news')
-  return updateRankingNews(id, req)
+  const { updateAdminNews } = await import('@/api/admin/news')
+  return updateAdminNews(id, req)
 }
 
 async function onUploadImage(id: string, file: File) {
-  const { uploadRankingNewsImage } = await import('@/api/ranking/news')
-  return uploadRankingNewsImage(id, file)
+  const { uploadAdminNewsImage } = await import('@/api/admin/news')
+  return uploadAdminNewsImage(id, file)
 }
 
 async function onDeleteImage(id: string) {
-  const { deleteRankingNewsImage } = await import('@/api/ranking/news')
-  return deleteRankingNewsImage(id)
+  const { deleteAdminNewsImage } = await import('@/api/admin/news')
+  return deleteAdminNewsImage(id)
 }
 </script>
 

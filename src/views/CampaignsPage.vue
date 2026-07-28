@@ -170,33 +170,22 @@ async function loadInvites() {
   }
 }
 
-async function acceptInvite(inv: CampaignCollaboratorResponse) {
+async function respondToInvite(inv: CampaignCollaboratorResponse, accept: boolean) {
   respondingId.value = inv.id
   error.value = null
   try {
-    const { acceptCampaignCollaboration } = await import('@/api/campaigns')
-    await acceptCampaignCollaboration(inv.campaignId)
+    const { respondToCampaignCollaboration } = await import('@/api/campaigns')
+    await respondToCampaignCollaboration(inv.campaignId, accept)
     pendingInvites.value = pendingInvites.value.filter((i) => i.id !== inv.id)
   } catch (err) {
-    error.value = getApiErrorMessage(err, 'Failed to accept invite')
+    error.value = getApiErrorMessage(err, `Failed to ${accept ? 'accept' : 'decline'} invite`)
   } finally {
     respondingId.value = null
   }
 }
 
-async function declineInvite(inv: CampaignCollaboratorResponse) {
-  respondingId.value = inv.id
-  error.value = null
-  try {
-    const { declineCampaignCollaboration } = await import('@/api/campaigns')
-    await declineCampaignCollaboration(inv.campaignId)
-    pendingInvites.value = pendingInvites.value.filter((i) => i.id !== inv.id)
-  } catch (err) {
-    error.value = getApiErrorMessage(err, 'Failed to decline invite')
-  } finally {
-    respondingId.value = null
-  }
-}
+const acceptInvite = (inv: CampaignCollaboratorResponse) => respondToInvite(inv, true)
+const declineInvite = (inv: CampaignCollaboratorResponse) => respondToInvite(inv, false)
 
 async function loadMineCollabs() {
   if (!auth.isLoggedIn) {

@@ -188,11 +188,14 @@ async function executeFetch<T>(
     return { res, parsed: undefined }
   }
 
-  if (res.status === 204 || res.status === 202) {
+  if (res.status === 204) {
     return { res, parsed: undefined }
   }
 
   const text = await res.text()
+  if (!text) {
+    return { res, parsed: undefined }
+  }
   const sanitizedJsonText = text.replace(/:\s*(\d{16,})/g, ': "$1"')
   return { res, parsed: JSON.parse(sanitizedJsonText) as T }
 }
@@ -221,7 +224,6 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     throw new ApiError(res.status, text)
   }
 
-  if (res.status === 204 || res.status === 202) return undefined as T
   return parsed as T
 }
 

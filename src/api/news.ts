@@ -62,7 +62,7 @@ export function getNewsById(id: string): Promise<PublicNewsResponse> {
 export function getNewsBySlug(slug: string): Promise<PublicNewsResponse> {
   const cached = readFresh(detailCache, `slug:${slug}`)
   if (cached) return Promise.resolve(cached)
-  return dedupe(detailCache, `slug:${slug}`, () => get<PublicNewsResponse>(`/news/slug/${slug}`))
+  return dedupe(detailCache, `slug:${slug}`, () => get<PublicNewsResponse>(`/news/${slug}`))
     .then((news) => { rememberDetail(news); return news })
 }
 

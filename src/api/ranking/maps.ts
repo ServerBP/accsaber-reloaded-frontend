@@ -67,7 +67,8 @@ export function getRankingDifficulties(
 export function getDeactivatedDifficulties(
   params?: DifficultyListParams,
 ): Promise<Page<MapDifficultyResponse>> {
-  return get<Page<MapDifficultyResponse>>(`/ranking/maps/difficulties/deactivated${buildQuery(params)}`)
+  const query = buildQuery({ sort: 'updatedAt,desc', ...params, active: false })
+  return get<Page<MapDifficultyResponse>>(`/ranking/maps/difficulties${query}`)
 }
 
 export function importMap(req: ImportMapFromLeaderboardIdsRequest): Promise<MapDifficultyResponse> {

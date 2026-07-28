@@ -63,4 +63,5 @@ export interface NewsListParams extends PaginationParams {
 
 export interface StaffNewsListParams extends NewsListParams {
   status?: NewsStatus
+  mine?: boolean
 }

@@ -1,4 +1,6 @@
 import type { Schema } from '@/components/admin/MilestoneQueryBuilder.vue'
+import type { JobResponse } from '@/types/api/jobs'
+import { runJob } from './jobs'
 import type {
   ActivateMilestonesRequest,
   AdminMilestoneListParams,
@@ -65,8 +67,12 @@ export function activateMilestones(ids: string[]): Promise<MilestoneResponse[]> 
   return post<MilestoneResponse[]>('/admin/milestones/activate', body)
 }
 
-export function backfillMilestone(id: string): Promise<void> {
-  return post<void>(`/admin/milestones/${id}/backfill`)
+export function backfillMilestone(id: string): Promise<JobResponse> {
+  return runJob({ type: 'BACKFILL_MILESTONE', milestoneId: id })
+}
+
+export function backfillMilestonesForUser(userId: string): Promise<JobResponse> {
+  return runJob({ type: 'BACKFILL_MILESTONES_USER', userId })
 }
 
 export function refreshMilestoneStats(): Promise<void> {
@@ -101,8 +107,8 @@ export function deleteMilestone(id: string): Promise<void> {
   return del<void>(`/admin/milestones/${id}`)
 }
 
-export function backfillAllMilestones(): Promise<void> {
-  return post<void>('/admin/milestones/backfill-all')
+export function backfillAllMilestones(): Promise<JobResponse> {
+  return runJob({ type: 'BACKFILL_MILESTONES_ALL' })
 }
 
 // --- Milestone set groups ---

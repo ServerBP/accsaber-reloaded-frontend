@@ -258,16 +258,13 @@ export function inviteCampaignCollaborator(
   return post<CampaignCollaboratorResponse>(`/campaigns/${campaignId}/collaborators`, req)
 }
 
-export function acceptCampaignCollaboration(
+export function respondToCampaignCollaboration(
   campaignId: string,
+  accept: boolean,
 ): Promise<CampaignCollaboratorResponse> {
-  return post<CampaignCollaboratorResponse>(`/campaigns/${campaignId}/collaborators/accept`)
-}
-
-export function declineCampaignCollaboration(
-  campaignId: string,
-): Promise<CampaignCollaboratorResponse> {
-  return post<CampaignCollaboratorResponse>(`/campaigns/${campaignId}/collaborators/decline`)
+  return patch<CampaignCollaboratorResponse>(
+    `/campaigns/${campaignId}/collaborators/me${buildQuery({ accept })}`,
+  )
 }
 
 export function removeCampaignCollaborator(campaignId: string, userId: string): Promise<void> {

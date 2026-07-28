@@ -5,38 +5,37 @@ import {
   uploadCampaignIcon,
 } from '@/api/cdn'
 import type { CampaignDetailResponse } from '@/types/api/campaigns'
-import type { ComputedRef, Ref } from 'vue'
+import type { Ref } from 'vue'
 
 interface AssetsContext {
   campaign: Ref<CampaignDetailResponse | null>
   load: () => Promise<void>
-  useAdminEndpoint: ComputedRef<boolean>
 }
 
 export function useCampaignAssets(ctx: AssetsContext) {
-  const { campaign, load, useAdminEndpoint } = ctx
+  const { campaign, load } = ctx
 
   async function uploadBackground(file: File) {
     if (!campaign.value) return
-    await uploadCampaignBackground(campaign.value.id, file, useAdminEndpoint.value)
+    await uploadCampaignBackground(campaign.value.id, file)
     await load()
   }
 
   async function removeBackground() {
     if (!campaign.value) return
-    await deleteCampaignBackground(campaign.value.id, useAdminEndpoint.value)
+    await deleteCampaignBackground(campaign.value.id)
     await load()
   }
 
   async function uploadIcon(file: File) {
     if (!campaign.value) return
-    await uploadCampaignIcon(campaign.value.id, file, useAdminEndpoint.value)
+    await uploadCampaignIcon(campaign.value.id, file)
     await load()
   }
 
   async function removeIcon() {
     if (!campaign.value) return
-    await deleteCampaignIcon(campaign.value.id, useAdminEndpoint.value)
+    await deleteCampaignIcon(campaign.value.id)
     await load()
   }
 
