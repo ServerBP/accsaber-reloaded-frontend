@@ -1,7 +1,6 @@
 export type * from './admin'
 export type * from './auth'
 export type * from './batches'
-export type * from './campaign-milestones'
 export type * from './campaigns'
 export type * from './categories'
 export type * from './items'
