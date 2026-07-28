@@ -78,6 +78,17 @@ function syntheticItem(row: Record<string, unknown>): ItemResponse {
   }
 }
 
+const PRIMARY_STAT: Record<string, { key: string; fmt: (v: unknown) => string; cls: string }> = {
+  'most-items': { key: 'itemCount', fmt: fmtInt, cls: 'stat-accent' },
+  'most-crates-opened': { key: 'crateCount', fmt: fmtInt, cls: 'stat-accent' },
+  'most-valuable-inventory': { key: 'totalValue', fmt: fmtEssence, cls: 'stat-essence' },
+  'first-editions': { key: 'firstEditionCount', fmt: fmtInt, cls: 'stat-accent' },
+  'most-complete-collection': { key: 'completionPercent', fmt: fmtPercent, cls: 'stat-accent' },
+  'biggest-traders': { key: 'tradeCount', fmt: fmtInt, cls: 'stat-accent' },
+}
+
+const primaryStat = computed(() => PRIMARY_STAT[props.board])
+
 function resolveModifiers(keys: unknown) {
   return resolveModifierRefs(keys, modifierStore.byKey)
 }
@@ -153,7 +164,6 @@ onMounted(() => {
     <template #cell-itemsValue="{ value }">{{ fmtEssence(value) }}</template>
     <template #cell-essenceBalance="{ value }">{{ fmtEssence(value) }}</template>
     <template #cell-totalValue="{ value }"><span class="stat-essence">{{ fmtEssence(value) }}</span></template>
-    <template #cell-essenceEarned="{ value }"><span class="stat-essence">{{ fmtEssence(value) }}</span></template>
 
     <template #mobile-card="{ row }">
       <div v-if="isItemBoard" class="stats-card stats-card--item" :class="{ 'stats-card--static': isScarcity }"
@@ -218,14 +228,8 @@ onMounted(() => {
             :country="(row.country as string)" :size="28" />
         </div>
 
-        <span class="stats-card__stat">
-          <template v-if="board === 'most-items'"><span class="stat-accent">{{ fmtInt(row.itemCount) }}</span></template>
-          <template v-else-if="board === 'most-crates-opened'"><span class="stat-accent">{{ fmtInt(row.crateCount) }}</span></template>
-          <template v-else-if="board === 'most-valuable-inventory'"><span class="stat-essence">{{ fmtEssence(row.totalValue) }}</span></template>
-          <template v-else-if="board === 'first-editions'"><span class="stat-accent">{{ fmtInt(row.firstEditionCount) }}</span></template>
-          <template v-else-if="board === 'most-complete-collection'"><span class="stat-accent">{{ fmtPercent(row.completionPercent) }}</span></template>
-          <template v-else-if="board === 'biggest-traders'"><span class="stat-accent">{{ fmtInt(row.tradeCount) }}</span></template>
-          <template v-else-if="board === 'most-essence-earned'"><span class="stat-essence">{{ fmtEssence(row.essenceEarned) }}</span></template>
+        <span v-if="primaryStat" class="stats-card__stat" :class="primaryStat.cls">
+          {{ primaryStat.fmt(row[primaryStat.key]) }}
         </span>
       </div>
     </template>

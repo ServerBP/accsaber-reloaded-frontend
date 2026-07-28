@@ -9,7 +9,6 @@ import type {
   TimeSeriesPointResponse,
   UserCollectionResponse,
   UserCrateCountResponse,
-  UserEssenceEarnedResponse,
   UserFirstEditionResponse,
   UserImprovementsResponse,
   UserInventoryValueResponse,
@@ -72,10 +71,6 @@ export function getMostCompleteCollection(params?: PaginationParams, country?: s
 
 export function getBiggestTraders(params?: PaginationParams, country?: string): Promise<Page<UserTraderResponse>> {
   return get<Page<UserTraderResponse>>(`/statistics/leaderboards/biggest-traders${buildQuery({ ...params, country })}`)
-}
-
-export function getMostEssenceEarned(params?: PaginationParams, country?: string): Promise<Page<UserEssenceEarnedResponse>> {
-  return get<Page<UserEssenceEarnedResponse>>(`/statistics/leaderboards/most-essence-earned${buildQuery({ ...params, country })}`)
 }
 
 export function getRarestUnboxed(params?: PaginationParams, country?: string): Promise<Page<RarestUnboxedResponse>> {

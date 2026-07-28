@@ -26,12 +26,20 @@ type ItemStatsBoard =
   | 'first-editions'
   | 'most-complete-collection'
   | 'biggest-traders'
-  | 'most-essence-earned'
   | 'rarest-unboxed'
   | 'first-edition-holders'
   | 'rarest-items'
 
 type BoardFilter = 'type' | 'modifier' | 'crate'
+
+type StatsApi = typeof import('@/api/statistics')
+
+interface BoardQuery {
+  country?: string
+  type?: string
+  modifier?: string
+  crate?: string
+}
 
 interface BoardDef {
   key: ItemStatsBoard
@@ -42,6 +50,7 @@ interface BoardDef {
   sort?: string
   country: boolean
   filters: BoardFilter[]
+  fetch: (api: StatsApi, params: PaginationParams, q: BoardQuery) => Promise<Page<unknown>>
 }
 
 const rankCol: TableColumn = { key: 'rank', label: '#', align: 'right', mono: true, width: '60px' }
@@ -53,11 +62,13 @@ const BOARDS: BoardDef[] = [
     key: 'most-items', label: 'Most Items', icon: 'package', description: 'Largest collections',
     columns: [rankCol, playerCol, { key: 'itemCount', label: 'Items', align: 'right', mono: true, width: '120px' }],
     sort: 'itemCount,desc', country: true, filters: ['type', 'modifier'],
+    fetch: (api, params, q) => api.getMostItems(params, q.type, q.modifier, q.country),
   },
   {
     key: 'most-crates-opened', label: 'Most Crates Opened', icon: 'crate', description: 'Most crates unboxed',
     columns: [rankCol, playerCol, { key: 'crateCount', label: 'Crates', align: 'right', mono: true, width: '120px' }],
     sort: 'crateCount,desc', country: true, filters: ['crate'],
+    fetch: (api, params, q) => api.getMostCratesOpened(params, q.crate, q.country),
   },
   {
     key: 'most-valuable-inventory', label: 'Most Valuable Inventory', icon: 'gem', description: 'Richest inventories',
@@ -68,11 +79,13 @@ const BOARDS: BoardDef[] = [
       { key: 'totalValue', label: 'Total', align: 'right', mono: true, width: '120px' },
     ],
     sort: 'totalValue,desc', country: true, filters: [],
+    fetch: (api, params, q) => api.getMostValuableInventory(params, q.country),
   },
   {
     key: 'first-editions', label: 'First Editions', icon: 'award', description: 'Most #1 serials',
     columns: [rankCol, playerCol, { key: 'firstEditionCount', label: 'First Editions', align: 'right', mono: true, width: '150px' }],
     sort: 'firstEditionCount,desc', country: true, filters: [],
+    fetch: (api, params, q) => api.getFirstEditions(params, q.country),
   },
   {
     key: 'most-complete-collection', label: 'Most Complete Collection', icon: 'layers', description: 'Closest to complete',
@@ -83,6 +96,7 @@ const BOARDS: BoardDef[] = [
       { key: 'completionPercent', label: 'Complete', align: 'right', mono: true, width: '110px' },
     ],
     sort: 'completionPercent,desc', country: true, filters: [],
+    fetch: (api, params, q) => api.getMostCompleteCollection(params, q.country),
   },
   {
     key: 'biggest-traders', label: 'Biggest Traders', icon: 'swap', description: 'Most active traders',
@@ -92,11 +106,7 @@ const BOARDS: BoardDef[] = [
       { key: 'itemsTraded', label: 'Items Traded', align: 'right', mono: true, width: '140px' },
     ],
     sort: 'tradeCount,desc', country: true, filters: [],
-  },
-  {
-    key: 'most-essence-earned', label: 'Most Essence Earned', icon: 'sparkle', description: 'Most essence earned',
-    columns: [rankCol, playerCol, { key: 'essenceEarned', label: 'Essence Earned', align: 'right', mono: true, width: '160px' }],
-    sort: 'essenceEarned,desc', country: true, filters: [],
+    fetch: (api, params, q) => api.getBiggestTraders(params, q.country),
   },
   {
     key: 'rarest-unboxed', label: 'Rarest Items Unboxed', icon: 'gift', description: 'Rarest pulls',
@@ -106,11 +116,13 @@ const BOARDS: BoardDef[] = [
       { key: 'owner', label: 'Owner', align: 'left', width: '220px' },
     ],
     country: true, filters: [],
+    fetch: (api, params, q) => api.getRarestUnboxed(params, q.country),
   },
   {
     key: 'first-edition-holders', label: 'First Edition Holders', icon: 'medal', description: 'Who holds serial #1',
     columns: [rankCol, itemCol, { key: 'owner', label: 'Holder', align: 'left', width: '220px' }],
     country: true, filters: [],
+    fetch: (api, params, q) => api.getFirstEditionHolders(params, q.country),
   },
   {
     key: 'rarest-items', label: 'Item Scarcity', icon: 'gauge', description: 'Fewest copies',
@@ -120,6 +132,7 @@ const BOARDS: BoardDef[] = [
       { key: 'instanceCount', label: 'Count', align: 'right', mono: true, width: '110px' },
     ],
     sort: 'instanceCount,asc', country: false, filters: [],
+    fetch: (api, params) => api.getRarestItems(params),
   },
 ]
 
@@ -288,44 +301,14 @@ async function fetchData() {
   loading.value = true
   try {
     const params: PaginationParams = { page: currentPage.value - 1, size: 50, sort: def.sort }
-    const country = def.country ? countryFilter.value || undefined : undefined
-    const api = await import('@/api/statistics')
-    let result: Page<unknown>
-
-    switch (def.key) {
-      case 'most-items':
-        result = await api.getMostItems(params, typeFilter.value || undefined, modifierFilter.value || undefined, country)
-        break
-      case 'most-crates-opened':
-        result = await api.getMostCratesOpened(params, crateFilter.value || undefined, country)
-        break
-      case 'most-valuable-inventory':
-        result = await api.getMostValuableInventory(params, country)
-        break
-      case 'first-editions':
-        result = await api.getFirstEditions(params, country)
-        break
-      case 'most-complete-collection':
-        result = await api.getMostCompleteCollection(params, country)
-        break
-      case 'biggest-traders':
-        result = await api.getBiggestTraders(params, country)
-        break
-      case 'most-essence-earned':
-        result = await api.getMostEssenceEarned(params, country)
-        break
-      case 'rarest-unboxed':
-        result = await api.getRarestUnboxed(params, country)
-        break
-      case 'first-edition-holders':
-        result = await api.getFirstEditionHolders(params, country)
-        break
-      case 'rarest-items':
-        result = await api.getRarestItems(params)
-        break
-      default:
-        result = { content: [], totalElements: 0, totalPages: 0, size: 0, number: 0, first: true, last: true, empty: true }
+    const query: BoardQuery = {
+      country: def.country ? countryFilter.value || undefined : undefined,
+      type: typeFilter.value || undefined,
+      modifier: modifierFilter.value || undefined,
+      crate: crateFilter.value || undefined,
     }
+    const api = await import('@/api/statistics')
+    const result = await def.fetch(api, params, query)
 
     if (id !== requestId) return
     pageData.value = result

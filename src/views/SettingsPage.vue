@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import '@/assets/styles/settings.css'
 import BaseButton from '@/components/common/BaseButton.vue'
 import BaseModal from '@/components/common/BaseModal.vue'
 import ImageUploader from '@/components/common/ImageUploader.vue'
@@ -31,7 +32,7 @@ usePageMeta({
   description: 'Manage appearance, account, and linked accounts.',
 })
 
-type SectionKey = 'appearance' | 'notifications' | 'privacy' | 'account' | 'connections'
+type SectionKey = 'appearance' | 'notifications' | 'privacy' | 'account'
 
 interface SectionDef {
   key: SectionKey
@@ -87,8 +88,6 @@ const isLoggedIn = computed(() => authStore.isLoggedIn)
 const canAccessAccount = computed(
   () => isLoggedIn.value || (isRankingSubdomain && authStore.isStaffAuthorized),
 )
-const canAccessConnections = computed(() => isLoggedIn.value)
-
 const activeSection = ref<SectionKey>('appearance')
 const logoutConfirm = ref(false)
 const loginModalOpen = ref(false)
@@ -166,7 +165,6 @@ const sections = computed<SectionDef[]>(() => [
   { key: 'notifications', label: 'Notifications', requiresLogin: !isLoggedIn.value },
   { key: 'privacy', label: 'Privacy', requiresLogin: !isLoggedIn.value },
   { key: 'account', label: 'Account', requiresLogin: !canAccessAccount.value },
-  { key: 'connections', label: 'Connections', requiresLogin: !canAccessConnections.value },
 ])
 
 async function confirmLogout() {
@@ -503,8 +501,12 @@ watch(activeSection, (section) => {
                 :disabled="avatarSyncSaving || avatarSyncEnabled === null"
                 @update:model-value="(v) => setSyncAvatar(v as boolean)" />
             </div>
+          </section>
 
-            <div class="settings-row settings-row--danger">
+          <ConnectionsSection v-if="isLoggedIn && me" :me="me" />
+
+          <section class="settings-card">
+            <div class="settings-row">
               <div class="settings-row__label">
                 <span class="settings-row__title">Sign out</span>
                 <span class="settings-row__hint">
@@ -516,10 +518,6 @@ watch(activeSection, (section) => {
               <BaseButton variant="destructive" @click="logoutConfirm = true">Log out</BaseButton>
             </div>
           </section>
-        </template>
-
-        <template v-else-if="activeSection === 'connections' && canAccessConnections && me">
-          <ConnectionsSection :me="me" />
         </template>
       </main>
     </div>
@@ -614,79 +612,10 @@ watch(activeSection, (section) => {
   min-width: 0;
 }
 
-.settings-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-  padding: var(--space-lg);
-  background: var(--bg-surface);
-  border: 1px solid var(--bg-overlay);
-  border-radius: var(--radius-card);
-}
-
 .settings-card--gated {
   background: color-mix(in srgb, var(--page-accent) 4%, var(--bg-surface));
   border-color: color-mix(in srgb, var(--page-accent) 30%, transparent);
   align-items: flex-start;
-}
-
-.settings-card__header {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-}
-
-.settings-card__title {
-  margin: 0;
-  font-size: var(--text-section-heading);
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.settings-card__desc {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: var(--text-body);
-  line-height: 1.5;
-}
-
-.settings-card__error {
-  margin: 0;
-  color: var(--error);
-  font-size: var(--text-caption);
-}
-
-.settings-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-md);
-  padding: var(--space-md) 0;
-  border-top: 1px solid var(--bg-overlay);
-}
-
-.settings-row__label {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.settings-row__title {
-  color: var(--text-primary);
-  font-size: var(--text-body);
-  font-weight: 500;
-}
-
-.settings-row__hint {
-  color: var(--text-secondary);
-  font-size: var(--text-caption);
-}
-
-.settings-row__notice {
-  margin-top: 4px;
-  color: var(--page-accent);
-  font-size: var(--text-caption);
 }
 
 .settings-profile {
@@ -775,16 +704,6 @@ watch(activeSection, (section) => {
   .settings__nav-btn {
     flex-shrink: 0;
     width: auto;
-  }
-
-  .settings-card {
-    padding: var(--space-md);
-  }
-
-  .settings-row {
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--space-sm);
   }
 }
 </style>

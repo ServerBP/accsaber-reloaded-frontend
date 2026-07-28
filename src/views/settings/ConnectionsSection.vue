@@ -93,42 +93,6 @@ async function disconnect(provider: OAuthProvider) {
 </template>
 
 <style scoped>
-.settings-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-  padding: var(--space-lg);
-  background: var(--bg-surface);
-  border: 1px solid var(--bg-overlay);
-  border-radius: var(--radius-card);
-}
-
-.settings-card__header {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-}
-
-.settings-card__title {
-  margin: 0;
-  font-size: var(--text-section-heading);
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.settings-card__desc {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: var(--text-body);
-  line-height: 1.5;
-}
-
-.settings-card__error {
-  margin: 0;
-  color: var(--error);
-  font-size: var(--text-caption);
-}
-
 .connections {
   list-style: none;
   margin: 0;

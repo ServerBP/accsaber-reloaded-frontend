@@ -115,10 +115,6 @@ export interface UserTraderResponse extends ItemStatsPlayerRef {
   itemsTraded: number
 }
 
-export interface UserEssenceEarnedResponse extends ItemStatsPlayerRef {
-  essenceEarned: number
-}
-
 export interface RarestUnboxedResponse extends ItemStatsPlayerRef {
   linkId: string
   itemId: string

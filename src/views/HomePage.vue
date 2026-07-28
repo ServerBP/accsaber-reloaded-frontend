@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { LevelThreshold } from '@/api/levels'
-import BaseButton from '@/components/common/BaseButton.vue'
 import ParticleCanvas from '@/components/common/ParticleCanvas.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import FollowedActivity from '@/components/domain/FollowedActivity.vue'
@@ -12,9 +11,7 @@ import { tierKey, useLevelStore } from '@/stores/levels'
 import { useThemeStore } from '@/stores/theme'
 import { DISCORD_URL, KOFI_URL } from '@/utils/constants'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
 
-const router = useRouter()
 const themeStore = useThemeStore()
 const levelStore = useLevelStore()
 const authStore = useAuthStore()
@@ -83,7 +80,6 @@ onUnmounted(() => {
         <div class="hero__identity">
           <div class="hero__logo-block">
             <div class="hero__logo-wrap">
-              <div v-if="showHeroAmbience" class="hero__logo-glow" aria-hidden="true" />
               <img :src="logoUrl" alt="AccSaber" class="hero__logo" fetchpriority="high" decoding="async" />
             </div>
           </div>
@@ -182,38 +178,6 @@ onUnmounted(() => {
       </div>
     </section>
 
-    <section class="section">
-      <h2 class="section__title">Explore</h2>
-      <div class="explore-buttons">
-        <BaseButton variant="default" size="lg" @click="router.push({ name: 'leaderboards' })">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <line x1="18" y1="20" x2="18" y2="10" />
-            <line x1="12" y1="20" x2="12" y2="4" />
-            <line x1="6" y1="20" x2="6" y2="14" />
-          </svg>
-          Leaderboards
-        </BaseButton>
-        <BaseButton variant="default" size="lg" @click="router.push({ name: 'maps' })">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
-            <line x1="8" y1="2" x2="8" y2="18" />
-            <line x1="16" y1="6" x2="16" y2="22" />
-          </svg>
-          Maps
-        </BaseButton>
-        <BaseButton variant="default" size="lg" @click="router.push({ name: 'milestones' })">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
-            <line x1="4" y1="22" x2="4" y2="15" />
-          </svg>
-          Milestones
-        </BaseButton>
-      </div>
-    </section>
-
     <section class="section xp-section">
       <h2 class="section__title">The XP System</h2>
       <p class="xp-section__intro">
@@ -256,7 +220,7 @@ onUnmounted(() => {
 
     <footer class="home-footer">
       <p class="home-footer__text">
-        Logo by Brylanbbab and Interz. AccSaber takes no credit for any assets used in their platform.
+        Logo by Brylanbbab and Interz.
       </p>
       <nav class="home-footer__links" aria-label="Footer links">
         <a href="https://github.com/tikugato/accsaber-reloaded-frontend" target="_blank" rel="noopener noreferrer"
@@ -360,14 +324,6 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
-.hero__logo-glow {
-  display: none;
-  position: absolute;
-  border-radius: 50%;
-  pointer-events: none;
-  z-index: 0;
-}
-
 .hero__logo {
   position: relative;
   z-index: 1;
@@ -450,15 +406,6 @@ onUnmounted(() => {
       color-mix(in srgb, var(--tier-gold) 12%, transparent),
       transparent 70%);
 }
-
-.hero--compact .hero__scroll-hint {
-  position: absolute;
-  bottom: var(--space-lg);
-  left: 50%;
-  transform: translateX(-50%);
-  transition: opacity 300ms ease;
-}
-
 
 .hero--compact .hero__content {
   flex-direction: row;
@@ -702,7 +649,7 @@ onUnmounted(() => {
 
 .hero__scroll-hint {
   position: absolute;
-  bottom: var(--space-3xl);
+  top: calc(100svh - var(--space-2xl));
   left: 50%;
   transform: translateX(-50%);
   z-index: 2;
@@ -713,9 +660,7 @@ onUnmounted(() => {
 }
 
 .hero__scroll-arrow {
-  color: var(--text-secondary);
-  filter:
-    drop-shadow(0 0 4px var(--accent-overall)) drop-shadow(0 0 8px color-mix(in srgb, var(--accent-overall) 40%, transparent));
+  color: var(--accent-overall);
 }
 
 @keyframes scroll-float {
@@ -750,25 +695,6 @@ onUnmounted(() => {
   font-weight: 700;
   color: var(--text-primary);
   margin: 0;
-}
-
-.explore-buttons {
-  display: flex;
-  gap: var(--space-lg);
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.explore-buttons :deep(.base-button) {
-  padding: var(--space-md) var(--space-2xl);
-  font-size: 1.125rem;
-  font-weight: 600;
-  border-radius: var(--radius-card);
-}
-
-.explore-buttons :deep(.base-button svg) {
-  width: 24px;
-  height: 24px;
 }
 
 .xp-section {
@@ -990,11 +916,6 @@ onUnmounted(() => {
     flex-wrap: wrap;
     align-items: center;
     justify-content: center;
-  }
-
-  .explore-buttons :deep(.base-button) {
-    padding: var(--space-sm) var(--space-xl);
-    font-size: 1rem;
   }
 }
 </style>
