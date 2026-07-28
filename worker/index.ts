@@ -47,7 +47,7 @@ export default {
       createProxy('/proxy/beatleader/', 'https://api.beatleader.com') ||
       createProxy('/proxy/scoresaber/', 'https://scoresaber.com') ||
       (await renderOpenGraph(url, request)) ||
-      new Response('No matching route', { status: 404 })
+      env.ASSETS.fetch(request)
     )
   },
 } satisfies ExportedHandler
