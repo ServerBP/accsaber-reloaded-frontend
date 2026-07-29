@@ -352,33 +352,47 @@ function pathFillRef(p: BorderShapePathValue): string | undefined {
   return fill
 }
 
+const conicMaskId = `pbr-kmask-${Math.random().toString(36).slice(2, 9)}`
+
+interface MaskPathEntry {
+  d: string
+  fill: string
+  stroke: string
+  strokeWidth: number
+  strokeLinecap: 'butt' | 'round' | 'square'
+  strokeLinejoin: 'miter' | 'round' | 'bevel'
+  transform?: string
+}
+
+const conicMaskPaths = computed<MaskPathEntry[]>(() => {
+  if (!colorIsConic.value) return []
+  const lerped = lerpedPaths.value
+  const reference = basePaths.value
+  if (!lerped || reference.length === 0) return []
+  return reference.map((p, i) => ({
+    d: lerped[i] ?? p.d,
+    stroke: p.stroke && p.stroke !== 'currentColor' && p.stroke !== 'inherit' ? p.stroke : 'white',
+    fill: p.fill && p.fill !== 'currentColor' && p.fill !== 'inherit' ? p.fill : 'none',
+    strokeWidth: p.strokeWidth ?? 1,
+    strokeLinecap: (p.strokeLinecap ?? 'butt') as MaskPathEntry['strokeLinecap'],
+    strokeLinejoin: (p.strokeLinejoin ?? 'miter') as MaskPathEntry['strokeLinejoin'],
+    transform: p.transform,
+  }))
+})
+
+const conicMaskTransform = computed(() => {
+  const { minX, minY, w, h } = vbBounds.value
+  return `scale(${1 / w} ${1 / h}) translate(${-minX} ${-minY})`
+})
+
 const conicMaskStyle = computed<Record<string, string> | undefined>(() => {
   if (!colorIsConic.value) return undefined
   if (!colorState.value || colorState.value.fill.type !== 'conic') return undefined
-  const lerped = lerpedPaths.value
-  const reference = basePaths.value
-  if (!lerped || reference.length === 0) return undefined
-  const viewBox = props.shape?.viewBox ?? '0 0 100 100'
-  const { w, h } = vbBounds.value
-  const inner = reference
-    .map((p, i) => {
-      const d = lerped[i] ?? p.d
-      const stroke = p.stroke && p.stroke !== 'currentColor' && p.stroke !== 'inherit' ? p.stroke : 'white'
-      const fill = p.fill && p.fill !== 'currentColor' && p.fill !== 'inherit' ? p.fill : 'none'
-      const sw = p.strokeWidth ?? 1
-      return `<path d="${d}" stroke="${stroke}" stroke-width="${sw}" fill="${fill}" stroke-linecap="${p.strokeLinecap ?? 'butt'}" stroke-linejoin="${p.strokeLinejoin ?? 'miter'}" ${p.transform ? `transform="${p.transform}"` : ''} />`
-    })
-    .join('')
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="${viewBox}" preserveAspectRatio="none">${inner}</svg>`
-  const mask = `url("data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}")`
+  if (conicMaskPaths.value.length === 0) return undefined
   return {
     background: gradientToCss(colorState.value.fill),
-    maskImage: mask,
-    webkitMaskImage: mask,
-    maskSize: '100% 100%',
-    webkitMaskSize: '100% 100%',
-    maskRepeat: 'no-repeat',
-    webkitMaskRepeat: 'no-repeat',
+    mask: `url(#${conicMaskId})`,
+    WebkitMask: `url(#${conicMaskId})`,
   }
 })
 
@@ -418,38 +432,37 @@ const cosmicViewBox = computed(() => {
   return `${minX - mx} ${minY - my} ${w + mx * 2} ${h + my * 2}`
 })
 
-const cosmicMaskStyle = computed<Record<string, string> | undefined>(() => {
-  if (!canvasFillActive.value) return undefined
+const cosmicMaskId = `pbr-cmask-${Math.random().toString(36).slice(2, 9)}`
+
+const cosmicMaskPaths = computed<MaskPathEntry[] | null>(() => {
+  if (!canvasFillActive.value) return null
+  if (!props.shape || basePaths.value.length === 0) return null
+  const lerped = lerpedPaths.value
+  return basePaths.value.map((p, i) => ({
+    d: lerped?.[i] ?? p.d,
+    stroke: p.stroke && p.stroke !== 'none' ? 'white' : 'none',
+    fill: p.fill && p.fill !== 'none' ? 'white' : 'none',
+    strokeWidth: p.strokeWidth ?? 1,
+    strokeLinecap: (p.strokeLinecap ?? 'butt') as MaskPathEntry['strokeLinecap'],
+    strokeLinejoin: (p.strokeLinejoin ?? 'miter') as MaskPathEntry['strokeLinejoin'],
+    transform: p.transform,
+  }))
+})
+
+const cosmicMaskTransform = computed(() => {
   const { minX, minY, w, h } = vbBounds.value
   const mx = w * 0.25
   const my = h * 0.25
   const vbW = w + mx * 2
   const vbH = h + my * 2
-  const viewBox = `${minX - mx} ${minY - my} ${vbW} ${vbH}`
-  let inner: string
-  if (props.shape && basePaths.value.length > 0) {
-    const lerped = lerpedPaths.value
-    inner = basePaths.value
-      .map((p, i) => {
-        const d = lerped?.[i] ?? p.d
-        const stroke = p.stroke && p.stroke !== 'none' ? 'white' : 'none'
-        const fill = p.fill && p.fill !== 'none' ? 'white' : 'none'
-        const sw = p.strokeWidth ?? 1
-        return `<path d="${d}" stroke="${stroke}" stroke-width="${sw}" fill="${fill}" stroke-linecap="${p.strokeLinecap ?? 'butt'}" stroke-linejoin="${p.strokeLinejoin ?? 'miter'}" ${p.transform ? `transform="${p.transform}"` : ''} />`
-      })
-      .join('')
-  } else {
-    inner = `<path d="${DEFAULT_RING_D}" fill="white" />`
-  }
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${vbW}" height="${vbH}" viewBox="${viewBox}" preserveAspectRatio="none">${inner}</svg>`
-  const mask = `url("data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}")`
+  return `scale(${1 / vbW} ${1 / vbH}) translate(${-(minX - mx)} ${-(minY - my)})`
+})
+
+const cosmicMaskStyle = computed<Record<string, string> | undefined>(() => {
+  if (!canvasFillActive.value) return undefined
   return {
-    maskImage: mask,
-    webkitMaskImage: mask,
-    maskSize: '100% 100%',
-    webkitMaskSize: '100% 100%',
-    maskRepeat: 'no-repeat',
-    webkitMaskRepeat: 'no-repeat',
+    mask: `url(#${cosmicMaskId})`,
+    WebkitMask: `url(#${cosmicMaskId})`,
   }
 })
 
@@ -475,6 +488,37 @@ const ringStyle = computed<Record<string, string> | undefined>(() => {
     :style="cosmicMaskStyle"
     aria-hidden="true"
   >
+    <svg class="profile-border__mask-defs" aria-hidden="true">
+      <defs>
+        <mask
+          :id="cosmicMaskId"
+          mask-type="alpha"
+          maskUnits="objectBoundingBox"
+          maskContentUnits="objectBoundingBox"
+          x="0"
+          y="0"
+          width="1"
+          height="1"
+        >
+          <g :transform="cosmicMaskTransform">
+            <template v-if="cosmicMaskPaths">
+              <path
+                v-for="(entry, i) in cosmicMaskPaths"
+                :key="i"
+                :d="entry.d"
+                :fill="entry.fill"
+                :stroke="entry.stroke"
+                :stroke-width="entry.strokeWidth"
+                :stroke-linecap="entry.strokeLinecap"
+                :stroke-linejoin="entry.strokeLinejoin"
+                :transform="entry.transform"
+              />
+            </template>
+            <path v-else :d="DEFAULT_RING_D" fill="white" />
+          </g>
+        </mask>
+      </defs>
+    </svg>
     <CosmicBorderFill v-if="cosmicFill" :fill="cosmicFill" :sink="cosmicSink" />
     <ToonBorderFill v-else-if="toonFill" :fill="toonFill" />
     <PrismBorderFill v-else-if="prismFill" :fill="prismFill" />
@@ -519,7 +563,36 @@ const ringStyle = computed<Record<string, string> | undefined>(() => {
     class="profile-border__conic"
     :style="conicMaskStyle"
     aria-hidden="true"
-  ></div>
+  >
+    <svg class="profile-border__mask-defs" aria-hidden="true">
+      <defs>
+        <mask
+          :id="conicMaskId"
+          mask-type="alpha"
+          maskUnits="objectBoundingBox"
+          maskContentUnits="objectBoundingBox"
+          x="0"
+          y="0"
+          width="1"
+          height="1"
+        >
+          <g :transform="conicMaskTransform">
+            <path
+              v-for="(entry, i) in conicMaskPaths"
+              :key="i"
+              :d="entry.d"
+              :fill="entry.fill"
+              :stroke="entry.stroke"
+              :stroke-width="entry.strokeWidth"
+              :stroke-linecap="entry.strokeLinecap"
+              :stroke-linejoin="entry.strokeLinejoin"
+              :transform="entry.transform"
+            />
+          </g>
+        </mask>
+      </defs>
+    </svg>
+  </div>
   <svg
     v-else-if="basePaths.length"
     class="profile-border__shape"
@@ -635,6 +708,13 @@ const ringStyle = computed<Record<string, string> | undefined>(() => {
   max-width: none;
   max-height: none;
   pointer-events: none;
+}
+
+.profile-border__mask-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
 }
 
 .profile-border__cosmic-decor {
