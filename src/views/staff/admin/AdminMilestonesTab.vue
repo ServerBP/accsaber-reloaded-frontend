@@ -249,16 +249,6 @@ async function activateAll() {
   }
 }
 
-async function backfill(m: MilestoneResponse) {
-  milestoneActionLoading.value[m.id] = true
-  try {
-    const { backfillMilestone } = await import('@/api/admin/milestones')
-    await backfillMilestone(m.id)
-  } finally {
-    delete milestoneActionLoading.value[m.id]
-  }
-}
-
 async function refreshStats() {
   const { refreshMilestoneStats } = await import('@/api/admin/milestones')
   await refreshMilestoneStats()
@@ -477,7 +467,6 @@ const STATUS_OPTIONS = [
                 </BaseButton>
                 <BaseButton size="sm" @click="openLinkMaps(m)">Link Maps</BaseButton>
                 <BaseButton size="sm" @click="openPrerequisites(m)">Prerequisites</BaseButton>
-                <BaseButton size="sm" :loading="milestoneActionLoading[m.id]" @click="backfill(m)">Backfill</BaseButton>
                 <BaseButton v-if="m.status === 'ACTIVE'" size="sm" variant="destructive"
                   :loading="milestoneActionLoading[m.id]" @click="deactivate(m)">
                   Deactivate

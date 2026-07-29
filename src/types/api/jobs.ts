@@ -1,43 +1,43 @@
-export type JobType =
-  | 'RECALCULATE_AP_DIFFICULTY'
-  | 'RECALCULATE_AP_DIFFICULTIES'
-  | 'RECALCULATE_AP_RAW'
-  | 'RECALCULATE_AP_WEIGHTED'
-  | 'RECALCULATE_AP_ALL'
-  | 'RECALCULATE_XP_SCORES'
-  | 'RECALCULATE_XP_TOTALS'
-  | 'BACKFILL_SCORES_ALL'
-  | 'BACKFILL_SCORES_DIFFICULTY'
-  | 'BACKFILL_SCORES_DIFFICULTIES'
-  | 'BACKFILL_SCORES_USER'
-  | 'BACKFILL_SCORES_USERS'
-  | 'BACKFILL_SCORES_GAP_FILL'
-  | 'BACKFILL_CDN_MAP_COVERS'
-  | 'BACKFILL_CDN_AVATARS'
-  | 'BACKFILL_MILESTONE'
-  | 'BACKFILL_MILESTONES_ALL'
-  | 'BACKFILL_MILESTONES_USER'
-  | 'REGENERATE_SONG_SUGGEST'
-
 export type JobStatus = 'RUNNING' | 'SUCCEEDED' | 'FAILED'
+
+export type JobFieldKind =
+  | 'USER'
+  | 'CAMPAIGN'
+  | 'MAP_DIFFICULTY'
+  | 'MILESTONE'
+  | 'INSTANT'
+  | 'PLATFORM'
+  | 'FLAG'
 
 export type LeaderboardPlatform = 'BEATLEADER' | 'SCORESABER'
 
+export interface JobFieldResponse {
+  key: string
+  kind: JobFieldKind
+  required: boolean
+  multiple: boolean
+  label: string
+  description: string | null
+}
+
+export interface JobTypeResponse {
+  type: string
+  group: string
+  label: string
+  description: string
+  fields: JobFieldResponse[]
+}
+
+export type JobFieldValue = string | string[] | boolean | null
+
 export interface RunJobRequest {
-  type: JobType
-  difficultyId?: string
-  difficultyIds?: string[]
-  milestoneId?: string
-  userId?: string
-  userIds?: string[]
-  since?: string
-  platform?: LeaderboardPlatform
-  force?: boolean
+  type: string
+  [key: string]: JobFieldValue | undefined
 }
 
 export interface JobResponse {
   id: string
-  type: JobType
+  type: string
   detail: string | null
   status: JobStatus
   startedAt: string
