@@ -460,6 +460,9 @@ export interface PrismFill {
   type: 'prism'
   rose: string
   edge: string
+  lo?: string
+  hi?: string
+  ink?: string
   fringeA?: string
   fringeB?: string
   snapMinS?: number

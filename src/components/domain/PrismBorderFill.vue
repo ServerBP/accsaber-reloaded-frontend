@@ -122,7 +122,8 @@ useElementCanvas(canvasRef, {
     flare = null
   },
   draw(ctx, w, h, now, reduced) {
-    const rose = parseRgb(props.fill.rose)
+    const lo = parseRgb(props.fill.lo ?? props.fill.rose)
+    const hi = props.fill.hi ? parseRgb(props.fill.hi) : [255, 255, 255]
     const edge = props.fill.edge
     const fringeA = props.fill.fringeA ?? 'rgba(255,50,170,0.6)'
     const fringeB = props.fill.fringeB ?? 'rgba(50,190,255,0.6)'
@@ -153,15 +154,15 @@ useElementCanvas(canvasRef, {
     const { sx, sy, toX, toY } = overlaySpace(w, h, MARGIN)
 
     ctx.clearRect(0, 0, w, h)
-    ctx.fillStyle = '#2a1020'
+    ctx.fillStyle = props.fill.ink ?? '#2a1020'
     ctx.fillRect(0, 0, w, h)
 
     for (const facet of facets) {
       const b = 0.3 + facet.bias + 0.55 * Math.pow(Math.max(0, Math.cos(facet.th - light)), 2)
       const v = Math.min(1, b)
-      const r = Math.round(rose[0] + (255 - rose[0]) * v)
-      const g = Math.round(rose[1] + (255 - rose[1]) * v)
-      const bl = Math.round(rose[2] + (255 - rose[2]) * v)
+      const r = Math.round(lo[0] + (hi[0] - lo[0]) * v)
+      const g = Math.round(lo[1] + (hi[1] - lo[1]) * v)
+      const bl = Math.round(lo[2] + (hi[2] - lo[2]) * v)
       const ox = fringe ? facet.gx : 0
       const oy = fringe ? facet.gy : 0
 

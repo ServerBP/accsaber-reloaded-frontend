@@ -544,7 +544,9 @@ export function fillToCss(fill: BorderColorFill): string {
     return `repeating-linear-gradient(135deg, ${fill.ink} 0px, ${fill.ink} 7px, ${fill.line} 7px, ${fill.line} 9px)`
   }
   if (fill.type === 'prism') {
-    return `linear-gradient(135deg, ${fill.rose} 0%, ${fill.edge} 50%, ${fill.rose} 100%)`
+    const lo = fill.lo ?? fill.rose
+    const hi = fill.hi ?? fill.edge
+    return `linear-gradient(135deg, ${lo} 0%, ${hi} 50%, ${lo} 100%)`
   }
   return gradientToCss(fill)
 }
