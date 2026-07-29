@@ -7,6 +7,7 @@ import RankChange from '@/components/common/RankChange.vue'
 import SearchBox from '@/components/common/SearchBox.vue'
 import CategoryTabs from '@/components/domain/CategoryTabs.vue'
 import CountryFlag from '@/components/domain/CountryFlag.vue'
+import PlayerTooltipTrigger from '@/components/domain/PlayerTooltipTrigger.vue'
 import RelationFilter from '@/components/domain/RelationFilter.vue'
 import SupporterTierIcon from '@/components/domain/SupporterTierIcon.vue'
 import { usePageMeta } from '@/composables/usePageMeta'
@@ -381,13 +382,18 @@ watch(() => categoryStore.loaded, (loaded) => {
         </template>
 
         <template #cell-player="{ row }">
-          <div class="player-cell" :data-user-id="row.userId">
-            <GlowImage :src="(row.avatarUrl as string)" :alt="(row.name as string)" :size="32"
-              :fallback-src="(row.avatarFallbackUrl as string | null | undefined) ?? null" />
-            <span class="player-cell__name">{{ row.name }}</span>
-            <CountryFlag :country="(row.country as string)" />
-            <SupporterTierIcon v-if="row.supporterTier" :tier="(row.supporterTier as SupporterTier)" />
-          </div>
+          <PlayerTooltipTrigger :user-id="(row.userId as string)" :user-name="(row.name as string)"
+            :avatar-url="(row.avatarUrl as string)"
+            :avatar-fallback-url="(row.avatarFallbackUrl as string | null | undefined) ?? null"
+            :country="(row.country as string)">
+            <div class="player-cell" :data-user-id="row.userId">
+              <GlowImage :src="(row.avatarUrl as string)" :alt="(row.name as string)" :size="32"
+                :fallback-src="(row.avatarFallbackUrl as string | null | undefined) ?? null" />
+              <span class="player-cell__name">{{ row.name }}</span>
+              <CountryFlag :country="(row.country as string)" />
+              <SupporterTierIcon v-if="row.supporterTier" :tier="(row.supporterTier as SupporterTier)" />
+            </div>
+          </PlayerTooltipTrigger>
         </template>
 
         <template #cell-ap="{ value }">

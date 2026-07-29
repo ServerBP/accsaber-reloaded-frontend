@@ -492,11 +492,30 @@ export interface ProfileBackgroundValue {
   parallax?: { depth?: number; [k: string]: unknown }
 }
 
+export interface FacetVaultScene {
+  type: 'facet_vault'
+  base?: 'light' | 'dark'
+  ink: string
+  facets: string[]
+  edge?: string
+  edgeOpacity?: number
+  caustic?: string
+  causticOpacity?: number
+  causticAngleDeg?: number
+  sheen?: boolean
+  sheenColor?: string
+  sheenOpacity?: number
+}
+
+export type ThumbnailScene = FacetVaultScene
+
 export interface ProfileThumbnailBackgroundValue {
-  asset: AssetSet
+  asset?: AssetSet
+  scene?: ThumbnailScene
   fit?: BackgroundFit
   opacity?: number
   blendMode?: 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten'
+  variants?: ItemVariant[]
 }
 
 export interface ThemeValue {

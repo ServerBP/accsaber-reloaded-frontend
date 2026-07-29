@@ -7,6 +7,7 @@ import {
   readBackgroundValue,
   readBorderColorValue,
   readBorderShapeValue,
+  readThumbnailBackgroundValue,
   readTitleValue,
   resolveEquippedVariant,
 } from '@/utils/items'
@@ -50,6 +51,10 @@ export function useEquippedRenderProps(
     ),
   ])
 
+  const thumbnailValue = computed(() =>
+    resolveEquippedVariant(equipped.value.profile_thumbnail_background, readThumbnailBackgroundValue),
+  )
+
   const backgroundValue = computed(() =>
     readBackgroundValue(equipped.value.profile_background?.item.value),
   )
@@ -72,6 +77,7 @@ export function useEquippedRenderProps(
     borderColorValue,
     titleEffects,
     borderEffects,
+    thumbnailValue,
     backgroundValue,
     backgroundUrl,
     backgroundIsVideo,

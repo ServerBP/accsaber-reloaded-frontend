@@ -9,6 +9,7 @@ import ApToNextTooltip from '@/components/domain/ApToNextTooltip.vue'
 import CategoryTabs from '@/components/domain/CategoryTabs.vue'
 import CountryFlag from '@/components/domain/CountryFlag.vue'
 import LevelBadge from '@/components/domain/LevelBadge.vue'
+import PlayerTooltipTrigger from '@/components/domain/PlayerTooltipTrigger.vue'
 import NameHistoryPopover from '@/components/domain/NameHistoryPopover.vue'
 import PinnedScoresSection from '@/components/domain/PinnedScoresSection.vue'
 import ProfileBadgesRow from '@/components/domain/ProfileBadgesRow.vue'
@@ -499,15 +500,18 @@ watch(activeCategory, (newCategory) => {
 
       <div class="profile-hero">
         <div class="profile-hero__level-col">
-          <LevelBadge :level="level?.level ?? 0" :current-xp="level?.xpForCurrentLevel ?? 0"
-            :required-xp="level?.xpForNextLevel ?? 1" :avatar-url="userAvatarUrl"
-            :plain="hideReloadedProfileFeatures"
-            :fallback-title="level?.title"
-            :equipped-title="equippedTitleValue"
-            :equipped-border-shape="equippedBorderShapeValue"
-            :equipped-border-color="equippedBorderColorValue"
-            :title-effects="equippedTitleEffects"
-            :border-effects="equippedBorderEffects" />
+          <PlayerTooltipTrigger class="profile-hero__badge-hover" :user-id="userId" :user-name="user.name"
+            :avatar-url="userAvatarUrl" :country="user.country">
+            <LevelBadge :level="level?.level ?? 0" :current-xp="level?.xpForCurrentLevel ?? 0"
+              :required-xp="level?.xpForNextLevel ?? 1" :avatar-url="userAvatarUrl"
+              :plain="hideReloadedProfileFeatures"
+              :fallback-title="level?.title"
+              :equipped-title="equippedTitleValue"
+              :equipped-border-shape="equippedBorderShapeValue"
+              :equipped-border-color="equippedBorderColorValue"
+              :title-effects="equippedTitleEffects"
+              :border-effects="equippedBorderEffects" />
+          </PlayerTooltipTrigger>
           <ProfileXpTrend v-if="!user.banned && !hideReloadedProfileFeatures" :stats-diff="statsDiff" />
         </div>
 
@@ -841,6 +845,11 @@ watch(activeCategory, (newCategory) => {
   align-items: center;
   gap: var(--space-sm);
   flex-shrink: 0;
+}
+
+.profile-hero__badge-hover {
+  display: flex;
+  justify-content: center;
 }
 
 .profile-hero__details {

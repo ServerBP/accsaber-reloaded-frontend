@@ -4,6 +4,7 @@ import BorderOverlay from '@/components/domain/BorderOverlay.vue'
 import ProfileBorderRenderer from '@/components/domain/ProfileBorderRenderer.vue'
 import TitleRenderer from '@/components/domain/TitleRenderer.vue'
 import ThemeBackdropPreview from '@/components/layout/ThemeBackdropPreview.vue'
+import ThumbnailSceneRenderer from '@/components/domain/ThumbnailSceneRenderer.vue'
 import type {
   BorderColorValue,
   BorderShapeValue,
@@ -21,6 +22,7 @@ import {
   readBorderColorValue,
   readBorderShapeValue,
   readThemeValue,
+  readThumbnailBackgroundValue,
   readTitleValue,
   tokenize,
 } from '@/utils/items'
@@ -89,6 +91,12 @@ const backgroundValue = computed(() =>
     : null,
 )
 const backgroundUrl = computed(() => pickAssetUrl(backgroundValue.value?.asset) ?? props.item.iconUrl)
+
+const thumbScene = computed(() =>
+  typeKey.value === 'profile_thumbnail_background'
+    ? (readThumbnailBackgroundValue(props.item.value)?.scene ?? null)
+    : null,
+)
 
 const themeValue = computed<ThemeValue | null>(() =>
   typeKey.value === 'theme' ? readThemeValue(props.item.value) : null,
@@ -248,6 +256,12 @@ const fallbackInitial = computed(() => props.item.name.charAt(0).toUpperCase())
       <line x1="2" y1="22" x2="22" y2="22" />
     </svg>
 
+    <ThumbnailSceneRenderer
+      v-else-if="thumbScene"
+      class="item-preview__thumb-scene"
+      :scene="thumbScene"
+    />
+
     <img
       v-else-if="(typeKey === 'profile_background' || typeKey === 'profile_thumbnail_background') && backgroundUrl"
       class="item-preview__img item-preview__img--cover"
@@ -355,6 +369,11 @@ const fallbackInitial = computed(() => props.item.name.charAt(0).toUpperCase())
   max-width: none;
   max-height: none;
   object-fit: cover;
+}
+
+.item-preview__thumb-scene {
+  position: absolute;
+  inset: 0;
 }
 
 .item-preview__initial {

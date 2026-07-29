@@ -316,9 +316,15 @@ export function readBackgroundValue(value: unknown): ProfileBackgroundValue | nu
   return value as unknown as ProfileBackgroundValue
 }
 
+function isThumbnailScene(v: unknown): boolean {
+  if (!isObj(v)) return false
+  if (v.type !== 'facet_vault') return false
+  return isString(v.ink) && Array.isArray(v.facets) && v.facets.every(isString)
+}
+
 export function readThumbnailBackgroundValue(value: unknown): ProfileThumbnailBackgroundValue | null {
   if (!isObj(value)) return null
-  if (!isObj(value.asset)) return null
+  if (!isObj(value.asset) && !isThumbnailScene(value.scene)) return null
   return value as unknown as ProfileThumbnailBackgroundValue
 }
 
