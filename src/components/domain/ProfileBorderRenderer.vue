@@ -2,6 +2,7 @@
 import { useReducedMotion } from '@/composables/useReducedMotion'
 import { useTimeline } from '@/composables/useTimeline'
 import CosmicBorderFill from '@/components/domain/CosmicBorderFill.vue'
+import PrismBorderFill from '@/components/domain/PrismBorderFill.vue'
 import ToonBorderFill from '@/components/domain/ToonBorderFill.vue'
 import type {
   BorderColorStateValue,
@@ -10,6 +11,7 @@ import type {
   BorderShapeStateValue,
   BorderShapeValue,
   CosmicFill,
+  PrismFill,
   Gradient,
   ToonFill,
 } from '@/types/api/items'
@@ -48,11 +50,17 @@ const toonFill = computed<ToonFill | null>(() => {
   return fill?.type === 'toon' ? fill : null
 })
 
-const canvasFillActive = computed(() => !!cosmicFill.value || !!toonFill.value)
+const prismFill = computed<PrismFill | null>(() => {
+  const fill = props.color?.states?.[0]?.fill
+  return fill?.type === 'prism' ? fill : null
+})
+
+const canvasFillActive = computed(() => !!cosmicFill.value || !!toonFill.value || !!prismFill.value)
 
 const rimStyle = computed<{ stroke: string; width: number; opacity: number } | null>(() => {
   if (cosmicFill.value) return { stroke: cosmicFill.value.star, width: 0.8, opacity: 0.45 }
   if (toonFill.value) return { stroke: toonFill.value.line, width: 1.4, opacity: 1 }
+  if (prismFill.value) return { stroke: prismFill.value.edge, width: 0.9, opacity: 0.5 }
   return null
 })
 
@@ -468,6 +476,7 @@ const ringStyle = computed<Record<string, string> | undefined>(() => {
   >
     <CosmicBorderFill v-if="cosmicFill" :fill="cosmicFill" :sink="cosmicSink" />
     <ToonBorderFill v-else-if="toonFill" :fill="toonFill" />
+    <PrismBorderFill v-else-if="prismFill" :fill="prismFill" />
     <svg
       v-if="rimPaths.length || decorationPaths.length"
       class="profile-border__cosmic-decor"

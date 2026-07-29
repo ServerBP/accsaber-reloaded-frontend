@@ -35,6 +35,11 @@ async function load(userId: string): Promise<MiniProfile> {
   return { stats, level, equipped: equipped ?? {} }
 }
 
+export function invalidateMiniProfile(userId: string): void {
+  cache.delete(userId)
+  inflight.delete(userId)
+}
+
 function fetchMiniProfile(userId: string): Promise<MiniProfile> {
   const cached = cache.get(userId)
   if (cached) return Promise.resolve(cached)

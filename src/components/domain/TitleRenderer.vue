@@ -42,7 +42,12 @@ onUnmounted(() => {
 const isPixelFont = computed(() => props.value.font === 'pixel_8bit')
 
 const fxEnabled = computed(() =>
-  !reducedMotion.value && (!!props.value.flashes?.enabled || !!props.value.sparkles?.enabled),
+  !reducedMotion.value
+  && (
+    !!props.value.flashes?.enabled
+    || !!props.value.sparkles?.enabled
+    || !!props.value.chromaticSplit?.enabled
+  ),
 )
 
 const needsTimeline = computed(() => {
@@ -183,8 +188,11 @@ const auraKey = computed(() =>
 let fxId = 0
 let nextFlashAt = -1
 let nextSparkleAt = -1
+let nextSplitAt = -1
+let splitStartedAt = -1
 const activeFlashes = ref<FlashInstance[]>([])
 const activeSparkles = ref<SparkleInstance[]>([])
+const splitActive = ref(false)
 
 watch(
   () => props.value,
@@ -193,8 +201,20 @@ watch(
     activeSparkles.value = []
     nextFlashAt = -1
     nextSparkleAt = -1
+    nextSplitAt = -1
+    splitStartedAt = -1
+    splitActive.value = false
   },
 )
+
+const splitShadowStyle = computed<Record<string, string> | undefined>(() => {
+  const spec = props.value.chromaticSplit
+  if (!spec?.enabled || !splitActive.value) return undefined
+  const offset = spec.offsetPx ?? 3
+  const colorA = (isLightBase.value ? spec.lightColorA : undefined) ?? spec.colorA ?? 'rgba(255,50,170,0.85)'
+  const colorB = (isLightBase.value ? spec.lightColorB : undefined) ?? spec.colorB ?? 'rgba(50,190,255,0.85)'
+  return { textShadow: `-${offset}px 0 ${colorA}, ${offset}px 0 ${colorB}` }
+})
 
 function spawnFlash(now: number) {
   const zone = Math.floor(Math.random() * 3)
@@ -253,6 +273,24 @@ watch(tMs, (now) => {
       activeSparkles.value = activeSparkles.value.filter((s) => now - s.bornAt < fade)
     }
   }
+  const split = props.value.chromaticSplit
+  if (split?.enabled) {
+    const dur = split.durationMs ?? 420
+    if (nextSplitAt < 0) nextSplitAt = now + rand(0, split.maxIntervalMs ?? 4400)
+    if (splitStartedAt < 0 && now >= nextSplitAt) {
+      splitStartedAt = now
+      nextSplitAt = now + rand(split.minIntervalMs ?? 2800, split.maxIntervalMs ?? 4400)
+    }
+    if (splitStartedAt >= 0) {
+      const p = (now - splitStartedAt) / dur
+      if (p >= 1) {
+        splitStartedAt = -1
+        splitActive.value = false
+      } else {
+        splitActive.value = p < 0.36 || p >= 0.5
+      }
+    }
+  }
 })
 
 function flashStyle(fl: FlashInstance): Record<string, string> {
@@ -308,7 +346,7 @@ function sparkleStyle(sp: SparkleInstance): Record<string, string> {
     >
       <path :d="ornament.d" :fill="ornament.color" />
     </svg>
-    <span class="title-renderer__text" :style="legacyGradientStyle">{{ value.text }}</span>
+    <span class="title-renderer__text" :style="[legacyGradientStyle ?? {}, splitShadowStyle ?? {}]">{{ value.text }}</span>
     <span
       v-if="glistenClipStyle"
       class="title-renderer__glint"

@@ -195,6 +195,18 @@ export type TitleAuraSpec = TitleFlameAuraSpec | TitleHazeAuraSpec | TitleSmokeA
 
 export type TitleAuraType = TitleAuraSpec['type']
 
+export interface TitleChromaticSplitSpec {
+  enabled: boolean
+  colorA?: string
+  colorB?: string
+  lightColorA?: string
+  lightColorB?: string
+  offsetPx?: number
+  minIntervalMs?: number
+  maxIntervalMs?: number
+  durationMs?: number
+}
+
 export interface TitleValue {
   text: string
   font?: TitleFont
@@ -203,6 +215,7 @@ export interface TitleValue {
   flashes?: TitleFlashSpec
   sparkles?: TitleSparkleSpec
   aura?: TitleAuraSpec
+  chromaticSplit?: TitleChromaticSplitSpec
   variants?: ItemVariant[]
   durationMs?: number
   loop?: Loop
@@ -443,12 +456,27 @@ export interface ToonFill {
   staticAlpha?: number
 }
 
+export interface PrismFill {
+  type: 'prism'
+  rose: string
+  edge: string
+  fringeA?: string
+  fringeB?: string
+  snapMinS?: number
+  snapMaxS?: number
+  steps?: number
+  glitchMs?: number
+  shearPct?: number
+  slices?: number
+}
+
 export type BorderColorFill =
   | { type: 'solid'; hex: string }
   | Gradient
   | PixelMetalFill
   | CosmicFill
   | ToonFill
+  | PrismFill
 
 export interface BorderColorStateValue {
   atMs: number

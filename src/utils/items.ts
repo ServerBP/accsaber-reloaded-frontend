@@ -286,6 +286,12 @@ function isToonFill(v: unknown): boolean {
   return isString(v.ink) && isString(v.line)
 }
 
+function isPrismFill(v: unknown): boolean {
+  if (!isObj(v)) return false
+  if (v.type !== 'prism') return false
+  return isString(v.rose) && isString(v.edge)
+}
+
 export function readBorderColorValue(value: unknown): BorderColorValue | null {
   if (!isObj(value)) return null
   if (!Array.isArray(value.states) || value.states.length === 0) return null
@@ -297,6 +303,7 @@ export function readBorderColorValue(value: unknown): BorderColorValue | null {
     if (fill.type === 'pixel_metal') return isPixelMetalFill(fill)
     if (fill.type === 'cosmic') return isCosmicFill(fill)
     if (fill.type === 'toon') return isToonFill(fill)
+    if (fill.type === 'prism') return isPrismFill(fill)
     return isGradient(fill)
   })
   if (validStates.length === 0) return null
@@ -536,6 +543,9 @@ export function fillToCss(fill: BorderColorFill): string {
   if (fill.type === 'toon') {
     return `repeating-linear-gradient(135deg, ${fill.ink} 0px, ${fill.ink} 7px, ${fill.line} 7px, ${fill.line} 9px)`
   }
+  if (fill.type === 'prism') {
+    return `linear-gradient(135deg, ${fill.rose} 0%, ${fill.edge} 50%, ${fill.rose} 100%)`
+  }
   return gradientToCss(fill)
 }
 
@@ -619,7 +629,11 @@ export function interpolateGradient(a: Gradient, b: Gradient, t: number): Gradie
 }
 
 export function interpolateFill(a: BorderColorFill, b: BorderColorFill, t: number): BorderColorFill {
-  if (a.type === 'cosmic' || b.type === 'cosmic' || a.type === 'toon' || b.type === 'toon') {
+  if (
+    a.type === 'cosmic' || b.type === 'cosmic'
+    || a.type === 'toon' || b.type === 'toon'
+    || a.type === 'prism' || b.type === 'prism'
+  ) {
     return t < 0.5 ? a : b
   }
   if (a.type === 'solid' && b.type === 'solid') {
