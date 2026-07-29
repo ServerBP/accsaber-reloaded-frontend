@@ -8,6 +8,7 @@ import type {
   UserCategoryStatisticsResponse,
 } from '@/types/api/users'
 import type { CategoryCode, ChartSeries, MetricType, TimeSeriesPoint } from '@/types/display'
+import { rangeWindowStart } from '@/utils/constants'
 import { dedupeRequest } from '@/utils/dedupe'
 import { computed, ref, watch } from 'vue'
 
@@ -82,13 +83,16 @@ const chartSeries = computed<ChartSeries[]>(() => {
     .filter((x) => x.raw.length > 0)
   if (raws.length === 0) return []
 
-  const minTs = Math.min(...raws.map((x) => x.raw[0].timestamp))
-  const span = Math.max(0, Date.now() - minTs)
-  const bucketSize = Math.max(3600000, Math.floor(span / 150))
-  const startBucket = Math.floor(minTs / bucketSize)
-  const endBucket = Math.floor(Date.now() / bucketSize)
+  const now = Date.now()
+  const dataMin = Math.min(...raws.map((x) => x.raw[0].timestamp))
+  const start = rangeWindowStart(selectedRange.value, dataMin, now)
+  const span = Math.max(1, now - start)
+  const bucketSize = Math.max(60000, Math.floor(span / 150))
+  const startBucket = Math.floor(start / bucketSize)
+  const endBucket = Math.floor(now / bucketSize)
   const timeline: number[] = []
-  for (let b = startBucket; b <= endBucket; b++) timeline.push(b * bucketSize)
+  for (let b = startBucket; b < endBucket; b++) timeline.push(b * bucketSize)
+  timeline.push(now)
 
   return raws.map(({ metric, raw }) => ({
     key: metric,

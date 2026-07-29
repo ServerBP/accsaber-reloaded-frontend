@@ -10,6 +10,24 @@ export const TIME_RANGE_PARAMS: Record<TimeRange, { amount: number; unit: 'h' | 
   'all': { amount: 240, unit: 'mo' },
 }
 
+export const HOUR_MS = 3_600_000
+export const DAY_MS = 86_400_000
+
+export const TIME_RANGE_MS: Record<TimeRange, number | null> = {
+  '24h': 24 * HOUR_MS,
+  '7d': 7 * DAY_MS,
+  '14d': 14 * DAY_MS,
+  '30d': 30 * DAY_MS,
+  '90d': 90 * DAY_MS,
+  '1y': 365 * DAY_MS,
+  'all': null,
+}
+
+export function rangeWindowStart(range: TimeRange, dataMin: number, now: number): number {
+  const ms = TIME_RANGE_MS[range]
+  return ms === null ? dataMin : Math.min(now - ms, dataMin)
+}
+
 export const DIFFICULTY_ORDER = ['EASY', 'NORMAL', 'HARD', 'EXPERT', 'EXPERT_PLUS'] as const
 
 export const DIFF_COLOR: Record<string, string> = {

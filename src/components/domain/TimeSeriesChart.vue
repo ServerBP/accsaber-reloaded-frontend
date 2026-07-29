@@ -3,6 +3,7 @@ import BaseTabs from '@/components/common/BaseTabs.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import { useThemeStore } from '@/stores/theme'
 import type { ChartSeries, MetricType, TimeRange, TimeSeriesPoint } from '@/types/display'
+import { DAY_MS, HOUR_MS, rangeWindowStart } from '@/utils/constants'
 import { computed, nextTick, onUnmounted, ref, shallowRef, watch } from 'vue'
 
 const props = defineProps<{
@@ -66,7 +67,7 @@ const timeRanges: { key: TimeRange; label: string }[] = [
   { key: 'all', label: 'All' },
 ]
 
-const activeRange = computed(() => props.selectedRange ?? 'all')
+const activeRange = computed(() => props.selectedRange ?? '30d')
 
 const hasData = computed(() => resolvedSeries.value.some((s) => s.points.length > 0))
 
@@ -75,11 +76,25 @@ function formatNumber(value: number): string {
   return Number.isInteger(value) ? `${value}` : value.toFixed(2)
 }
 
+function timeDomain(series: ResolvedSeries[], range: TimeRange, now: number) {
+  let dataMin = now
+  let dataMax = now
+  for (const s of series) {
+    for (const p of s.points) {
+      if (p.timestamp < dataMin) dataMin = p.timestamp
+      if (p.timestamp > dataMax) dataMax = p.timestamp
+    }
+  }
+  const min = rangeWindowStart(range, dataMin, now)
+  const max = Math.max(now, dataMax)
+  return max - min < HOUR_MS ? { min: max - HOUR_MS, max } : { min, max }
+}
+
 async function loadChart() {
   isLoading.value = true
   try {
-    const { Chart, LineController, LineElement, PointElement, LinearScale, CategoryScale, Filler, Tooltip } = await import('chart.js')
-    Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Filler, Tooltip)
+    const { Chart, LineController, LineElement, PointElement, LinearScale, Filler, Tooltip } = await import('chart.js')
+    Chart.register(LineController, LineElement, PointElement, LinearScale, Filler, Tooltip)
 
     await nextTick()
     if (!canvasRef.value) return
@@ -91,26 +106,35 @@ async function loadChart() {
     const textColor = styles.getPropertyValue('--chart-text').trim() || '#8888a0'
     const resolvedAccent = styles.getPropertyValue('--accent').trim() || '#f5b800'
 
-    const formatDate = (ts: number): string => {
+    const series = resolvedSeries.value
+    const isMulti = series.length > 1
+    const domain = timeDomain(series, activeRange.value, Date.now())
+    const spanMs = domain.max - domain.min
+
+    const formatTick = (ts: number): string => {
       const d = new Date(ts)
+      if (spanMs <= 36 * HOUR_MS) {
+        return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+      }
+      if (spanMs <= 14 * DAY_MS) {
+        return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+      }
       return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' })
     }
 
-    const series = resolvedSeries.value
-    const isMulti = series.length > 1
-    const allTs = [...new Set(series.flatMap((s) => s.points.map((p) => p.timestamp)))].sort((a, b) => a - b)
+    const formatTooltipTitle = (ts: number): string => {
+      const d = new Date(ts)
+      const date = d.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })
+      if (spanMs > 14 * DAY_MS) return date
+      return `${date}, ${d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`
+    }
 
     const prepared = series.map((s, idx) => {
-      const valueMap = new Map<number, number>()
       const pointMap = new Map<number, TimeSeriesPoint>()
-      for (const p of s.points) {
-        valueMap.set(p.timestamp, p.value)
-        pointMap.set(p.timestamp, p)
-      }
+      for (const p of s.points) pointMap.set(p.timestamp, p)
       return {
         ...s,
         idx,
-        valueMap,
         pointMap,
         color: s.color || resolvedAccent,
         axisId: isMulti ? `y${idx}` : 'y',
@@ -135,10 +159,9 @@ async function loadChart() {
     chartInstance.value = new Chart(canvasRef.value, {
       type: 'line',
       data: {
-        labels: allTs.map(formatDate),
         datasets: prepared.map((s) => ({
           label: s.label,
-          data: allTs.map((ts) => (s.valueMap.has(ts) ? s.valueMap.get(ts)! : null)),
+          data: s.points.map((p) => ({ x: p.timestamp, y: p.value })),
           borderColor: s.color,
           backgroundColor: `color-mix(in srgb, ${s.color} 10%, transparent)`,
           fill: isMulti ? false : s.invertY ? 'start' : true,
@@ -156,20 +179,21 @@ async function loadChart() {
         animation: {
           duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 300,
         },
+        interaction: {
+          mode: 'index',
+          axis: 'x',
+          intersect: false,
+        },
         plugins: {
           tooltip: {
-            mode: 'index',
-            intersect: false,
             callbacks: {
               title: (items) => {
-                const ts = allTs[items[0]?.dataIndex ?? -1]
-                return ts != null
-                  ? new Date(ts).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })
-                  : ''
+                const ts = items[0]?.parsed?.x
+                return ts != null ? formatTooltipTitle(ts) : ''
               },
               label: (item) => {
                 const s = prepared[item.datasetIndex]
-                const point = s?.pointMap.get(allTs[item.dataIndex])
+                const point = item.parsed.x != null ? s?.pointMap.get(item.parsed.x) : undefined
                 if (point?.tooltipLines?.length) {
                   return point.tooltipLines
                 }
@@ -183,13 +207,17 @@ async function loadChart() {
         },
         scales: {
           x: {
-            type: 'category',
+            type: 'linear',
+            min: domain.min,
+            max: domain.max,
             grid: { color: gridColor },
             ticks: {
               color: textColor,
               font: { family: 'JetBrains Mono, monospace', size: 10 },
               maxTicksLimit: 8,
               maxRotation: 0,
+              autoSkip: true,
+              callback: (value: number | string) => formatTick(value as number),
             },
           },
           ...yScales,
@@ -208,7 +236,13 @@ function destroyChart() {
   }
 }
 
-watch([() => props.data, () => props.series, () => props.accentColor, () => themeStore.theme], () => {
+watch([
+  () => props.data,
+  () => props.series,
+  () => props.accentColor,
+  () => props.selectedRange,
+  () => themeStore.theme,
+], () => {
   loadChart()
 }, { immediate: true })
 

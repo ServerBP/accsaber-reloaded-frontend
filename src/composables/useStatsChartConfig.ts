@@ -62,7 +62,7 @@ const selectedRange = ref<TimeRange>(
   readStored<TimeRange>(
     RANGE_KEY,
     (raw) => (typeof raw === 'string' && RANGE_KEYS.includes(raw as TimeRange) ? (raw as TimeRange) : null),
-    'all',
+    '30d',
   ),
 )
 

@@ -25,7 +25,7 @@ const METRIC_ENDPOINTS = {
 } as const
 
 const growthMetric = ref<MetricType>('newPlayers')
-const growthRange = ref<TimeRange>('all')
+const growthRange = ref<TimeRange>('30d')
 const growthChartData = ref<TimeSeriesPoint[]>([])
 const growthLoading = ref(false)
 const hmdData = ref<DistributionEntryResponse[]>([])

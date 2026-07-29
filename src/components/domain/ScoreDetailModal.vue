@@ -67,7 +67,7 @@ const resolvedAccent = computed(() => {
 
 const historicData = ref<ScoreResponse[]>([])
 const selectedMetric = ref<ScoreMetric>('accuracy')
-const selectedRange = ref<TimeRange>('all')
+const selectedRange = ref<TimeRange>('30d')
 
 const player = ref<UserResponse | null>(null)
 const playerLevel = ref<LevelResponse | null>(null)

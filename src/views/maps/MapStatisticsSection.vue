@@ -20,7 +20,7 @@ const emit = defineEmits<{
 const historicStats = ref<MapDifficultyStatisticsResponse[]>([])
 const complexityHistory = ref<MapComplexityHistoryResponse[]>([])
 const selectedMetric = ref<MetricType>('ap')
-const selectedRange = ref<TimeRange>('all')
+const selectedRange = ref<TimeRange>('30d')
 
 const selectedMetricLabel = computed(
   () => MAP_STATS_METRICS.find((m) => m.key === selectedMetric.value)?.label ?? '',
