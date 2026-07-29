@@ -428,13 +428,14 @@ const cosmicMaskStyle = computed<Record<string, string> | undefined>(() => {
   const viewBox = `${minX - mx} ${minY - my} ${vbW} ${vbH}`
   let inner: string
   if (props.shape && basePaths.value.length > 0) {
-    inner = sortedShapeStates.value
-      .flatMap((state) => state.paths ?? [])
-      .map((p) => {
+    const lerped = lerpedPaths.value
+    inner = basePaths.value
+      .map((p, i) => {
+        const d = lerped?.[i] ?? p.d
         const stroke = p.stroke && p.stroke !== 'none' ? 'white' : 'none'
         const fill = p.fill && p.fill !== 'none' ? 'white' : 'none'
         const sw = p.strokeWidth ?? 1
-        return `<path d="${p.d}" stroke="${stroke}" stroke-width="${sw}" fill="${fill}" stroke-linecap="${p.strokeLinecap ?? 'butt'}" stroke-linejoin="${p.strokeLinejoin ?? 'miter'}" ${p.transform ? `transform="${p.transform}"` : ''} />`
+        return `<path d="${d}" stroke="${stroke}" stroke-width="${sw}" fill="${fill}" stroke-linecap="${p.strokeLinecap ?? 'butt'}" stroke-linejoin="${p.strokeLinejoin ?? 'miter'}" ${p.transform ? `transform="${p.transform}"` : ''} />`
       })
       .join('')
   } else {
