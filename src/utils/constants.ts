@@ -25,7 +25,7 @@ export const TIME_RANGE_MS: Record<TimeRange, number | null> = {
 
 export function rangeWindowStart(range: TimeRange, dataMin: number, now: number): number {
   const ms = TIME_RANGE_MS[range]
-  return ms === null ? dataMin : Math.min(now - ms, dataMin)
+  return ms === null ? dataMin : now - ms
 }
 
 export const DIFFICULTY_ORDER = ['EASY', 'NORMAL', 'HARD', 'EXPERT', 'EXPERT_PLUS'] as const

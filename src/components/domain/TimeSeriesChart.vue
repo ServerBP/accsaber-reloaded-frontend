@@ -76,6 +76,16 @@ function formatNumber(value: number): string {
   return Number.isInteger(value) ? `${value}` : value.toFixed(2)
 }
 
+function clampToWindow(points: TimeSeriesPoint[], min: number): TimeSeriesPoint[] {
+  const inside: TimeSeriesPoint[] = []
+  let carried: TimeSeriesPoint | null = null
+  for (const p of points) {
+    if (p.timestamp >= min) inside.push(p)
+    else if (!carried || p.timestamp > carried.timestamp) carried = p
+  }
+  return carried ? [{ ...carried, timestamp: min }, ...inside] : inside
+}
+
 function timeDomain(series: ResolvedSeries[], range: TimeRange, now: number) {
   let dataMin = now
   let dataMax = now
@@ -130,11 +140,13 @@ async function loadChart() {
     }
 
     const prepared = series.map((s, idx) => {
+      const points = clampToWindow(s.points, domain.min)
       const pointMap = new Map<number, TimeSeriesPoint>()
-      for (const p of s.points) pointMap.set(p.timestamp, p)
+      for (const p of points) pointMap.set(p.timestamp, p)
       return {
         ...s,
         idx,
+        points,
         pointMap,
         color: s.color || resolvedAccent,
         axisId: isMulti ? `y${idx}` : 'y',
