@@ -644,29 +644,58 @@ const cursorPos = ref({ x: 0, y: 0 })
 const pinnedPos = ref<{ x: number; y: number } | null>(null)
 
 const TOOLTIP_WIDTH = 340
-const TOOLTIP_HEIGHT = 520
+const TOOLTIP_FALLBACK_HEIGHT = 520
+const TOOLTIP_GAP = 18
+const VIEWPORT_MARGIN = 8
+
+const tooltipEl = ref<HTMLElement | null>(null)
+const tooltipHeight = ref(TOOLTIP_FALLBACK_HEIGHT)
+const viewport = ref({ w: 1280, h: 720 })
+let tooltipResize: ResizeObserver | null = null
 
 function onPageMouseMove(e: MouseEvent) {
   cursorPos.value = { x: e.clientX, y: e.clientY }
 }
 
+function readViewport() {
+  viewport.value = { w: window.innerWidth, h: window.innerHeight }
+}
+
+watch(tooltipEl, (el) => {
+  tooltipResize?.disconnect()
+  tooltipResize = null
+  if (!el) return
+  tooltipHeight.value = el.offsetHeight
+  tooltipResize = new ResizeObserver(() => {
+    if (tooltipEl.value) tooltipHeight.value = tooltipEl.value.offsetHeight
+  })
+  tooltipResize.observe(el)
+})
+
 onMounted(() => {
+  readViewport()
   document.addEventListener('mousemove', onPageMouseMove)
+  window.addEventListener('resize', readViewport)
 })
 
 onUnmounted(() => {
   document.removeEventListener('mousemove', onPageMouseMove)
+  window.removeEventListener('resize', readViewport)
+  tooltipResize?.disconnect()
   if (progressRefreshTimer) clearTimeout(progressRefreshTimer)
 })
 
 const tooltipPos = computed(() => {
   const base = pinnedPos.value ?? cursorPos.value
-  const pad = 18
-  const vw = typeof window !== 'undefined' ? window.innerWidth : 1280
-  const vh = typeof window !== 'undefined' ? window.innerHeight : 720
-  const fitsRight = base.x + pad + TOOLTIP_WIDTH <= vw - 8
-  const x = fitsRight ? base.x + pad : Math.max(8, base.x - pad - TOOLTIP_WIDTH)
-  const y = Math.min(Math.max(8, base.y + pad), Math.max(8, vh - TOOLTIP_HEIGHT - 8))
+  const { w: vw, h: vh } = viewport.value
+  const height = Math.min(tooltipHeight.value, vh - VIEWPORT_MARGIN * 2)
+  const fitsRight = base.x + TOOLTIP_GAP + TOOLTIP_WIDTH <= vw - VIEWPORT_MARGIN
+  const x = fitsRight
+    ? base.x + TOOLTIP_GAP
+    : Math.max(VIEWPORT_MARGIN, base.x - TOOLTIP_GAP - TOOLTIP_WIDTH)
+  let y = base.y + TOOLTIP_GAP
+  if (y + height > vh - VIEWPORT_MARGIN) y = base.y - TOOLTIP_GAP - height
+  if (y < VIEWPORT_MARGIN) y = Math.max(VIEWPORT_MARGIN, vh - height - VIEWPORT_MARGIN)
   return { x, y }
 })
 
@@ -995,6 +1024,7 @@ function unpinTooltip() {
 
         <Transition name="campaign-detail__tooltip-fade">
           <aside v-if="tooltipVisible && displayedDifficulty"
+            ref="tooltipEl"
             class="campaign-detail__tooltip"
             :class="{
               'campaign-detail__tooltip--pinned': tooltipPinned,
@@ -1187,6 +1217,7 @@ function unpinTooltip() {
         <Transition name="campaign-detail__tooltip-fade">
           <aside
             v-if="tooltipVisible && displayedBarrier && !displayedDifficulty"
+            ref="tooltipEl"
             class="campaign-detail__tooltip campaign-detail__tooltip--barrier"
             :class="{
               'campaign-detail__tooltip--pinned': tooltipPinned,
