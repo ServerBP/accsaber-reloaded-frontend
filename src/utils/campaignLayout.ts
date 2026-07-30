@@ -371,6 +371,7 @@ const REQUIREMENT_DISPLAY: Record<CampaignRequirementType, RequirementDisplay> =
   RANK: { label: 'Rank', format: (v) => `#${Math.round(v)}`, lowerBetter: true },
   COMBO: { label: 'Combo', format: (v) => `${Math.round(v)}` },
   BOMB_HITS: { label: 'Bombs', format: (v) => `${Math.round(v)}` },
+  MISTAKES: { label: 'Mistakes', format: (v) => `${Math.round(v)}` },
 }
 
 export function requirementLabel(type: CampaignRequirementType): string {
@@ -441,7 +442,16 @@ export function requirementGoalText(
   return boundsInline(display.format, value, valueMax, display.lowerBetter ?? false)
 }
 
-type BarrierMetric = 'acc' | 'ap' | 'streak' | 'rank' | 'fc' | 'count' | 'combo' | 'bombs'
+type BarrierMetric =
+  | 'acc'
+  | 'ap'
+  | 'streak'
+  | 'rank'
+  | 'fc'
+  | 'count'
+  | 'combo'
+  | 'bombs'
+  | 'mistakes'
 
 interface BarrierConditionMeta {
   agg: string
@@ -467,6 +477,13 @@ const BARRIER_CONDITION_META: Record<BarrierConditionType, BarrierConditionMeta>
     lowerBetter: false,
     noValue: false,
     label: 'Average bombs hit',
+  },
+  AVERAGE_MISTAKES: {
+    agg: 'avg',
+    metric: 'mistakes',
+    lowerBetter: false,
+    noValue: false,
+    label: 'Average mistakes',
   },
   FC: { agg: '', metric: 'fc', lowerBetter: false, noValue: true, label: 'Full combo' },
   PASS: { agg: '', metric: 'fc', lowerBetter: false, noValue: true, label: 'Pass (no No-Fail)' },
@@ -494,6 +511,7 @@ const BARRIER_READOUT_LABEL: Record<BarrierConditionType, string> = {
   MAX_RANK: 'Best Rank',
   AVERAGE_COMBO: 'Avg Combo',
   AVERAGE_BOMB_HITS: 'Avg Bombs',
+  AVERAGE_MISTAKES: 'Avg Mistakes',
   FC: 'Full Combo',
   PASS: 'Pass',
   COMPLETION_COUNT: 'Maps Completed',

@@ -1695,6 +1695,7 @@ export function useCampaignEditor() {
     { value: 'STREAK_115', label: '115 Streak' },
     { value: 'COMBO', label: 'Max combo' },
     { value: 'BOMB_HITS', label: 'Bombs hit' },
+    { value: 'MISTAKES', label: 'Mistakes' },
     { value: 'FC', label: 'Full Combo' },
     { value: 'PASS', label: 'Pass (no No-Fail)' },
     { value: 'RANK', label: 'Leaderboard rank' },
@@ -1715,7 +1716,16 @@ export function useCampaignEditor() {
     return maxCombo && maxCombo > 0 ? maxCombo : 2000
   })
 
-  type RequirementMetric = 'acc' | 'ap' | 'score' | 'streak' | 'rank' | 'flag' | 'combo' | 'bombs'
+  type RequirementMetric =
+    | 'acc'
+    | 'ap'
+    | 'score'
+    | 'streak'
+    | 'rank'
+    | 'flag'
+    | 'combo'
+    | 'bombs'
+    | 'mistakes'
 
   const REQUIREMENT_METRIC: Record<CampaignRequirementType, RequirementMetric> = {
     ACC: 'acc',
@@ -1727,6 +1737,7 @@ export function useCampaignEditor() {
     PASS: 'flag',
     COMBO: 'combo',
     BOMB_HITS: 'bombs',
+    MISTAKES: 'mistakes',
   }
 
   function requirementBoundsFor(metric: RequirementMetric) {
@@ -1743,6 +1754,8 @@ export function useCampaignEditor() {
         return { min: 0, max: comboCap.value, step: 1, unit: 'combo' }
       case 'bombs':
         return { min: 0, max: 20, step: 1, unit: 'bombs' }
+      case 'mistakes':
+        return { min: 0, max: 20, step: 1, unit: '' }
       case 'flag':
         return { min: 1, max: 1, step: 1, unit: '' }
       default:
@@ -1756,7 +1769,7 @@ export function useCampaignEditor() {
   ) {
     if (metric === 'ap') return { min: 0, max: Number.MAX_SAFE_INTEGER }
     if (metric === 'rank') return { min: 1, max: Number.MAX_SAFE_INTEGER }
-    if (metric === 'bombs') return { min: 0, max: Number.MAX_SAFE_INTEGER }
+    if (metric === 'bombs' || metric === 'mistakes') return { min: 0, max: Number.MAX_SAFE_INTEGER }
     return { min: bounds.min, max: bounds.max }
   }
 
@@ -1773,6 +1786,7 @@ export function useCampaignEditor() {
       case 'combo':
         return Math.round(comboCap.value * 0.8)
       case 'bombs':
+      case 'mistakes':
         return 0
       case 'flag':
         return 1
@@ -1992,7 +2006,10 @@ export function useCampaignEditor() {
     void applyNodePatch(d.id, { modifiers })
   }
 
-  const DEFAULT_REQUIREMENT_MAX: Partial<Record<RequirementMetric, number>> = { bombs: 3 }
+  const DEFAULT_REQUIREMENT_MAX: Partial<Record<RequirementMetric, number>> = {
+    bombs: 3,
+    mistakes: 5,
+  }
 
   function newTargetDraft(type: CampaignRequirementType): TargetDraft {
     const metric = REQUIREMENT_METRIC[type]
@@ -2089,6 +2106,8 @@ export function useCampaignEditor() {
         return 'Cleared by any legitimate pass - a completion without the No-Fail modifier.'
       case 'COMBO':
         return `An absolute note count, not a percentage. This map tops out at ${comboCap.value}.`
+      case 'MISTAKES':
+        return 'Bad cuts + misses, summed. For "at most N mistakes", set the upper bound instead of the lower one.'
       default:
         return ''
     }
@@ -2340,6 +2359,7 @@ export function useCampaignEditor() {
     { value: 'STREAK_115_MAX', label: 'Best 115 streak' },
     { value: 'AVERAGE_COMBO', label: 'Average combo' },
     { value: 'AVERAGE_BOMB_HITS', label: 'Average bombs hit' },
+    { value: 'AVERAGE_MISTAKES', label: 'Average mistakes' },
     { value: 'AVERAGE_RANK', label: 'Average rank' },
     { value: 'MAX_RANK', label: 'Best rank' },
     { value: 'FC', label: 'Full combo (all)' },
@@ -2393,6 +2413,8 @@ export function useCampaignEditor() {
         return { min: 0, max: 2000, step: 1, unit: 'combo' }
       case 'bombs':
         return { min: 0, max: 20, step: 1, unit: 'bombs' }
+      case 'mistakes':
+        return { min: 0, max: 20, step: 1, unit: '' }
       default:
         return { min: 0, max: 1, step: 1, unit: '' }
     }
@@ -2417,7 +2439,7 @@ export function useCampaignEditor() {
     }
   }
 
-  const DEFAULT_BARRIER_MAX: Record<string, number> = { bombs: 3 }
+  const DEFAULT_BARRIER_MAX: Record<string, number> = { bombs: 3, mistakes: 5 }
 
   function onBarrierConditionTypeChange(value: string) {
     const next = value as BarrierConditionType

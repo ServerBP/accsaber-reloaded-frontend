@@ -58,6 +58,7 @@ export type CampaignRequirementType =
   | 'RANK'
   | 'COMBO'
   | 'BOMB_HITS'
+  | 'MISTAKES'
 
 export type CampaignModifierRequirement = 'REQUIRED' | 'FORBIDDEN'
 
@@ -84,6 +85,7 @@ export type BarrierConditionType =
   | 'MAX_RANK'
   | 'AVERAGE_COMBO'
   | 'AVERAGE_BOMB_HITS'
+  | 'AVERAGE_MISTAKES'
   | 'COMPLETION_COUNT'
 
 export type CampaignVoteDirection = 'UP' | 'DOWN'

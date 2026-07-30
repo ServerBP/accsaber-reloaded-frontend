@@ -243,6 +243,9 @@ const barrierConditionHint = computed(() => {
   if (meta.metric === 'bombs') {
     return 'Averaged over the affected nodes, and higher passes. For "at most N bombs", set the upper bound instead of the lower one.'
   }
+  if (meta.metric === 'mistakes') {
+    return 'Bad cuts + misses, averaged over each affected node\'s fewest-mistakes run. For "at most N mistakes", set the upper bound instead of the lower one.'
+  }
   if (meta.lowerBetter) {
     return `Lower is better. Opens when the ${meta.agg} leaderboard rank across the affected nodes reaches this position or better.`
   }

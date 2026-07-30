@@ -10,11 +10,16 @@ export const PLUGIN_ZERO_BOUND_NOTE =
 export const PLUGIN_FIRST_TARGET_NOTE =
   'The in-game plugin shows only the first objective, so players see a simpler requirement than the web does. Keep the most representative one first. '
 
-const UNREADABLE_REQUIREMENTS = new Set<CampaignRequirementType>(['COMBO', 'BOMB_HITS'])
+const UNREADABLE_REQUIREMENTS = new Set<CampaignRequirementType>([
+  'COMBO',
+  'BOMB_HITS',
+  'MISTAKES',
+])
 
 const UNREADABLE_CONDITIONS = new Set<BarrierConditionType>([
   'AVERAGE_COMBO',
   'AVERAGE_BOMB_HITS',
+  'AVERAGE_MISTAKES',
 ])
 
 export function isUnreadableRequirement(type: CampaignRequirementType): boolean {
