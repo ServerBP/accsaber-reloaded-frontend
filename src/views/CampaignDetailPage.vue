@@ -437,20 +437,27 @@ const displayedTargets = computed(() => {
   const d = displayedDifficulty.value
   if (!d) return []
   const progress = displayedProgress.value?.targets ?? []
-  return d.targets.map((t, index) => ({
-    key: t.id ?? String(index),
-    label: requirementLabel(t.requirementType),
-    goal: requirementGoalText(t.requirementType, t.requirementValue, t.requirementValueMax),
-    userValue: formatUserValue(t.requirementType, progress[index]?.userValue ?? null),
-    met: progress[index]?.met ?? false,
-  }))
+  return d.targets.map((t, index) => {
+    const goal = requirementGoalText(t.requirementType, t.requirementValue, t.requirementValueMax)
+    return {
+      key: t.id ?? String(index),
+      label: requirementLabel(t.requirementType),
+      goal,
+      goalWide: goal.length > 9,
+      userValue: formatUserValue(t.requirementType, progress[index]?.userValue ?? null),
+      met: progress[index]?.met ?? false,
+    }
+  })
 })
 
 const isMultiObjective = computed(() => displayedTargets.value.length > 1)
 
-const objectiveModeLabel = computed(() =>
-  displayedDifficulty.value?.targetMode === 'OR' ? 'Clear any one of these' : 'Clear all of these',
-)
+const objectiveModeLabel = computed(() => {
+  if (!isMultiObjective.value) return 'Objective'
+  return displayedDifficulty.value?.targetMode === 'OR'
+    ? 'Clear any one of these'
+    : 'Clear all of these'
+})
 
 const displayedBarrierGoal = computed(() => {
   const b = displayedBarrier.value
@@ -768,7 +775,8 @@ function unpinTooltip() {
           :background-color="campaign.backgroundColor"
           :background-placement="campaign.background"
           :show-starfield="!campaign.backgroundUrl" :focus-id="focusNodeId" :default-scale="1.35"
-          :selected-id="selectedId" :mark-next="isInProgress && !campaign.progressionAgnostic"
+          :selected-id="selectedId" :highlight-barrier-id="selectedId"
+          :mark-next="isInProgress && !campaign.progressionAgnostic"
           @select="handleSelect" @hover="handleHover"
           @deselect="handleDeselect" />
 
@@ -1086,17 +1094,10 @@ function unpinTooltip() {
             </div>
 
             <div v-if="displayedTargets.length > 0" class="campaign-detail__objectives">
-              <h3 v-if="isMultiObjective" class="campaign-detail__section-label">
+              <h3 class="campaign-detail__section-label">
                 {{ objectiveModeLabel }}
               </h3>
               <table class="campaign-detail__objective-table">
-                <thead>
-                  <tr>
-                    <td class="campaign-detail__objective-corner" />
-                    <th scope="col">Goal</th>
-                    <th v-if="displayedProgress" scope="col">{{ viewerLabel }}</th>
-                  </tr>
-                </thead>
                 <tbody>
                   <tr
                     v-for="t in displayedTargets"
@@ -1126,11 +1127,16 @@ function unpinTooltip() {
                       </span>
                       {{ t.label }}
                     </th>
-                    <td class="campaign-detail__objective-goal" :style="{ color: displayedAccent }">
-                      {{ t.goal }}
-                    </td>
                     <td v-if="displayedProgress" class="campaign-detail__objective-you">
+                      <span class="campaign-detail__objective-you-who">{{ viewerLabel }}</span>
                       {{ t.userValue }}
+                    </td>
+                    <td
+                      class="campaign-detail__objective-goal"
+                      :class="{ 'campaign-detail__objective-goal--wide': t.goalWide }"
+                      :style="{ color: displayedAccent }"
+                    >
+                      {{ t.goal }}
                     </td>
                   </tr>
                 </tbody>
@@ -2263,29 +2269,9 @@ function unpinTooltip() {
   font-variant-numeric: tabular-nums;
 }
 
-.campaign-detail__objective-table thead th,
-.campaign-detail__objective-corner {
-  padding: 0 0 4px;
-  border-bottom: 1px solid var(--bg-overlay);
-}
-
-.campaign-detail__objective-table thead th {
-  font-family: var(--font-sans);
-  font-size: 0.5625rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  text-align: right;
-  color: var(--text-tertiary);
-  padding-left: var(--space-sm);
-}
-
-.campaign-detail__objective-table thead th:first-of-type {
-  color: var(--page-accent, var(--accent));
-}
-
 .campaign-detail__objective-table tbody th {
-  padding: 6px 0;
+  width: 100%;
+  padding: 5px 0;
   text-align: left;
   font-family: var(--font-sans);
   font-size: 0.625rem;
@@ -2329,22 +2315,38 @@ function unpinTooltip() {
 
 .campaign-detail__objective-goal,
 .campaign-detail__objective-you {
-  padding: 7px 0 7px var(--space-sm);
+  padding: 5px 0 5px var(--space-sm);
   text-align: right;
   font-family: var(--font-mono);
   white-space: nowrap;
+  vertical-align: baseline;
 }
 
 .campaign-detail__objective-goal {
-  font-size: 1.125rem;
+  font-size: 1.25rem;
   font-weight: 600;
-  line-height: 1.1;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+
+.campaign-detail__objective-goal--wide {
+  font-size: 0.9375rem;
 }
 
 .campaign-detail__objective-you {
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.campaign-detail__objective-you-who {
+  font-family: var(--font-sans);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
   color: var(--text-tertiary);
+  margin-right: 3px;
 }
 
 .campaign-detail__objective-row--met .campaign-detail__objective-you {
@@ -2352,26 +2354,12 @@ function unpinTooltip() {
 }
 
 .campaign-detail__mods,
+.campaign-detail__objectives,
 .campaign-detail__prereqs,
 .campaign-detail__node-rewards {
   display: flex;
   flex-direction: column;
   gap: 6px;
-}
-
-.campaign-detail__objectives {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: var(--space-sm) var(--space-sm) 2px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--bg-overlay);
-  border-top: 2px solid var(--page-accent, var(--accent));
-  border-radius: 3px;
-}
-
-.campaign-detail__tooltip--cleared .campaign-detail__objectives {
-  border-top-color: var(--success);
 }
 
 .campaign-detail__prereq-list {

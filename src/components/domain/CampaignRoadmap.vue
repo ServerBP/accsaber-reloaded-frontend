@@ -751,8 +751,16 @@ const contentBounds = computed(() => {
 const scale = ref(1)
 const translateX = ref(0)
 const translateY = ref(0)
-const minScale = 0.4
+const comfortableMinScale = 0.4
 const maxScale = 2.5
+
+const fitScale = computed(() => {
+  const b = contentBounds.value
+  if (b.width <= 0 || b.height <= 0 || stageWidth.value <= 0 || stageHeight.value <= 0) return 1
+  return Math.min(stageWidth.value / b.width, stageHeight.value / b.height)
+})
+
+const minScale = computed(() => Math.min(comfortableMinScale, fitScale.value))
 
 let resizeObserver: ResizeObserver | null = null
 
@@ -764,8 +772,7 @@ function fitToContent() {
   stageHeight.value = h
   const b = contentBounds.value
   if (b.width === 0 || b.height === 0) return
-  const fit = Math.min(w / b.width, h / b.height)
-  const s = Math.max(minScale, Math.min(maxScale, fit))
+  const s = Math.min(maxScale, fitScale.value)
   scale.value = s
   translateX.value = w / 2 - (b.x + b.width / 2) * s
   translateY.value = h / 2 - (b.y + b.height / 2) * s
@@ -802,7 +809,7 @@ function onWheel(e: WheelEvent) {
   const cy = e.clientY - rect.top
   const delta = -e.deltaY * 0.0015
   const factor = Math.exp(delta)
-  const next = Math.max(minScale, Math.min(maxScale, scale.value * factor))
+  const next = Math.max(minScale.value, Math.min(maxScale, scale.value * factor))
   const ratio = next / scale.value
   translateX.value = cx - (cx - translateX.value) * ratio
   translateY.value = cy - (cy - translateY.value) * ratio
@@ -1355,7 +1362,7 @@ function adjustZoom(factor: number) {
   if (!stage.value) return
   const cx = stageWidth.value / 2
   const cy = stageHeight.value / 2
-  const next = Math.max(minScale, Math.min(maxScale, scale.value * factor))
+  const next = Math.max(minScale.value, Math.min(maxScale, scale.value * factor))
   const ratio = next / scale.value
   translateX.value = cx - (cx - translateX.value) * ratio
   translateY.value = cy - (cy - translateY.value) * ratio
@@ -1367,7 +1374,7 @@ function focusNode(id: string, targetScale?: number) {
   const n = vertexById.value.get(id)
   if (!n || !stage.value) return
   const s = targetScale ?? Math.max(scale.value, props.defaultScale)
-  const clamped = Math.max(minScale, Math.min(maxScale, s))
+  const clamped = Math.max(minScale.value, Math.min(maxScale, s))
   translateX.value = stageWidth.value / 2 - n.cx * clamped
   translateY.value = stageHeight.value / 2 - n.cy * clamped
   scale.value = clamped
