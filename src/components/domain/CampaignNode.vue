@@ -6,6 +6,7 @@ import type {
 } from '@/types/api/campaigns'
 import { pickCoverUrl } from '@/composables/useAvatarFallback'
 import {
+  isMilestoneNode,
   resolveSize,
   resolveShape,
   shapeCorners,
@@ -39,14 +40,7 @@ const effectiveSize = computed(() => resolveSize(props.difficulty.size, props.si
 
 const effectiveShape = computed(() => resolveShape(props.difficulty.borderShape))
 
-const isMilestone = computed(
-  () => !!(
-    props.difficulty.checkpointLabel
-    || props.difficulty.checkpointAvatarUrl
-    || props.difficulty.checkpointColor
-    || props.difficulty.checkpointSize
-  ),
-)
+const isMilestone = computed(() => isMilestoneNode(props.difficulty))
 
 const effectiveAccent = computed(() => {
   if (props.difficulty.borderColor) return props.difficulty.borderColor

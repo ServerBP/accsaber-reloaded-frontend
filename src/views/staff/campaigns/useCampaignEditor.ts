@@ -1890,8 +1890,9 @@ export function useCampaignEditor() {
     return out
   }
 
+  const DEFAULT_MILESTONE_LABEL = 'Milestone'
+
   const isMilestone = ref(false)
-  let suppressMilestoneAutoOpen = false
 
   let milestoneSyncedNodeId: string | null = null
 
@@ -1911,38 +1912,29 @@ export function useCampaignEditor() {
   )
 
   watch(
-    () => [
-      formNode.value.checkpointLabel,
-      formNode.value.checkpointAvatarUrl,
-      formNode.value.checkpointColor,
-      formNode.value.checkpointSize,
-    ],
-    ([label, avatar, color, size]) => {
-      if (suppressMilestoneAutoOpen) return
-      if (label || avatar || color || size) isMilestone.value = true
+    () => formNode.value.checkpointLabel,
+    (label) => {
+      if (label.trim()) isMilestone.value = true
     },
   )
 
   function setMilestone(value: boolean) {
     isMilestone.value = value
-    if (value) return
-    suppressMilestoneAutoOpen = true
-    formNode.value.checkpointLabel = ''
-    formNode.value.checkpointAvatarUrl = ''
-    formNode.value.checkpointColor = ''
-    formNode.value.checkpointSize = null
     const d = selectedDifficulty.value
-    if (d) {
-      void applyNodePatch(d.id, {
-        checkpointLabel: '',
-        checkpointAvatarUrl: '',
-        checkpointColor: '',
-        checkpointSize: null,
-      })
+    if (value) {
+      if (formNode.value.checkpointLabel.trim()) return
+      formNode.value.checkpointLabel = DEFAULT_MILESTONE_LABEL
+      if (d) void applyNodePatch(d.id, { checkpointLabel: DEFAULT_MILESTONE_LABEL })
+      return
     }
-    setTimeout(() => {
-      suppressMilestoneAutoOpen = false
-    }, 0)
+    formNode.value.checkpointLabel = ''
+    if (d) void applyNodePatch(d.id, { checkpointLabel: '' })
+  }
+
+  function commitMilestoneLabel() {
+    const label = formNode.value.checkpointLabel.trim()
+    formNode.value.checkpointLabel = label || DEFAULT_MILESTONE_LABEL
+    commitNodeField('checkpointLabel')
   }
 
   const FALLBACK_NODE_COLOR = '#f5b800'
@@ -3019,6 +3011,7 @@ export function useCampaignEditor() {
     campaignAudit,
     isMilestone,
     setMilestone,
+    commitMilestoneLabel,
     defaultColorHex,
     shapeTiles,
     sizeTiles,

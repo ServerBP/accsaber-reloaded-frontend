@@ -117,6 +117,7 @@ const {
   selectNodeBorderLayer,
   isMilestone,
   setMilestone,
+  commitMilestoneLabel,
   defaultColorHex,
   resetNodeColor,
   shapeTiles,
@@ -1043,7 +1044,7 @@ const connectionSwatch = computed(() => {
           v-model="formNode.checkpointLabel"
           type="text"
           placeholder="e.g. Rookie"
-          @blur="commitNodeField('checkpointLabel')"
+          @blur="commitMilestoneLabel()"
         />
       </label>
       <div class="campaign-editor__field">

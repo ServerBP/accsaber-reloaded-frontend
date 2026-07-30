@@ -50,13 +50,7 @@ export function resolveSize(raw: number | null | undefined, fallback: number): n
 }
 
 export function isMilestoneNode(node: CampaignDifficultyResponse): boolean {
-  return !!(
-    node.checkpointLabel ||
-    node.checkpointLabelPosition ||
-    node.checkpointAvatarUrl ||
-    node.checkpointColor ||
-    node.checkpointSize
-  )
+  return !!node.checkpointLabel?.trim()
 }
 
 export function backgroundPlacementStyle(
