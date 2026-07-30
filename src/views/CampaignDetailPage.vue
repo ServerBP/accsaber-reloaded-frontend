@@ -438,12 +438,10 @@ const displayedTargets = computed(() => {
   if (!d) return []
   const progress = displayedProgress.value?.targets ?? []
   return d.targets.map((t, index) => {
-    const goal = requirementGoalText(t.requirementType, t.requirementValue, t.requirementValueMax)
     return {
       key: t.id ?? String(index),
       label: requirementLabel(t.requirementType),
-      goal,
-      goalWide: goal.length > 9,
+      goal: requirementGoalText(t.requirementType, t.requirementValue, t.requirementValueMax),
       userValue: formatUserValue(t.requirementType, progress[index]?.userValue ?? null),
       met: progress[index]?.met ?? false,
     }
@@ -1098,6 +1096,13 @@ function unpinTooltip() {
                 {{ objectiveModeLabel }}
               </h3>
               <table class="campaign-detail__objective-table">
+                <thead>
+                  <tr>
+                    <td />
+                    <th v-if="displayedProgress" scope="col">{{ viewerLabel }}</th>
+                    <th scope="col">Goal</th>
+                  </tr>
+                </thead>
                 <tbody>
                   <tr
                     v-for="t in displayedTargets"
@@ -1128,14 +1133,9 @@ function unpinTooltip() {
                       {{ t.label }}
                     </th>
                     <td v-if="displayedProgress" class="campaign-detail__objective-you">
-                      <span class="campaign-detail__objective-you-who">{{ viewerLabel }}</span>
                       {{ t.userValue }}
                     </td>
-                    <td
-                      class="campaign-detail__objective-goal"
-                      :class="{ 'campaign-detail__objective-goal--wide': t.goalWide }"
-                      :style="{ color: displayedAccent }"
-                    >
+                    <td class="campaign-detail__objective-goal" :style="{ color: displayedAccent }">
                       {{ t.goal }}
                     </td>
                   </tr>
@@ -2269,6 +2269,23 @@ function unpinTooltip() {
   font-variant-numeric: tabular-nums;
 }
 
+.campaign-detail__objective-table thead th,
+.campaign-detail__objective-table thead td {
+  padding: 0 0 4px var(--space-sm);
+  border-bottom: 1px solid var(--bg-overlay);
+  text-align: right;
+  font-family: var(--font-sans);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.campaign-detail__objective-table thead td {
+  padding-left: 0;
+}
+
 .campaign-detail__objective-table tbody th {
   width: 100%;
   padding: 5px 0;
@@ -2323,30 +2340,14 @@ function unpinTooltip() {
 }
 
 .campaign-detail__objective-goal {
-  font-size: 1.25rem;
-  font-weight: 600;
-  line-height: 1.05;
-  letter-spacing: -0.01em;
-}
-
-.campaign-detail__objective-goal--wide {
-  font-size: 0.9375rem;
+  font-size: 1rem;
+  font-weight: 700;
 }
 
 .campaign-detail__objective-you {
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   font-weight: 500;
   color: var(--text-secondary);
-}
-
-.campaign-detail__objective-you-who {
-  font-family: var(--font-sans);
-  font-size: 0.5625rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-  margin-right: 3px;
 }
 
 .campaign-detail__objective-row--met .campaign-detail__objective-you {
