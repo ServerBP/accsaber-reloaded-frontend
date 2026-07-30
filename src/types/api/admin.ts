@@ -1,10 +1,11 @@
 import type { BatchStatus, Difficulty, MapDifficultyStatus, MapVoteAction, StaffRole, StaffUserStatus, VoteType } from '../enums'
 
 export interface CreateStaffUserRequest {
-  username: string
-  email: string
+  username?: string
+  email?: string
   password: string
   role: StaffRole
+  userId?: string
 }
 
 export interface UpdateStaffRoleRequest {
@@ -35,7 +36,7 @@ export interface OAuthLinkRequest {
 export interface StaffUserResponse {
   id: string
   username: string
-  email: string
+  email: string | null
   role: StaffRole
   status: StaffUserStatus
   active: boolean

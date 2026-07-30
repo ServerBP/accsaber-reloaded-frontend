@@ -17,6 +17,7 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   'update:modelValue': [value: string | null]
+  select: [user: { userId: string; userName: string } | null]
 }>()
 
 const categoryStore = useCategoryStore()
@@ -85,6 +86,7 @@ function pick(user: LeaderboardResponse) {
     avatarFallbackUrl: pickAvatarFallback(user),
   }
   emit('update:modelValue', user.userId)
+  emit('select', { userId: user.userId, userName: user.userName })
   open.value = false
   search.value = ''
 }
@@ -92,6 +94,7 @@ function pick(user: LeaderboardResponse) {
 function clear() {
   selected.value = null
   emit('update:modelValue', null)
+  emit('select', null)
   search.value = ''
   nextTick(() => inputRef.value?.focus())
 }
@@ -149,6 +152,7 @@ watch(() => props.modelValue, async (val) => {
       avatarUrl: pickAvatarUrl(u),
       avatarFallbackUrl: pickAvatarFallback(u),
     }
+    emit('select', { userId: u.id, userName: u.name })
   } catch {
     selected.value = null
   }

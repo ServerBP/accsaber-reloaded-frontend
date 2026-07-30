@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { StaffUserResponse, CreateStaffUserRequest } from '@/types/api/admin'
 import type { StaffRole, StaffUserStatus } from '@/types/enums'
 import AdminTable from '@/components/admin/AdminTable.vue'
@@ -8,6 +8,9 @@ import BaseButton from '@/components/common/BaseButton.vue'
 import BaseInput from '@/components/common/BaseInput.vue'
 import BaseSelect from '@/components/common/BaseSelect.vue'
 import BaseModal from '@/components/common/BaseModal.vue'
+import UserPicker from '@/components/domain/UserPicker.vue'
+import { getApiErrorMessage } from '@/api/client'
+import { generatePassword } from '@/utils/credentials'
 
 const users = ref<StaffUserResponse[]>([])
 const totalPages = ref(0)
@@ -33,9 +36,15 @@ const editTarget = ref<StaffUserResponse | null>(null)
 const linkTarget = ref<StaffUserResponse | null>(null)
 const passwordTarget = ref<StaffUserResponse | null>(null)
 
-const createForm = ref<CreateStaffUserRequest>({ username: '', email: '', password: '', role: 'RANKING' })
+const createMode = ref<'player' | 'manual'>('player')
+const createRole = ref<StaffRole>('RANKING')
+const createUserId = ref<string | null>(null)
+const createUserName = ref('')
+const manualForm = ref({ username: '', email: '', password: '' })
+const createdCredentials = ref<{ username: string; password: string; role: StaffRole } | null>(null)
+const copied = ref(false)
 const editRole = ref<StaffRole>('RANKING')
-const linkUserId = ref('')
+const linkUserId = ref<string | null>(null)
 const newPassword = ref('')
 const createError = ref('')
 const createLoading = ref(false)
@@ -54,6 +63,8 @@ const ROLES: StaffRole[] = [
   'ADMIN',
 ]
 const roleOptions = ROLES.map((r) => ({ value: r, label: r.replace('_', ' ') }))
+
+const PLAYER_LOGIN_ROLES: StaffRole[] = ['RANKING', 'RANKING_HEAD', 'CREATIVE', 'CAMPAIGN_CURATOR']
 
 async function fetchUsers() {
   loading.value = true
@@ -78,20 +89,79 @@ watch(statusFilter, () => {
 })
 fetchUsers()
 
+const canCreate = computed(() =>
+  createMode.value === 'player'
+    ? !!createUserId.value && !!createUserName.value
+    : (!!manualForm.value.username.trim() || !!manualForm.value.email.trim()) &&
+      !!manualForm.value.password,
+)
+
+function openCreate() {
+  createMode.value = 'player'
+  createRole.value = 'RANKING'
+  createUserId.value = null
+  createUserName.value = ''
+  manualForm.value = { username: '', email: '', password: '' }
+  createdCredentials.value = null
+  createError.value = ''
+  copied.value = false
+  showCreateModal.value = true
+}
+
+function onPickPlayer(user: { userId: string; userName: string } | null) {
+  createUserName.value = user?.userName ?? ''
+}
+
+function buildCreateRequest(): CreateStaffUserRequest {
+  if (createMode.value === 'player') {
+    return {
+      username: createUserName.value,
+      password: generatePassword(),
+      role: createRole.value,
+      userId: createUserId.value ?? undefined,
+    }
+  }
+  return {
+    username: manualForm.value.username.trim() || undefined,
+    email: manualForm.value.email.trim() || undefined,
+    password: manualForm.value.password,
+    role: createRole.value,
+  }
+}
+
 async function createUser() {
+  if (!canCreate.value) return
   createLoading.value = true
   createError.value = ''
   try {
+    const request = buildCreateRequest()
     const { createStaffUser } = await import('@/api/admin/staff')
-    const created = await createStaffUser(createForm.value)
+    const created = await createStaffUser(request)
     users.value.unshift(created)
     totalElements.value++
-    showCreateModal.value = false
-    createForm.value = { username: '', email: '', password: '', role: 'RANKING' }
-  } catch {
-    createError.value = 'Failed to create staff user.'
+    if (createMode.value === 'player') {
+      createdCredentials.value = {
+        username: created.username,
+        password: request.password,
+        role: created.role,
+      }
+    } else {
+      showCreateModal.value = false
+    }
+  } catch (err) {
+    createError.value = getApiErrorMessage(err, 'Failed to create staff user.')
   } finally {
     createLoading.value = false
+  }
+}
+
+async function copyPassword() {
+  if (!createdCredentials.value) return
+  try {
+    await navigator.clipboard.writeText(createdCredentials.value.password)
+    copied.value = true
+  } catch {
+    copied.value = false
   }
 }
 
@@ -142,7 +212,7 @@ async function setUserStatus(user: StaffUserResponse, status: 'ACCEPTED' | 'DENI
 
 function openLink(user: StaffUserResponse) {
   linkTarget.value = user
-  linkUserId.value = user.userId != null ? String(user.userId) : ''
+  linkUserId.value = user.userId ?? null
   linkError.value = ''
   showLinkModal.value = true
 }
@@ -150,21 +220,16 @@ function openLink(user: StaffUserResponse) {
 async function saveLink() {
   if (!linkTarget.value || !linkUserId.value) return
   const id = linkTarget.value.id
-  const userId = linkUserId.value.trim()
-  if (!/^\d+$/.test(userId)) {
-    linkError.value = 'User ID must be numeric.'
-    return
-  }
   linkLoading.value = true
   linkError.value = ''
   try {
     const { linkUser } = await import('@/api/admin/staff')
-    const updated = await linkUser(id, { userId })
+    const updated = await linkUser(id, { userId: linkUserId.value })
     const idx = users.value.findIndex((u) => u.id === id)
     if (idx !== -1) users.value[idx] = updated
     showLinkModal.value = false
-  } catch {
-    linkError.value = 'Failed to link user.'
+  } catch (err) {
+    linkError.value = getApiErrorMessage(err, 'Failed to link user.')
   } finally {
     linkLoading.value = false
   }
@@ -215,7 +280,7 @@ async function removeUser(user: StaffUserResponse) {
       </div>
       <div class="filter-row">
         <BaseSelect v-model="statusFilter" :options="STATUS_OPTIONS" style="width: 160px" />
-        <BaseButton variant="primary" @click="showCreateModal = true">
+        <BaseButton variant="primary" @click="openCreate()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
         </svg>
@@ -236,7 +301,7 @@ async function removeUser(user: StaffUserResponse) {
       </template>
       <template #default="{ item }">
         <td>{{ item.username }}</td>
-        <td class="muted">{{ item.email }}</td>
+        <td class="muted">{{ item.email ?? '-' }}</td>
         <td>
           <span class="role-badge" :class="`role-badge--${item.role.toLowerCase().replace('_', '-')}`">
             {{ item.role.replace('_', ' ') }}
@@ -280,19 +345,79 @@ async function removeUser(user: StaffUserResponse) {
   </div>
 
   <BaseModal :open="showCreateModal" title="New Staff User" @close="showCreateModal = false">
-    <div class="modal-form">
-      <BaseInput v-model="createForm.username" label="Username" required />
-      <BaseInput v-model="createForm.email" label="Email" type="email" required />
-      <BaseInput v-model="createForm.password" label="Password" type="password" required />
+    <div v-if="createdCredentials" class="modal-form">
+      <p v-if="PLAYER_LOGIN_ROLES.includes(createdCredentials.role)" class="created-note">
+        <strong>{{ createdCredentials.username }}</strong> is now staff. Their normal AccSaber login
+        carries the role on the matching staff site - the password below is only needed for a direct
+        staff login.
+      </p>
+      <p v-else class="created-note">
+        <strong>{{ createdCredentials.username }}</strong> is now staff. This role is not carried by a
+        player login, so they need the password below to sign in on the staff site.
+      </p>
+      <div class="form-field">
+        <label class="form-label">Generated Password</label>
+        <div class="credential">
+          <code class="credential__value">{{ createdCredentials.password }}</code>
+          <BaseButton size="sm" @click="copyPassword">{{ copied ? 'Copied' : 'Copy' }}</BaseButton>
+        </div>
+      </div>
+    </div>
+
+    <div v-else class="modal-form">
+      <div class="mode-switch">
+        <button
+          type="button"
+          class="mode-switch__btn"
+          :class="{ 'mode-switch__btn--active': createMode === 'player' }"
+          @click="createMode = 'player'"
+        >
+          From player
+        </button>
+        <button
+          type="button"
+          class="mode-switch__btn"
+          :class="{ 'mode-switch__btn--active': createMode === 'manual' }"
+          @click="createMode = 'manual'"
+        >
+          Manual
+        </button>
+      </div>
+
+      <template v-if="createMode === 'player'">
+        <div class="form-field">
+          <label class="form-label">Player</label>
+          <UserPicker v-model="createUserId" @select="onPickPlayer" />
+          <span v-if="createUserName" class="form-hint">
+            Staff username will be <strong>{{ createUserName }}</strong>. A password is generated
+            automatically.
+          </span>
+        </div>
+      </template>
+
+      <template v-else>
+        <BaseInput v-model="manualForm.username" label="Username" />
+        <BaseInput v-model="manualForm.email" label="Email" type="email" />
+        <BaseInput v-model="manualForm.password" label="Password" type="password" autocomplete="new-password" />
+      </template>
+
       <div class="form-field">
         <label class="form-label">Role</label>
-        <BaseSelect v-model="createForm.role" :options="roleOptions" />
+        <BaseSelect v-model="createRole" :options="roleOptions" />
       </div>
       <p v-if="createError" class="form-error">{{ createError }}</p>
     </div>
+
     <template #footer>
-      <BaseButton @click="showCreateModal = false">Cancel</BaseButton>
-      <BaseButton variant="primary" :loading="createLoading" @click="createUser">Create</BaseButton>
+      <template v-if="createdCredentials">
+        <BaseButton variant="primary" @click="showCreateModal = false">Done</BaseButton>
+      </template>
+      <template v-else>
+        <BaseButton @click="showCreateModal = false">Cancel</BaseButton>
+        <BaseButton variant="primary" :loading="createLoading" :disabled="!canCreate" @click="createUser">
+          Create
+        </BaseButton>
+      </template>
     </template>
   </BaseModal>
 
@@ -322,7 +447,10 @@ async function removeUser(user: StaffUserResponse) {
 
   <BaseModal :open="showLinkModal" :title="`Link Player - ${linkTarget?.username}`" @close="showLinkModal = false">
     <div class="modal-form">
-      <BaseInput v-model="linkUserId" label="Player User ID" placeholder="Steam ID (numeric)" />
+      <div class="form-field">
+        <label class="form-label">Player</label>
+        <UserPicker v-model="linkUserId" />
+      </div>
       <p v-if="linkError" class="form-error">{{ linkError }}</p>
     </div>
     <template #footer>
@@ -389,4 +517,38 @@ async function removeUser(user: StaffUserResponse) {
 .form-field { display: flex; flex-direction: column; gap: var(--space-xs); }
 .form-label { font-size: var(--text-caption); font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; }
 .form-error { font-size: var(--text-caption); color: var(--error); }
+.form-hint { font-size: var(--text-caption); color: var(--text-secondary); }
+.form-hint strong { color: var(--text-primary); font-weight: 600; }
+
+.mode-switch { display: flex; gap: var(--space-xs); }
+.mode-switch__btn {
+  flex: 1;
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--bg-overlay);
+  border-radius: var(--radius-btn);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 120ms ease, background-color 120ms ease, border-color 120ms ease;
+}
+.mode-switch__btn:hover { background: var(--bg-elevated); color: var(--text-primary); }
+.mode-switch__btn--active { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+
+.created-note { font-size: var(--text-body); color: var(--text-secondary); margin: 0; line-height: 1.5; }
+.created-note strong { color: var(--text-primary); font-weight: 600; }
+.credential { display: flex; align-items: center; gap: var(--space-sm); }
+.credential__value {
+  flex: 1;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--bg-overlay);
+  border-radius: var(--radius-input);
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  word-break: break-all;
+}
 </style>
