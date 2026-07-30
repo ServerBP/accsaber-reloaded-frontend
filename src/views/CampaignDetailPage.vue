@@ -2276,8 +2276,12 @@ function unpinTooltip() {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   text-align: right;
-  color: var(--text-secondary);
-  padding-left: var(--space-md);
+  color: var(--text-tertiary);
+  padding-left: var(--space-sm);
+}
+
+.campaign-detail__objective-table thead th:first-of-type {
+  color: var(--page-accent, var(--accent));
 }
 
 .campaign-detail__objective-table tbody th {
@@ -2325,16 +2329,22 @@ function unpinTooltip() {
 
 .campaign-detail__objective-goal,
 .campaign-detail__objective-you {
-  padding: 6px 0 6px var(--space-md);
+  padding: 7px 0 7px var(--space-sm);
   text-align: right;
   font-family: var(--font-mono);
-  font-size: 0.875rem;
-  font-weight: 500;
   white-space: nowrap;
 }
 
+.campaign-detail__objective-goal {
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
 .campaign-detail__objective-you {
-  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-tertiary);
 }
 
 .campaign-detail__objective-row--met .campaign-detail__objective-you {
@@ -2342,12 +2352,26 @@ function unpinTooltip() {
 }
 
 .campaign-detail__mods,
-.campaign-detail__objectives,
 .campaign-detail__prereqs,
 .campaign-detail__node-rewards {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.campaign-detail__objectives {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--space-sm) var(--space-sm) 2px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--bg-overlay);
+  border-top: 2px solid var(--page-accent, var(--accent));
+  border-radius: 3px;
+}
+
+.campaign-detail__tooltip--cleared .campaign-detail__objectives {
+  border-top-color: var(--success);
 }
 
 .campaign-detail__prereq-list {
