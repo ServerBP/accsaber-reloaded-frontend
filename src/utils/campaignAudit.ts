@@ -5,7 +5,8 @@ import type {
 } from '@/types/api/campaigns'
 import { isMilestoneNode, prereqIds } from './campaignLayout'
 
-export const XP_PER_NODE = 100
+export const XP_BUDGET = 1500
+export const XP_BUDGET_NODES = 18
 export const NODES_PER_ITEM_AWARD = 6.5
 export const NODES_PER_MILESTONE = 20
 
@@ -157,7 +158,7 @@ function collectIssues(
   if (audit.totalXp > audit.xpBudget) {
     issues.push({
       key: 'xp-budget',
-      message: `Total XP is ${audit.totalXp.toLocaleString()}, above the ${audit.xpBudget.toLocaleString()} recommended for ${plural(audit.nodeCount, 'node')} (${XP_PER_NODE} XP per node).`,
+      message: `Total XP is ${audit.totalXp.toLocaleString()}, above the ${audit.xpBudget.toLocaleString()} recommended for ${plural(audit.nodeCount, 'node')} (${XP_BUDGET.toLocaleString()} XP per ${XP_BUDGET_NODES} nodes).`,
       refs: [],
     })
   }
@@ -209,7 +210,7 @@ export function auditCampaign(campaign: CampaignDetailResponse | null): Campaign
     barrierXp,
     completionXp,
     totalXp,
-    xpBudget: nodeCount * XP_PER_NODE,
+    xpBudget: Math.floor((nodeCount * XP_BUDGET) / XP_BUDGET_NODES),
     avgXpPerNode: Math.round(totalXp / nodeCount),
     minNodeXp: Math.min(...nodeXpValues),
     maxNodeXp: Math.max(...nodeXpValues),

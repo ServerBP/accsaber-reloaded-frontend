@@ -109,8 +109,8 @@ export type TrayId =
   | 'text'
   | 'connection'
 
-const MAX_BARRIERS = 50
-const MAX_TEXTS = 50
+const MAX_BARRIERS = 100
+const MAX_TEXTS = 100
 
 export type TrayDef = { id: TrayId; label: string; icon: string; count?: number; tone?: string }
 
