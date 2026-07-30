@@ -62,6 +62,14 @@ function nodeRef(node: CampaignDifficultyResponse): CampaignAuditRef {
   return { id: node.id, label: node.songName || 'Untitled node' }
 }
 
+function plural(count: number, noun: string): string {
+  return `${count} ${count === 1 ? noun : `${noun}s`}`
+}
+
+function subject(count: number, noun: string, verb: string): string {
+  return `${plural(count, noun)} ${count === 1 ? `${verb}s` : verb}`
+}
+
 function sum(values: number[]): number {
   return values.reduce((total, value) => total + value, 0)
 }
@@ -123,7 +131,7 @@ function collectIssues(
   if (emptyBarriers.length > 0) {
     issues.push({
       key: 'barrier-no-nodes',
-      message: `${emptyBarriers.length} barrier${emptyBarriers.length === 1 ? '' : 's'} read from no nodes, so the condition has nothing to measure. Pick the affected nodes.`,
+      message: `${subject(emptyBarriers.length, 'barrier', 'read')} from no nodes, so there is nothing for the condition to measure. Pick the affected nodes.`,
       refs: emptyBarriers.map((b) => ({ id: b.id, label: b.checkpointLabel || 'Barrier' })),
     })
   }
@@ -132,7 +140,7 @@ function collectIssues(
   if (regressions.length > 0) {
     issues.push({
       key: 'xp-regression',
-      message: `${regressions.length} node${regressions.length === 1 ? '' : 's'} award less XP than a node earlier on the same path.`,
+      message: `${subject(regressions.length, 'node', 'award')} less XP than a node earlier on the same path.`,
       refs: regressions.map(nodeRef),
     })
   }
@@ -141,7 +149,7 @@ function collectIssues(
   if (zeroXpNodes.length > 0) {
     issues.push({
       key: 'zero-xp',
-      message: `${zeroXpNodes.length} node${zeroXpNodes.length === 1 ? '' : 's'} award no XP.`,
+      message: `${subject(zeroXpNodes.length, 'node', 'award')} no XP.`,
       refs: zeroXpNodes.map(nodeRef),
     })
   }
@@ -149,7 +157,7 @@ function collectIssues(
   if (audit.totalXp > audit.xpBudget) {
     issues.push({
       key: 'xp-budget',
-      message: `Total XP is ${audit.totalXp.toLocaleString()}, above the ${audit.xpBudget.toLocaleString()} recommended for ${audit.nodeCount} node${audit.nodeCount === 1 ? '' : 's'} (${XP_PER_NODE} XP per node).`,
+      message: `Total XP is ${audit.totalXp.toLocaleString()}, above the ${audit.xpBudget.toLocaleString()} recommended for ${plural(audit.nodeCount, 'node')} (${XP_PER_NODE} XP per node).`,
       refs: [],
     })
   }
@@ -157,7 +165,7 @@ function collectIssues(
   if (audit.rewardCount > audit.rewardBudget) {
     issues.push({
       key: 'reward-budget',
-      message: `${audit.rewardCount} item award${audit.rewardCount === 1 ? '' : 's'}, above the ${audit.rewardBudget} recommended for ${audit.nodeCount} node${audit.nodeCount === 1 ? '' : 's'} (one per ${NODES_PER_ITEM_AWARD} nodes).`,
+      message: `${plural(audit.rewardCount, 'item award')}, above the ${audit.rewardBudget} recommended for ${plural(audit.nodeCount, 'node')} (one per ${NODES_PER_ITEM_AWARD} nodes).`,
       refs: [],
     })
   }
@@ -172,7 +180,7 @@ function collectIssues(
   } else if (audit.milestoneCount < milestoneBudget) {
     issues.push({
       key: 'milestone-budget',
-      message: `${audit.milestoneCount} milestone${audit.milestoneCount === 1 ? '' : 's'} for ${audit.nodeCount} nodes, below the ${milestoneBudget} recommended (one per ${NODES_PER_MILESTONE} nodes).`,
+      message: `${plural(audit.milestoneCount, 'milestone')} for ${plural(audit.nodeCount, 'node')}, below the ${milestoneBudget} recommended (one per ${NODES_PER_MILESTONE} nodes).`,
       refs: [],
     })
   }
