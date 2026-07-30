@@ -49,6 +49,16 @@ export function resolveSize(raw: number | null | undefined, fallback: number): n
   return raw != null && raw > 0 ? raw : fallback
 }
 
+export function isMilestoneNode(node: CampaignDifficultyResponse): boolean {
+  return !!(
+    node.checkpointLabel ||
+    node.checkpointLabelPosition ||
+    node.checkpointAvatarUrl ||
+    node.checkpointColor ||
+    node.checkpointSize
+  )
+}
+
 export function backgroundPlacementStyle(
   url: string,
   placement: CampaignBackgroundPlacement | null | undefined,

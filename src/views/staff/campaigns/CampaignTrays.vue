@@ -104,6 +104,8 @@ const {
   barrierUnreadable,
   barrierZeroBound,
   fractionalVertexCount,
+  campaignAudit,
+  handleSelect,
   modifierOptions,
   nodeModifierById,
   cycleNodeModifier,
@@ -407,6 +409,99 @@ const connectionSwatch = computed(() => {
         :show="fractionalVertexCount > 0"
         :detail="`${fractionalVertexCount} element${fractionalVertexCount === 1 ? '' : 's'} sit on fractional grid coordinates. Turn the grid lock on and re-drag them onto whole units to make this campaign loadable again.`"
       />
+
+      <section v-if="campaignAudit.paysOut" class="campaign-editor__audit">
+        <h3 class="campaign-editor__audit-title">Payout</h3>
+
+        <dl class="campaign-editor__audit-stats">
+          <div>
+            <dt>Nodes</dt>
+            <dd>{{ campaignAudit.nodeCount }}</dd>
+          </div>
+          <div>
+            <dt>Milestones</dt>
+            <dd>{{ campaignAudit.milestoneCount }}</dd>
+          </div>
+          <div>
+            <dt>Barriers</dt>
+            <dd>{{ campaignAudit.barrierCount }}</dd>
+          </div>
+          <div>
+            <dt>Avg XP / node</dt>
+            <dd>{{ campaignAudit.avgXpPerNode.toLocaleString() }}</dd>
+          </div>
+          <div>
+            <dt>Node XP range</dt>
+            <dd>
+              {{ campaignAudit.minNodeXp.toLocaleString() }} -
+              {{ campaignAudit.maxNodeXp.toLocaleString() }}
+            </dd>
+          </div>
+          <div>
+            <dt>Total XP</dt>
+            <dd
+              :class="{
+                'campaign-editor__audit-over': campaignAudit.totalXp > campaignAudit.xpBudget,
+              }"
+              :title="`Recommended at most ${campaignAudit.xpBudget.toLocaleString()} XP for ${campaignAudit.nodeCount} nodes`"
+            >
+              {{ campaignAudit.totalXp.toLocaleString() }}
+              <small>/ {{ campaignAudit.xpBudget.toLocaleString() }}</small>
+            </dd>
+          </div>
+          <div>
+            <dt>Item awards</dt>
+            <dd
+              :class="{
+                'campaign-editor__audit-over':
+                  campaignAudit.rewardCount > campaignAudit.rewardBudget,
+              }"
+              :title="`Recommended at most ${campaignAudit.rewardBudget} item awards for ${campaignAudit.nodeCount} nodes`"
+            >
+              {{ campaignAudit.rewardCount }}
+              <small>/ {{ campaignAudit.rewardBudget }}</small>
+            </dd>
+          </div>
+        </dl>
+
+        <p
+          v-if="campaignAudit.barrierXp || campaignAudit.completionXp"
+          class="campaign-editor__hint"
+        >
+          Nodes {{ campaignAudit.nodeXp.toLocaleString() }} · Barriers
+          {{ campaignAudit.barrierXp.toLocaleString() }} · Completion
+          {{ campaignAudit.completionXp.toLocaleString() }}
+        </p>
+
+        <ul v-if="campaignAudit.rewards.length > 0" class="campaign-editor__reward-list">
+          <li
+            v-for="reward in campaignAudit.rewards"
+            :key="reward.itemId"
+            class="campaign-editor__reward"
+          >
+            <CampaignRewardItem
+              :name="reward.itemName"
+              :quantity="reward.quantity"
+              :item="rewardItemsById.get(reward.itemId) ?? null"
+            />
+          </li>
+        </ul>
+
+        <CampaignEditorNote v-for="issue in campaignAudit.issues" :key="issue.key">
+          {{ issue.message }}
+          <span v-if="issue.refs.length > 0" class="campaign-editor__audit-refs">
+            <button
+              v-for="vertex in issue.refs"
+              :key="vertex.id"
+              type="button"
+              class="campaign-editor__audit-ref"
+              @click="handleSelect(vertex.id)"
+            >
+              {{ vertex.label }}
+            </button>
+          </span>
+        </CampaignEditorNote>
+      </section>
     </header>
 
     <p v-else class="campaign-editor__status-meaning">
@@ -2005,6 +2100,82 @@ const connectionSwatch = computed(() => {
 
 .campaign-editor__status-actions > * {
   flex: 1 1 auto;
+}
+
+.campaign-editor__audit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--bg-overlay);
+}
+
+.campaign-editor__audit-title {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.campaign-editor__audit-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px var(--space-sm);
+  margin: 0;
+}
+
+.campaign-editor__audit-stats dt {
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  color: var(--text-tertiary);
+}
+
+.campaign-editor__audit-stats dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--text-primary);
+}
+
+.campaign-editor__audit-stats dd small {
+  font-size: 0.6875rem;
+  color: var(--text-tertiary);
+}
+
+.campaign-editor__audit-over,
+.campaign-editor__audit-over small {
+  color: var(--warning);
+}
+
+.campaign-editor__audit-refs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.campaign-editor__audit-ref {
+  max-width: 100%;
+  padding: 2px 6px;
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: inherit;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, currentColor 40%, transparent);
+  border-radius: 2px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 120ms ease;
+}
+
+.campaign-editor__audit-ref:hover {
+  background: color-mix(in srgb, currentColor 14%, transparent);
 }
 
 .campaign-editor__avatar-upload {

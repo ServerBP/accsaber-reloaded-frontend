@@ -73,10 +73,12 @@ import {
   CONNECTION_COLOR_RE,
   formatScoreCompact,
   hasValidBounds,
+  isMilestoneNode,
   MAX_PREREQUISITES_PER_NODE,
   prereqIds,
   toPrerequisiteInputs,
 } from '@/utils/campaignLayout'
+import { auditCampaign } from '@/utils/campaignAudit'
 import {
   countFractionalVertices,
   isUnreadableCondition,
@@ -1903,13 +1905,7 @@ export function useCampaignEditor() {
       }
       if (d.id === milestoneSyncedNodeId) return
       milestoneSyncedNodeId = d.id
-      isMilestone.value = !!(
-        d.checkpointLabel ||
-        d.checkpointLabelPosition ||
-        d.checkpointAvatarUrl ||
-        d.checkpointColor ||
-        d.checkpointSize
-      )
+      isMilestone.value = isMilestoneNode(d)
     },
     { immediate: true },
   )
@@ -2368,6 +2364,8 @@ export function useCampaignEditor() {
   )
 
   const fractionalVertexCount = computed(() => countFractionalVertices(campaign.value))
+
+  const campaignAudit = computed(() => auditCampaign(campaign.value))
 
   const barrierAffectedCount = computed(
     () => selectedBarrier.value?.affectedCampaignDifficultyIds.length ?? 0,
@@ -3018,6 +3016,7 @@ export function useCampaignEditor() {
     barrierUnreadable,
     barrierZeroBound,
     fractionalVertexCount,
+    campaignAudit,
     isMilestone,
     setMilestone,
     defaultColorHex,
