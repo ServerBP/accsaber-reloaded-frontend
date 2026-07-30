@@ -187,7 +187,7 @@ async function load() {
 
     if (fetched.status === 'DRAFT') {
       const isOwner = auth.isLoggedIn && !!fetched.creatorId && fetched.creatorId === auth.userId
-      if (isOwner) {
+      if (isOwner || auth.hasRole('ADMIN')) {
         await router.replace({
           name: 'campaign-editor',
           params: { campaignId: fetched.slug || fetched.id },

@@ -464,7 +464,7 @@ export function useCampaignEditor() {
     },
   )
 
-  const isAdmin = computed(() => auth.isAdmin)
+  const isAdmin = computed(() => auth.hasRole('ADMIN'))
 
   const isCurator = computed(() => auth.hasRole('CAMPAIGN_CURATOR'))
 
@@ -495,15 +495,23 @@ export function useCampaignEditor() {
     actionError,
   })
 
-  const canAccess = computed(
-    () => isCurator.value || isCreator.value || isCollaborator.value,
+  const isSavedDraft = computed(
+    () => !!campaign.value && !isUnsavedDraft.value && campaign.value.status === 'DRAFT',
   )
 
-  const CURATOR_EDITABLE_STATUSES = new Set<CampaignStatus>(['DRAFT', 'EDITING', 'CURATED'])
+  const canAccess = computed(() => {
+    if (isCreator.value || isCollaborator.value || isAdmin.value) return true
+    return isCurator.value && !isSavedDraft.value
+  })
+
+  const CURATOR_EDITABLE_STATUSES = new Set<CampaignStatus>(['EDITING', 'CURATED'])
 
   const editable = computed(() => {
     if (!campaign.value || actionPending.value) return false
-    if (campaign.value.status === 'DRAFT' && (isCreator.value || isCollaborator.value)) return true
+    if (campaign.value.status === 'DRAFT') {
+      if (isCreator.value || isCollaborator.value || isAdmin.value) return true
+      return isCurator.value && isUnsavedDraft.value
+    }
     return isCurator.value && CURATOR_EDITABLE_STATUSES.has(campaign.value.status)
   })
 

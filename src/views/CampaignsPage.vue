@@ -39,6 +39,7 @@ usePageMeta({
 
 const isCurator = computed(() => auth.hasRole('CAMPAIGN_CURATOR'))
 const canReview = computed(() => isCurator.value && isCurationSurface)
+const canSeeDrafts = computed(() => auth.hasRole('ADMIN') && isCurationSurface)
 
 const defaultPane = computed<Pane>(() =>
   isCurationSubdomain && canReview.value ? 'review' : 'all',
@@ -48,7 +49,8 @@ const pane = computed<Pane>(() => {
   const v = route.query.pane as string | undefined
   if (v === 'mine' || v === 'started') return v
   if (v === 'invites' && auth.isLoggedIn) return 'invites'
-  if ((v === 'review' || v === 'drafts') && canReview.value) return v
+  if (v === 'review' && canReview.value) return v
+  if (v === 'drafts' && canSeeDrafts.value) return v
   if (v === 'all') return 'all'
   return defaultPane.value
 })
@@ -260,7 +262,7 @@ async function loadCampaigns() {
       totalPages.value = page.totalPages || 1
       if (currentPage.value === 1) await loadMineCollabs()
     } else if (pane.value === 'drafts') {
-      if (!canReview.value) {
+      if (!canSeeDrafts.value) {
         items.value = []
         totalPages.value = 1
         return
@@ -442,7 +444,7 @@ watch(
           :class="{ 'campaigns-page__pane--active': pane === 'review' }" @click="setPane('review')">
           Review
         </button>
-        <button v-if="canReview" class="campaigns-page__pane"
+        <button v-if="canSeeDrafts" class="campaigns-page__pane"
           :class="{ 'campaigns-page__pane--active': pane === 'drafts' }" @click="setPane('drafts')">
           Drafts
         </button>
