@@ -91,7 +91,8 @@ function aggregateRewards(campaign: CampaignDetailResponse): CampaignItemAwardRe
 }
 
 function findXpRegressions(campaign: CampaignDetailResponse): CampaignDifficultyResponse[] {
-  const nodeById = new Map(campaign.difficulties.map((d) => [d.id, d]))
+  const plainNodes = campaign.difficulties.filter((d) => !isMilestoneNode(d))
+  const nodeById = new Map(plainNodes.map((d) => [d.id, d]))
   const prereqsById = new Map<string, string[]>()
   for (const vertex of [...campaign.difficulties, ...campaign.barriers]) {
     prereqsById.set(vertex.id, prereqIds(vertex.prerequisites))
@@ -115,9 +116,7 @@ function findXpRegressions(campaign: CampaignDetailResponse): CampaignDifficulty
     return best
   }
 
-  return campaign.difficulties.filter(
-    (d) => d.xp > 0 && d.xp < maxXpBefore(d.id, new Set<string>()),
-  )
+  return plainNodes.filter((d) => d.xp > 0 && d.xp < maxXpBefore(d.id, new Set<string>()))
 }
 
 function collectIssues(
@@ -141,7 +140,7 @@ function collectIssues(
   if (regressions.length > 0) {
     issues.push({
       key: 'xp-regression',
-      message: `${subject(regressions.length, 'node', 'award')} less XP than a node earlier on the same path.`,
+      message: `${subject(regressions.length, 'node', 'award')} less XP than a node earlier on the same path. Milestones are not counted.`,
       refs: regressions.map(nodeRef),
     })
   }
