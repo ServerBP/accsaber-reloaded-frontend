@@ -7,7 +7,7 @@ import { isMilestoneNode, prereqIds } from './campaignLayout'
 
 export const XP_BUDGET = 1500
 export const XP_BUDGET_NODES = 18
-export const NODES_PER_ITEM_AWARD = 6.5
+export const NODES_PER_ITEM_AWARD = 7.5
 export const NODES_PER_MILESTONE = 20
 
 export interface CampaignAuditRef {
