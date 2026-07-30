@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { CampaignResponse } from '@/types/api/campaigns'
-import { campaignBadges, type CampaignBadgeKind } from '@/utils/campaignBadges'
+import { campaignBadges, type CampaignBadge, type CampaignBadgeKind } from '@/utils/campaignBadges'
 import { computed } from 'vue'
 
 const props = withDefaults(
@@ -20,15 +20,20 @@ const GLYPHS: Record<CampaignBadgeKind, string> = {
 
 const badges = computed(() => campaignBadges(props.campaign))
 
-function badgeTitle(title: string, at: string | null): string {
-  if (!at) return title
-  const stamp = new Date(at)
-  if (Number.isNaN(stamp.getTime())) return title
-  return `${title} Since ${stamp.toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })}.`
+function badgeTitle(badge: CampaignBadge): string {
+  const parts = [badge.title]
+  if (badge.by) parts.push(`Picked by ${badge.by.username}.`)
+  const stamp = badge.at ? new Date(badge.at) : null
+  if (stamp && !Number.isNaN(stamp.getTime())) {
+    parts.push(
+      `Since ${stamp.toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      })}.`,
+    )
+  }
+  return parts.join(' ')
 }
 </script>
 
@@ -39,7 +44,7 @@ function badgeTitle(title: string, at: string | null): string {
       :key="badge.kind"
       class="campaign-badge"
       :class="[`campaign-badge--${badge.kind}`, `campaign-badge--${size}`]"
-      :title="badgeTitle(badge.title, badge.at)"
+      :title="badgeTitle(badge)"
       :aria-label="badge.title"
     >
       <svg class="campaign-badge__glyph" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">

@@ -12,6 +12,7 @@ import Breadcrumbs, { type Crumb } from '@/components/common/Breadcrumbs.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import CampaignCategoryTags from '@/components/domain/CampaignCategoryTags.vue'
+import CampaignCurationCredits from '@/components/domain/CampaignCurationCredits.vue'
 import CampaignModifierBadges from '@/components/domain/CampaignModifierBadges.vue'
 import CampaignRoadmap from '@/components/domain/CampaignRoadmap.vue'
 import CampaignRewardItem from '@/components/domain/CampaignRewardItem.vue'
@@ -60,7 +61,7 @@ import {
 } from '@/utils/campaignLayout'
 import { collectMissingPrerequisites } from '@/utils/campaignProgress'
 import { buildMapRoute } from '@/utils/mapRoute'
-import { isAdminSubdomain } from '@/utils/subdomain'
+import { isCurationSurface } from '@/utils/subdomain'
 import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -340,7 +341,7 @@ const isOwner = computed(
 )
 
 const canManage = computed(
-  () => isOwner.value || (isAdminSubdomain && auth.hasRole('CAMPAIGN_CURATOR')),
+  () => isOwner.value || (isCurationSurface && auth.hasRole('CAMPAIGN_CURATOR')),
 )
 
 function goToEditor() {
@@ -863,6 +864,7 @@ function unpinTooltip() {
             <p v-if="hasBadges" class="campaign-detail__badge-row">
               <CampaignStatusBadge :campaign="campaign" size="md" />
             </p>
+            <CampaignCurationCredits :campaign="campaign" />
             <p v-if="categoryTags.length" class="campaign-detail__taxonomy">
               <CampaignCategoryTags :tags="campaign.tags" />
             </p>

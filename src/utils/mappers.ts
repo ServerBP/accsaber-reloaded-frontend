@@ -1,7 +1,8 @@
 import type { PublicMapDifficultyResponse } from '@/types/api/maps'
 import type { MilestoneCompletionResponse } from '@/types/api/milestones'
+import type { PublicStaffUserResponse } from '@/types/api/staff'
 import type { LeaderboardResponse, ScoreResponse, UserMilestoneProgressResponse, XpLeaderboardResponse } from '@/types/api/users'
-import type { CategoryCode, DifficultyScoreDisplay, MapDisplay, MilestoneDisplay, PlayerDisplay, ScoreDisplay, XpPlayerDisplay } from '@/types/display'
+import type { CategoryCode, DifficultyScoreDisplay, MapDisplay, MilestoneDisplay, PlayerDisplay, ScoreDisplay, UserRefDisplay, XpPlayerDisplay } from '@/types/display'
 import { pickAvatarFallback, pickAvatarUrl, pickCoverFallback, pickCoverUrl } from '@/composables/useAvatarFallback'
 
 export function formatDifficulty(diff: string): string {
@@ -12,6 +13,15 @@ export function formatDifficulty(diff: string): string {
     case 'EXPERT': return 'Expert'
     case 'EXPERT_PLUS': return 'Expert+'
     default: return diff
+  }
+}
+
+export function toStaffUserDisplay(staff: PublicStaffUserResponse): UserRefDisplay {
+  return {
+    id: staff.userId,
+    name: staff.username,
+    avatarUrl: staff.avatarUrl,
+    cdnAvatarUrl: staff.cdnAvatarUrl,
   }
 }
 

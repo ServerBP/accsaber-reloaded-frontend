@@ -19,6 +19,7 @@ import type {
 import type { PaginationParams } from '../pagination'
 import type { MapChartStatsSource } from './maps'
 import type { ModifierResponse } from './modifiers'
+import type { PublicStaffUserResponse } from './staff'
 
 export interface CampaignTagResponse {
   id: string
@@ -45,7 +46,6 @@ export interface CampaignResponse {
   description: string | null
   status: CampaignStatus
   official: boolean
-  seekingCuration: boolean
   progressionAgnostic: boolean
   completionMode: CampaignCompletionMode
   legacy: boolean
@@ -57,12 +57,11 @@ export interface CampaignResponse {
   backgroundColor: string | null
   background: CampaignBackgroundPlacement | null
   iconUrl: string | null
-  submittedAt: string | null
   curatedAt: string | null
-  curatedById: string | null
+  curatedBy: PublicStaffUserResponse | null
   loved: boolean
   lovedAt: string | null
-  lovedById: string | null
+  lovedBy: PublicStaffUserResponse | null
   createdAt: string
   totalUpvotes: number
   totalDownvotes: number

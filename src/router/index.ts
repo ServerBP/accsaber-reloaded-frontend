@@ -1,6 +1,11 @@
 import { useAuthStore } from '@/stores/auth'
 import type { StaffRole } from '@/types/enums'
-import { isAdminSubdomain, isCreativesSubdomain, isRankingSubdomain } from '@/utils/subdomain'
+import {
+  isAdminSubdomain,
+  isCreativesSubdomain,
+  isCurationSubdomain,
+  isRankingSubdomain,
+} from '@/utils/subdomain'
 import { createRouter, createWebHistory } from 'vue-router'
 
 declare module 'vue-router' {
@@ -15,12 +20,16 @@ declare module 'vue-router' {
 function getHomeComponent() {
   if (isAdminSubdomain) return () => import('@/views/staff/AdminPage.vue')
   if (isRankingSubdomain) return () => import('@/views/staff/ranking/RankingDashboardPage.vue')
+  if (isCurationSubdomain) return () => import('@/views/CampaignsPage.vue')
   return () => import('@/views/HomePage.vue')
 }
 
 function getHomeMeta(): Record<string, unknown> {
   if (isAdminSubdomain) return { requiresStaff: true, requiredRole: 'ADMIN' as StaffRole }
   if (isRankingSubdomain) return { requiresStaff: true, requiredRole: 'RANKING' as StaffRole }
+  if (isCurationSubdomain) {
+    return { requiresStaff: true, requiredRole: 'CAMPAIGN_CURATOR' as StaffRole }
+  }
   return {}
 }
 
@@ -181,6 +190,11 @@ const router = createRouter({
       component: () => import('@/views/staff/creatives/CreativesLoginPage.vue'),
     },
     {
+      path: isCurationSubdomain ? '/login' : '/staff/curation/login',
+      name: 'curation-login',
+      component: () => import('@/views/staff/curation/CurationLoginPage.vue'),
+    },
+    {
       path: isCreativesSubdomain ? '/manage' : '/staff/creatives',
       name: 'staff-creatives',
       component: () => import('@/views/staff/creatives/CreativesDashboardPage.vue'),
@@ -284,11 +298,13 @@ const router = createRouter({
   ],
 })
 
-export { isRankingSubdomain, isAdminSubdomain, isCreativesSubdomain }
+export { isRankingSubdomain, isAdminSubdomain, isCreativesSubdomain, isCurationSubdomain }
 
 export const rankingDashboardRoute = isRankingSubdomain ? 'home' : 'staff-ranking'
 
 export const creativesDashboardRoute = 'staff-creatives'
+
+export const curationDashboardRoute = isCurationSubdomain ? 'home' : 'campaigns'
 
 function getLoginRoute(requiredRole?: StaffRole): string {
   if (isRankingSubdomain || requiredRole === 'RANKING' || requiredRole === 'RANKING_HEAD') {
@@ -313,6 +329,16 @@ router.beforeEach(async (to) => {
     }
     if (!auth.hasCreativeAccess) {
       return { name: 'creatives-login', query: { redirect: to.fullPath } }
+    }
+    return
+  }
+
+  if (isCurationSubdomain) {
+    if (to.name === 'curation-login' || to.name === 'auth-callback' || to.name === 'login-finish') {
+      return
+    }
+    if (!auth.hasCurationAccess) {
+      return { name: 'curation-login', query: { redirect: to.fullPath } }
     }
     return
   }

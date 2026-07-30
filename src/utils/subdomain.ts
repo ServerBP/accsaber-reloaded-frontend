@@ -1,13 +1,19 @@
 export const isAdminSubdomain = window.location.hostname.startsWith('admin.')
 export const isRankingSubdomain = window.location.hostname.startsWith('ranking.')
 export const isCreativesSubdomain = window.location.hostname.startsWith('creatives.')
-export const isStaffSubdomain = isAdminSubdomain || isRankingSubdomain || isCreativesSubdomain
+export const isCurationSubdomain = window.location.hostname.startsWith('curation.')
+export const isStaffSubdomain =
+  isAdminSubdomain || isRankingSubdomain || isCreativesSubdomain || isCurationSubdomain
 
-export const currentRealm: 'ranking' | 'creatives' | null = isCreativesSubdomain
+export const isCurationSurface = isAdminSubdomain || isCurationSubdomain
+
+export const currentRealm: 'ranking' | 'creatives' | 'curation' | null = isCreativesSubdomain
   ? 'creatives'
   : isRankingSubdomain
     ? 'ranking'
-    : null
+    : isCurationSubdomain
+      ? 'curation'
+      : null
 
 function mainSiteBase(): string {
   const configured = import.meta.env.VITE_MAIN_SITE_URL?.trim()

@@ -34,7 +34,7 @@ import {
   fetchBeatSaverMap,
   fetchMapLeaderboardIndex,
 } from '@/utils/beatsaver'
-import { isAdminSubdomain } from '@/utils/subdomain'
+import { isCurationSurface } from '@/utils/subdomain'
 import type {
   AddCampaignBarrierRequest,
   AddCampaignDifficultyRequest,
@@ -256,9 +256,13 @@ export function useCampaignEditor() {
 
   const isUnsavedDraft = computed(() => campaign.value?.id === '')
 
-  const isAdminRoute = isAdminSubdomain
+  const isCurationRoute = isCurationSurface
 
   const isDraftStatus = computed(() => campaign.value?.status === 'DRAFT')
+
+  const curatable = computed(
+    () => campaign.value?.status === 'PUBLISHED' || campaign.value?.status === 'EDITING',
+  )
 
   let suppressNextCampaignIdWatch = false
 
@@ -274,7 +278,6 @@ export function useCampaignEditor() {
       description: null,
       status: 'DRAFT',
       official: false,
-      seekingCuration: false,
       progressionAgnostic: false,
       completionMode: 'TERMINAL',
       legacy: false,
@@ -286,12 +289,11 @@ export function useCampaignEditor() {
       backgroundColor: null,
       background: null,
       iconUrl: null,
-      submittedAt: null,
       curatedAt: null,
-      curatedById: null,
+      curatedBy: null,
       loved: false,
       lovedAt: null,
-      lovedById: null,
+      lovedBy: null,
       createdAt: new Date().toISOString(),
       totalUpvotes: 0,
       totalDownvotes: 0,
@@ -497,16 +499,11 @@ export function useCampaignEditor() {
     () => isCurator.value || isCreator.value || isCollaborator.value,
   )
 
-  const creatorBlocked = computed(
-    () => isCreator.value && !!campaign.value?.seekingCuration && !isCurator.value,
-  )
-
   const CURATOR_EDITABLE_STATUSES = new Set<CampaignStatus>(['DRAFT', 'EDITING', 'CURATED'])
 
   const editable = computed(() => {
     if (!campaign.value || actionPending.value) return false
-    if (isCreator.value && campaign.value.status === 'DRAFT' && !creatorBlocked.value) return true
-    if (isCollaborator.value && campaign.value.status === 'DRAFT') return true
+    if (campaign.value.status === 'DRAFT' && (isCreator.value || isCollaborator.value)) return true
     return isCurator.value && CURATOR_EDITABLE_STATUSES.has(campaign.value.status)
   })
 
@@ -690,7 +687,7 @@ export function useCampaignEditor() {
 
   const statusMeaning: Record<string, string> = {
     DRAFT: 'Hidden from the queue; players cannot start. Fully editable.',
-    PUBLISHED: 'Visible to players but no XP / items pay out. Locked from edits.',
+    PUBLISHED: 'Visible to players but no XP / items pay out. Waiting on curation.',
     EDITING: 'Reopened for changes. Player progress is preserved while you edit.',
     CURATED: 'Live with payouts. Curator edits apply immediately.',
   }
@@ -699,11 +696,9 @@ export function useCampaignEditor() {
     if (!campaign.value) return null
     switch (campaign.value.status) {
       case 'DRAFT':
-        return campaign.value.seekingCuration
-          ? 'Draft, awaiting curator review. Only you can see it until you publish.'
-          : 'Draft, only you can see it. Publish to make it playable.'
+        return 'Draft, only you can see it. Publish to make it playable.'
       case 'PUBLISHED':
-        return 'Live and playable. Unpublish to make changes, then publish again.'
+        return 'Live and playable, and in front of the curators. Unpublish to make changes, then publish again.'
       case 'EDITING':
         return 'A curator has this open for review. Unpublish to take it back to a draft you can edit.'
       case 'CURATED':
@@ -725,7 +720,6 @@ export function useCampaignEditor() {
     completionXp: 0,
     backgroundUrl: '',
     backgroundColor: '',
-    seekingCuration: false,
   })
 
   function syncFormFromCampaign() {
@@ -742,7 +736,6 @@ export function useCampaignEditor() {
       completionXp: campaign.value.completionXp ?? 0,
       backgroundUrl: campaign.value.backgroundUrl ?? '',
       backgroundColor: campaign.value.backgroundColor ?? '',
-      seekingCuration: campaign.value.seekingCuration,
     }
   }
 
@@ -2898,13 +2891,13 @@ export function useCampaignEditor() {
     publishConfirm,
     performUnpublish,
     isUnsavedDraft,
-    isAdminRoute,
+    isCurationRoute,
     isDraftStatus,
+    curatable,
     isAdmin,
     isCurator,
     isCreator,
     canAccess,
-    creatorBlocked,
     editable,
     editingLiveCampaign,
     accent,

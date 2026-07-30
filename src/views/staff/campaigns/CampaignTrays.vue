@@ -35,11 +35,11 @@ const {
   activeTray,
   isUnsavedDraft,
   isDraftStatus,
-  isAdminRoute,
+  curatable,
+  isCurationRoute,
   isAdmin,
   isCurator,
   isCreator,
-  creatorBlocked,
   editingLiveCampaign,
   statusLabel,
   statusMeaning,
@@ -285,7 +285,7 @@ const connectionSwatch = computed(() => {
   <template v-if="activeTray === 'status'">
     <header v-if="!isUnsavedDraft && campaign" class="campaign-editor__status">
       <div
-        v-if="!isDraftStatus || (!isAdminRoute && isCreator)"
+        v-if="!isDraftStatus || (!isCurationRoute && isCreator)"
         class="campaign-editor__status-row"
       >
         <span
@@ -296,7 +296,7 @@ const connectionSwatch = computed(() => {
         </span>
       </div>
       <p
-        v-if="!isAdminRoute && isCreator && creatorStatusMeaning"
+        v-if="!isCurationRoute && isCreator && creatorStatusMeaning"
         class="campaign-editor__status-meaning"
       >
         {{ creatorStatusMeaning }}
@@ -306,7 +306,7 @@ const connectionSwatch = computed(() => {
       </p>
 
       <div class="campaign-editor__status-actions">
-        <template v-if="!isAdminRoute && isCreator">
+        <template v-if="!isCurationRoute && isCreator">
           <template v-if="isDraftStatus">
             <BaseButton
               size="sm"
@@ -336,7 +336,7 @@ const connectionSwatch = computed(() => {
           </BaseButton>
         </template>
 
-        <template v-if="isAdminRoute">
+        <template v-if="isCurationRoute">
           <BaseButton
             v-if="isCurator && (isDraftStatus || campaign.status === 'EDITING')"
             size="sm"
@@ -354,7 +354,7 @@ const connectionSwatch = computed(() => {
             Reopen for editing
           </BaseButton>
           <BaseButton
-            v-if="isCurator && campaign.status !== 'CURATED'"
+            v-if="isCurator && curatable"
             size="sm"
             variant="primary"
             :loading="actionPending"
@@ -407,11 +407,6 @@ const connectionSwatch = computed(() => {
         :show="fractionalVertexCount > 0"
         :detail="`${fractionalVertexCount} element${fractionalVertexCount === 1 ? '' : 's'} sit on fractional grid coordinates. Turn the grid lock on and re-drag them onto whole units to make this campaign loadable again.`"
       />
-
-      <p v-if="creatorBlocked" class="campaign-editor__status-warning">
-        You flagged this campaign for review. A curator needs to lift the flag before you can edit
-        again.
-      </p>
     </header>
 
     <p v-else class="campaign-editor__status-meaning">
@@ -2010,14 +2005,6 @@ const connectionSwatch = computed(() => {
 
 .campaign-editor__status-actions > * {
   flex: 1 1 auto;
-}
-
-.campaign-editor__status-warning {
-  margin: 0;
-  font-family: var(--font-sans);
-  font-size: var(--text-caption);
-  color: var(--warning);
-  line-height: 1.4;
 }
 
 .campaign-editor__avatar-upload {

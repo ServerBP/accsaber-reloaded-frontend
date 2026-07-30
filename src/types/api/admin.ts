@@ -253,7 +253,6 @@ export interface UpdateCampaignRequest {
   playlistExportEnabled?: boolean
   completionXp?: number
   creatorAlias?: string
-  seekingCuration?: boolean
   backgroundUrl?: string | null
   backgroundColor?: string | null
   background?: CampaignBackgroundPlacementInput

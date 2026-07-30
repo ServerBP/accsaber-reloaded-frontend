@@ -140,7 +140,9 @@ async function resolveAuthHeader(path: string): Promise<string | null> {
 
   if (isAdminPath(path)) {
     await refreshStaffIfNeeded(auth)
-    return auth.staffToken ?? null
+    if (auth.staffToken) return auth.staffToken
+    await refreshPlayerIfNeeded(auth)
+    return auth.accessToken ?? null
   }
 
   if (isStaffPath(path)) {

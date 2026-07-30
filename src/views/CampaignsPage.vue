@@ -20,7 +20,7 @@ import type {
 } from '@/types/api/campaigns'
 import type { Page } from '@/types/pagination'
 import type { CampaignStatus } from '@/types/enums'
-import { isAdminSubdomain } from '@/utils/subdomain'
+import { isCurationSubdomain, isCurationSurface } from '@/utils/subdomain'
 import { usePageMeta } from '@/composables/usePageMeta'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -38,15 +38,26 @@ usePageMeta({
 })
 
 const isCurator = computed(() => auth.hasRole('CAMPAIGN_CURATOR'))
-const canReview = computed(() => isCurator.value && isAdminSubdomain)
+const canReview = computed(() => isCurator.value && isCurationSurface)
+
+const defaultPane = computed<Pane>(() =>
+  isCurationSubdomain && canReview.value ? 'review' : 'all',
+)
 
 const pane = computed<Pane>(() => {
-  const v = (route.query.pane as string | undefined) ?? 'all'
+  const v = route.query.pane as string | undefined
   if (v === 'mine' || v === 'started') return v
   if (v === 'invites' && auth.isLoggedIn) return 'invites'
   if ((v === 'review' || v === 'drafts') && canReview.value) return v
-  return 'all'
+  if (v === 'all') return 'all'
+  return defaultPane.value
 })
+
+const SEARCHABLE_PANES = new Set<Pane>(['all', 'review', 'drafts'])
+
+const searchablePane = computed(() => SEARCHABLE_PANES.has(pane.value))
+
+const filterablePane = computed(() => pane.value === 'all' || pane.value === 'review')
 
 const curatedOnly = computed(() => route.query.curated === '1')
 
@@ -122,6 +133,7 @@ const { currentPage, paginationParams, setPage, sortState } = usePageableRoute({
 const SORT_OPTIONS = [
   { key: 'publishedAt', order: 'desc', label: 'Newest' },
   { key: 'voteScore', order: 'desc', label: 'Top rated' },
+  { key: 'lovedAt', order: 'desc', label: 'Recently loved' },
   { key: 'totalXp', order: 'desc', label: 'Most XP' },
   { key: 'totalRewardCount', order: 'desc', label: 'Most loot' },
   { key: 'name', order: 'asc', label: 'A-Z' },
@@ -140,9 +152,10 @@ function setSortOption(option: (typeof SORT_OPTIONS)[number]) {
   router.replace({ query })
 }
 
-const statusFilter = computed<CampaignStatus[]>(() =>
-  curatedOnly.value ? ['CURATED'] : ['PUBLISHED', 'CURATED'],
-)
+const statusFilter = computed<CampaignStatus[]>(() => {
+  if (pane.value === 'review') return ['PUBLISHED']
+  return curatedOnly.value ? ['CURATED'] : ['PUBLISHED', 'CURATED']
+})
 
 async function loadTags() {
   if (tags.value.length > 0) return
@@ -246,20 +259,6 @@ async function loadCampaigns() {
       items.value = page.content
       totalPages.value = page.totalPages || 1
       if (currentPage.value === 1) await loadMineCollabs()
-    } else if (pane.value === 'review') {
-      if (!canReview.value) {
-        items.value = []
-        totalPages.value = 1
-        return
-      }
-      const { getCurationQueue } = await import('@/api/campaigns')
-      const page = await getCurationQueue({
-        page: paginationParams.value.page,
-        size: paginationParams.value.size,
-        sort: 'createdAt,desc',
-      })
-      items.value = page.content
-      totalPages.value = page.totalPages || 1
     } else if (pane.value === 'drafts') {
       if (!canReview.value) {
         items.value = []
@@ -277,6 +276,11 @@ async function loadCampaigns() {
       items.value = page.content
       totalPages.value = page.totalPages || 1
     } else {
+      if (pane.value === 'review' && !canReview.value) {
+        items.value = []
+        totalPages.value = 1
+        return
+      }
       const { getCampaigns: fetchCampaigns, getMyCampaignProgressBulk } = await import('@/api/campaigns')
       const page: Page<CampaignResponse> = await fetchCampaigns({
         page: paginationParams.value.page,
@@ -291,7 +295,7 @@ async function loadCampaigns() {
       items.value = page.content
       totalPages.value = page.totalPages || 1
 
-      if (auth.isLoggedIn && items.value.length > 0) {
+      if (pane.value === 'all' && auth.isLoggedIn && items.value.length > 0) {
         const ids = items.value.map((c) => c.id)
         const progressList = await getMyCampaignProgressBulk(ids)
         const nextMap = new Map(progressMap.value)
@@ -310,7 +314,7 @@ async function loadCampaigns() {
 function setPane(next: Pane) {
   if (next === pane.value) return
   const query = { ...route.query }
-  if (next === 'all') {
+  if (next === defaultPane.value) {
     delete query.pane
   } else {
     query.pane = next
@@ -444,7 +448,7 @@ watch(
         </button>
       </nav>
 
-      <SearchBox v-if="pane === 'all' || pane === 'drafts'" class="campaigns-page__search" :model-value="searchTerm"
+      <SearchBox v-if="searchablePane" class="campaigns-page__search" :model-value="searchTerm"
         placeholder="Search title or creator..." @update:model-value="setSearch" />
 
       <div class="campaigns-page__bar-actions">
@@ -467,7 +471,7 @@ watch(
       </div>
     </div>
 
-    <div v-if="pane === 'all'" class="campaigns-page__toolbar">
+    <div v-if="filterablePane" class="campaigns-page__toolbar">
       <div class="campaigns-page__sort" role="radiogroup" aria-label="Sort campaigns">
         <button v-for="option in SORT_OPTIONS" :key="option.key" type="button" role="radio"
           class="campaigns-page__sort-btn"
@@ -483,7 +487,7 @@ watch(
           Official only
         </button>
 
-        <button type="button" class="campaigns-page__chip campaigns-page__chip--toggle"
+        <button v-if="pane === 'all'" type="button" class="campaigns-page__chip campaigns-page__chip--toggle"
           :class="{ 'campaigns-page__chip--active': curatedOnly }" @click="toggleQueryFlag('curated')">
           Curated only
         </button>
@@ -591,7 +595,7 @@ watch(
         message="You haven't drafted any campaigns yet. Use New campaign to start one." />
 
       <EmptyState v-else-if="pane === 'review' && items.length === 0"
-        message="Nothing in the curation queue right now." />
+        message="No published campaigns are waiting on curation right now." />
 
       <EmptyState v-else-if="pane === 'drafts' && items.length === 0"
         message="No draft campaigns match this search." />

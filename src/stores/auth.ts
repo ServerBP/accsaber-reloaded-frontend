@@ -130,6 +130,10 @@ export const useAuthStore = defineStore('auth', () => {
     () => currentStaffRole.value === 'CREATIVE' || currentStaffRole.value === 'ADMIN',
   )
 
+  const hasCurationAccess = computed(
+    () => currentStaffRole.value === 'CAMPAIGN_CURATOR' || currentStaffRole.value === 'ADMIN',
+  )
+
   function persistSession(session: {
     accessToken: string
     refreshToken: string
@@ -333,6 +337,7 @@ export const useAuthStore = defineStore('auth', () => {
     isStaffAuthenticated,
     isStaffAuthorized,
     hasCreativeAccess,
+    hasCurationAccess,
     isAdmin,
     isTokenExpiringSoon,
 

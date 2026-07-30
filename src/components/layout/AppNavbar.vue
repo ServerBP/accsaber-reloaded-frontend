@@ -13,7 +13,13 @@ import { useBrandLogo } from '@/composables/useBrandLogo'
 import { useCurrentEvent } from '@/composables/useCurrentEvent'
 import { useOwnProfileLink } from '@/composables/useOwnProfileLink'
 import { ADMIN_TABS } from '@/utils/adminTabs'
-import { isAdminSubdomain, isCreativesSubdomain, isRankingSubdomain, isStaffSubdomain } from '@/utils/subdomain'
+import {
+  isAdminSubdomain,
+  isCreativesSubdomain,
+  isCurationSubdomain,
+  isRankingSubdomain,
+  isStaffSubdomain,
+} from '@/utils/subdomain'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
@@ -91,6 +97,11 @@ const creativesNavItems: NavItem[] = [
   { to: creativesBase, label: 'Crates' },
 ]
 
+const curationNavItems: NavItem[] = [
+  { to: '/', label: 'Campaigns' },
+  { to: '/maps', label: 'Maps', mobileIcon: 'map' },
+]
+
 const isRankingContext = computed(() =>
   isRankingSubdomain || route.path.startsWith('/staff/ranking')
 )
@@ -100,11 +111,13 @@ const isCreativesContext = computed(() =>
 )
 
 const showNewsAction = computed(() =>
-  !isAdminSubdomain && !isCreativesSubdomain && !(isRankingContext.value && authStore.isStaffAuthorized),
+  !isAdminSubdomain && !isCreativesSubdomain && !isCurationSubdomain
+  && !(isRankingContext.value && authStore.isStaffAuthorized),
 )
 
 const showPlayerActions = computed(() =>
-  authStore.isLoggedIn && !isAdminSubdomain && !isRankingSubdomain && !isCreativesSubdomain,
+  authStore.isLoggedIn && !isAdminSubdomain && !isRankingSubdomain && !isCreativesSubdomain
+  && !isCurationSubdomain,
 )
 
 const navItems = computed(() => {
@@ -115,11 +128,12 @@ const navItems = computed(() => {
   if (isAdminSubdomain) return adminNavItems
   if (isRankingSubdomain) return rankingNavItems.value
   if (isCreativesSubdomain) return creativesNavItems
+  if (isCurationSubdomain) return curationNavItems
   return publicNavItems
 })
 
 const moreItems = computed<NavItem[]>(() => {
-  if (isAdminSubdomain || isRankingSubdomain) return []
+  if (isAdminSubdomain || isRankingSubdomain || isCurationSubdomain) return []
   if (isRankingContext.value && authStore.isStaffAuthorized) return []
   return morePublicNavItems
 })

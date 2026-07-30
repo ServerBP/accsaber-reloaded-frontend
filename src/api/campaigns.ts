@@ -43,12 +43,6 @@ export function getCampaigns(params?: CampaignListParams): Promise<Page<Campaign
   return get<Page<CampaignResponse>>(`/campaigns${buildQuery(params)}`)
 }
 
-export function getCurationQueue(
-  params?: PaginationParams,
-): Promise<Page<CampaignResponse>> {
-  return get<Page<CampaignResponse>>(`/campaigns/curation-queue${buildQuery(params)}`)
-}
-
 export function getCampaign(campaignId: string): Promise<CampaignDetailResponse> {
   return get<CampaignDetailResponse>(`/campaigns/${campaignId}`)
 }
@@ -155,15 +149,6 @@ export function updatePlayerCampaign(
 
 export function deletePlayerCampaign(campaignId: string): Promise<void> {
   return del<void>(`/campaigns/${campaignId}`)
-}
-
-export function submitCampaignForReview(
-  campaignId: string,
-  seeking: boolean,
-): Promise<CampaignResponse> {
-  return patch<CampaignResponse>(
-    `/campaigns/${campaignId}/submit${buildQuery({ seeking })}`,
-  )
 }
 
 export function publishPlayerCampaign(campaignId: string): Promise<CampaignResponse> {
