@@ -2,6 +2,7 @@ import type {
   AddCampaignBarrierRequest,
   AddCampaignDifficultyRequest,
   AddCampaignItemRequest,
+  CampaignElementMove,
   CampaignTextRequest,
   CreateCampaignRequest,
   UpdateCampaignBarrierRequest,
@@ -314,4 +315,11 @@ export function updatePlayerCampaignText(
 
 export function deletePlayerCampaignText(campaignId: string, textId: string): Promise<void> {
   return del<void>(`/campaigns/${campaignId}/texts/${textId}`)
+}
+
+export function movePlayerCampaignElements(
+  campaignId: string,
+  moves: CampaignElementMove[],
+): Promise<void> {
+  return patch<void>(`/campaigns/${campaignId}/positions`, { moves })
 }

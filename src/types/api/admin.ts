@@ -386,3 +386,13 @@ export interface CampaignTextRequest {
   color?: string
   effects?: string
 }
+
+export interface CampaignElementMove {
+  id: string
+  positionX: number
+  positionY: number
+}
+
+export interface MoveCampaignElementsRequest {
+  moves: CampaignElementMove[]
+}

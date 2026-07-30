@@ -11,6 +11,7 @@ import {
   getCampaignByIdOrSlug,
   getCampaignTags,
   importCampaignMap,
+  movePlayerCampaignElements,
   updateCampaignDifficultyMap,
   updatePlayerCampaign,
   updatePlayerCampaignBarrier,
@@ -1615,9 +1616,11 @@ export function useCampaignEditor() {
     })
     if (moves.length === 0) return
     for (const m of moves) setVertexPositionLocal(m.id, m.positionX, m.positionY)
+    const persisted = moves.filter((m) => !isPendingText(m.id))
+    if (persisted.length === 0) return
     try {
       actionError.value = null
-      await Promise.all(moves.map((m) => patchVertexPosition(m.id, m.positionX, m.positionY)))
+      await movePlayerCampaignElements(campaign.value.id, persisted)
     } catch (err) {
       reportMoveError(err, 'Failed to move nodes')
       for (const m of moves) {
