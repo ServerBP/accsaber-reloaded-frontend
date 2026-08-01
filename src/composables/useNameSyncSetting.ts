@@ -24,8 +24,8 @@ export function useNameSyncSetting() {
     const wasOff = enabled.value === false
     try {
       const { putMySyncSettings } = await import('@/api/users')
-      const res = await putMySyncSettings({ 'sync.name': next })
-      enabled.value = res['sync.name']
+      await putMySyncSettings({ 'sync.name': next })
+      enabled.value = next
       if (wasOff && enabled.value === true) {
         resyncQueued.value = true
         if (resyncTimer) clearTimeout(resyncTimer)
