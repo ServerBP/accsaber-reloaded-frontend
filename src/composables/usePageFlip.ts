@@ -6,6 +6,14 @@ const ROOT_CLASS = 'page-is-flipped'
 const flipped = ref(false)
 let initialized = false
 
+function isPageFlipAllowed(): boolean {
+  if (typeof window === 'undefined') return false
+
+  const hostname = window.location.hostname.toLowerCase()
+
+  return hostname === 'accsaber.com'
+}
+
 function applyPageFlip(next: boolean): void {
   flipped.value = next
 
@@ -18,13 +26,20 @@ export function initializePageFlip(): void {
   if (initialized || typeof window === 'undefined') return
   initialized = true
 
-  applyPageFlip(window.localStorage.getItem(STORAGE_KEY) === 'true')
+  if (!isPageFlipAllowed()) {
+    applyPageFlip(false)
+    return
+  }
+
+  applyPageFlip(true)
 }
 
 export function usePageFlip() {
   initializePageFlip()
 
   function togglePageFlip(): void {
+    if (!isPageFlipAllowed()) return
+
     const next = !flipped.value
     applyPageFlip(next)
     window.localStorage.setItem(STORAGE_KEY, String(next))
