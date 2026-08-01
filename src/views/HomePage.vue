@@ -32,9 +32,13 @@ const levels = computed(() => levelStore.thresholds)
 const levelsLoading = computed(() => !levelStore.loaded)
 const reducedMotion = useReducedMotion()
 const marqueeRef = ref<HTMLElement | null>(null)
+const carouselAnimating = ref(false)
 let rafId = 0
 let carouselObserver: IntersectionObserver | null = null
+let carouselResizeObserver: ResizeObserver | null = null
+let carouselItems: HTMLElement[] = []
 let carouselVisible = false
+let carouselHovered = false
 let mounted = false
 
 function levelRange(level: number, index: number, all: LevelThreshold[]): string {
@@ -44,17 +48,28 @@ function levelRange(level: number, index: number, all: LevelThreshold[]): string
 }
 
 function canAnimateCarousel(): boolean {
-  return mounted && carouselVisible && !reducedMotion.value && !document.hidden
+  return mounted && carouselVisible && !carouselHovered && !reducedMotion.value && !document.hidden
 }
 
 function stopCarousel(): void {
-  if (!rafId) return
-  cancelAnimationFrame(rafId)
-  rafId = 0
+  carouselAnimating.value = false
+  if (rafId) {
+    cancelAnimationFrame(rafId)
+    rafId = 0
+  }
 }
 
 function scheduleCarousel(): void {
-  if (!rafId && canAnimateCarousel()) rafId = requestAnimationFrame(updateCarousel)
+  if (rafId || !canAnimateCarousel()) return
+  carouselAnimating.value = true
+  rafId = requestAnimationFrame(updateCarousel)
+}
+
+function resetCarouselStyles(): void {
+  for (const item of carouselItems) {
+    item.style.removeProperty('transform')
+    item.style.removeProperty('opacity')
+  }
 }
 
 function updateCarousel(): void {
@@ -64,12 +79,17 @@ function updateCarousel(): void {
   const el = marqueeRef.value
   if (!el) return
   const rect = el.getBoundingClientRect()
-  if (rect.width === 0) return
+  if (rect.width === 0) {
+    stopCarousel()
+    return
+  }
   const center = rect.left + rect.width / 2
   const half = rect.width / 2
 
-  for (const item of el.querySelectorAll<HTMLElement>('.xp-item')) {
-    const ir = item.getBoundingClientRect()
+  const itemRects = carouselItems.map((item) => item.getBoundingClientRect())
+  for (let index = 0; index < carouselItems.length; index += 1) {
+    const item = carouselItems[index]
+    const ir = itemRects[index]
     const dist = Math.abs(ir.left + ir.width / 2 - center) / half
     const edge = Math.max(0, (dist - 0.82) / 0.18)
     const t = 1 - edge * edge
@@ -83,10 +103,23 @@ function updateCarousel(): void {
 function observeCarousel(el: HTMLElement | null): void {
   carouselObserver?.disconnect()
   carouselObserver = null
+  carouselResizeObserver?.disconnect()
+  carouselResizeObserver = null
+  carouselItems = []
   carouselVisible = false
+  carouselHovered = false
   stopCarousel()
 
   if (!el) return
+  carouselItems = [...el.querySelectorAll<HTMLElement>('.xp-item')]
+
+  if (typeof ResizeObserver !== 'undefined') {
+    carouselResizeObserver = new ResizeObserver((entries) => {
+      if (entries.some((entry) => entry.contentRect.width > 0)) scheduleCarousel()
+    })
+    carouselResizeObserver.observe(el)
+  }
+
   if (typeof IntersectionObserver === 'undefined') {
     carouselVisible = true
     scheduleCarousel()
@@ -106,10 +139,24 @@ function handleVisibilityChange(): void {
   else scheduleCarousel()
 }
 
+function handleCarouselMouseEnter(): void {
+  carouselHovered = true
+  stopCarousel()
+}
+
+function handleCarouselMouseLeave(): void {
+  carouselHovered = false
+  scheduleCarousel()
+}
+
 watch(marqueeRef, observeCarousel, { flush: 'post' })
 watch(reducedMotion, (reduced) => {
-  if (reduced) stopCarousel()
-  else scheduleCarousel()
+  if (reduced) {
+    stopCarousel()
+    resetCarouselStyles()
+  } else {
+    scheduleCarousel()
+  }
 })
 
 onMounted(() => {
@@ -124,6 +171,9 @@ onUnmounted(() => {
   document.removeEventListener('visibilitychange', handleVisibilityChange)
   carouselObserver?.disconnect()
   carouselObserver = null
+  carouselResizeObserver?.disconnect()
+  carouselResizeObserver = null
+  carouselItems = []
   stopCarousel()
 })
 </script>
@@ -318,7 +368,14 @@ onUnmounted(() => {
         <SkeletonLoader v-for="i in 7" :key="i" width="72px" height="52px" />
       </div>
 
-      <div v-else-if="levels.length > 0" ref="marqueeRef" class="xp-marquee">
+      <div
+        v-else-if="levels.length > 0"
+        ref="marqueeRef"
+        class="xp-marquee"
+        :class="{ 'xp-marquee--animating': carouselAnimating }"
+        @mouseenter="handleCarouselMouseEnter"
+        @mouseleave="handleCarouselMouseLeave"
+      >
         <div class="xp-marquee__track">
           <template v-for="copy in 2" :key="copy">
             <template v-for="(tier, i) in levels" :key="`${copy}-${tier.level}`">
@@ -895,6 +952,11 @@ onUnmounted(() => {
   align-items: center;
   width: max-content;
   animation: xp-scroll 18s linear infinite;
+  animation-play-state: paused;
+}
+
+.xp-marquee--animating .xp-marquee__track {
+  animation-play-state: running;
 }
 
 .xp-marquee:hover .xp-marquee__track {
@@ -912,8 +974,11 @@ onUnmounted(() => {
 }
 
 .xp-item {
-  will-change: transform, opacity;
   flex-shrink: 0;
+}
+
+.xp-marquee--animating .xp-item {
+  will-change: transform, opacity;
 }
 
 .xp-tier {
