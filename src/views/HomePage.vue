@@ -7,11 +7,12 @@ import NewsHighlightBanner from '@/components/domain/NewsHighlightBanner.vue'
 import { useBrandLogo } from '@/composables/useBrandLogo'
 import { usePageMeta } from '@/composables/usePageMeta'
 import { usePageFlip } from '@/composables/usePageFlip'
+import { useReducedMotion } from '@/composables/useReducedMotion'
 import { useAuthStore } from '@/stores/auth'
 import { tierKey, useLevelStore } from '@/stores/levels'
 import { useThemeStore } from '@/stores/theme'
 import { DISCORD_URL, KOFI_URL } from '@/utils/constants'
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 
 const themeStore = useThemeStore()
 const levelStore = useLevelStore()
@@ -31,8 +32,12 @@ usePageMeta({
 
 const levels = computed(() => levelStore.thresholds)
 const levelsLoading = computed(() => !levelStore.loaded)
+const reducedMotion = useReducedMotion()
 const marqueeRef = ref<HTMLElement | null>(null)
 let rafId = 0
+let carouselObserver: IntersectionObserver | null = null
+let carouselVisible = false
+let mounted = false
 
 function levelRange(level: number, index: number, all: LevelThreshold[]): string {
   const next = all[index + 1]
@@ -40,10 +45,28 @@ function levelRange(level: number, index: number, all: LevelThreshold[]): string
   return `${level}\u2013${next.level - 1}`
 }
 
-function updateCarousel() {
+function canAnimateCarousel(): boolean {
+  return mounted && carouselVisible && !reducedMotion.value && !document.hidden
+}
+
+function stopCarousel(): void {
+  if (!rafId) return
+  cancelAnimationFrame(rafId)
+  rafId = 0
+}
+
+function scheduleCarousel(): void {
+  if (!rafId && canAnimateCarousel()) rafId = requestAnimationFrame(updateCarousel)
+}
+
+function updateCarousel(): void {
+  rafId = 0
+  if (!canAnimateCarousel()) return
+
   const el = marqueeRef.value
   if (!el) return
   const rect = el.getBoundingClientRect()
+  if (rect.width === 0) return
   const center = rect.left + rect.width / 2
   const half = rect.width / 2
 
@@ -56,16 +79,54 @@ function updateCarousel() {
     item.style.opacity = `${0.08 + 0.92 * t}`
   }
 
-  rafId = requestAnimationFrame(updateCarousel)
+  scheduleCarousel()
 }
 
-onMounted(async () => {
-  if (!levelStore.loaded) await levelStore.fetchThresholds()
-  rafId = requestAnimationFrame(updateCarousel)
+function observeCarousel(el: HTMLElement | null): void {
+  carouselObserver?.disconnect()
+  carouselObserver = null
+  carouselVisible = false
+  stopCarousel()
+
+  if (!el) return
+  if (typeof IntersectionObserver === 'undefined') {
+    carouselVisible = true
+    scheduleCarousel()
+    return
+  }
+
+  carouselObserver = new IntersectionObserver((entries) => {
+    carouselVisible = entries.some((entry) => entry.isIntersecting)
+    if (carouselVisible) scheduleCarousel()
+    else stopCarousel()
+  })
+  carouselObserver.observe(el)
+}
+
+function handleVisibilityChange(): void {
+  if (document.hidden) stopCarousel()
+  else scheduleCarousel()
+}
+
+watch(marqueeRef, observeCarousel, { flush: 'post' })
+watch(reducedMotion, (reduced) => {
+  if (reduced) stopCarousel()
+  else scheduleCarousel()
+})
+
+onMounted(() => {
+  mounted = true
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+  if (!levelStore.loaded) void levelStore.fetchThresholds()
+  scheduleCarousel()
 })
 
 onUnmounted(() => {
-  cancelAnimationFrame(rafId)
+  mounted = false
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
+  carouselObserver?.disconnect()
+  carouselObserver = null
+  stopCarousel()
 })
 </script>
 
