@@ -17,6 +17,15 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+#app {
+  transform-origin: center;
+  transition: transform 320ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+html.page-is-flipped #app {
+  transform: rotate(180deg);
+}
+
 .rank--gold {
   color: var(--tier-gold);
   font-weight: 700;
@@ -87,12 +96,24 @@ body {
 }
 
 /* --- Criteria Text (inline, no background) --- */
-.criteria-text--passed { color: var(--success); }
-.criteria-text--failed { color: var(--error); }
-.criteria-text--pending { color: var(--warning); }
-.criteria-text--unavailable { color: var(--text-tertiary); }
-.criteria-text--head { font-style: italic; }
-.criteria-text--auto { opacity: 0.75; }
+.criteria-text--passed {
+  color: var(--success);
+}
+.criteria-text--failed {
+  color: var(--error);
+}
+.criteria-text--pending {
+  color: var(--warning);
+}
+.criteria-text--unavailable {
+  color: var(--text-tertiary);
+}
+.criteria-text--head {
+  font-style: italic;
+}
+.criteria-text--auto {
+  opacity: 0.75;
+}
 
 /* --- Difficulty Badge (reusable) --- */
 .diff-badge {
@@ -104,11 +125,26 @@ body {
   letter-spacing: 0.02em;
 }
 
-.diff-badge--easy { background: color-mix(in srgb, var(--diff-easy) 20%, transparent); color: var(--diff-easy); }
-.diff-badge--normal { background: color-mix(in srgb, var(--diff-normal) 20%, transparent); color: var(--diff-normal); }
-.diff-badge--hard { background: color-mix(in srgb, var(--diff-hard) 20%, transparent); color: var(--diff-hard); }
-.diff-badge--expert { background: color-mix(in srgb, var(--diff-expert) 20%, transparent); color: var(--diff-expert); }
-.diff-badge--expert_plus { background: color-mix(in srgb, var(--diff-expert-plus) 20%, transparent); color: var(--diff-expert-plus); }
+.diff-badge--easy {
+  background: color-mix(in srgb, var(--diff-easy) 20%, transparent);
+  color: var(--diff-easy);
+}
+.diff-badge--normal {
+  background: color-mix(in srgb, var(--diff-normal) 20%, transparent);
+  color: var(--diff-normal);
+}
+.diff-badge--hard {
+  background: color-mix(in srgb, var(--diff-hard) 20%, transparent);
+  color: var(--diff-hard);
+}
+.diff-badge--expert {
+  background: color-mix(in srgb, var(--diff-expert) 20%, transparent);
+  color: var(--diff-expert);
+}
+.diff-badge--expert_plus {
+  background: color-mix(in srgb, var(--diff-expert-plus) 20%, transparent);
+  color: var(--diff-expert-plus);
+}
 
 /* Rich-text effect classes (campaign text + user bio, whole-element or per-run spans) */
 .glow {
@@ -124,7 +160,6 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-
   *,
   *::before,
   *::after {

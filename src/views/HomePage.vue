@@ -6,6 +6,7 @@ import FollowedActivity from '@/components/domain/FollowedActivity.vue'
 import NewsHighlightBanner from '@/components/domain/NewsHighlightBanner.vue'
 import { useBrandLogo } from '@/composables/useBrandLogo'
 import { usePageMeta } from '@/composables/usePageMeta'
+import { usePageFlip } from '@/composables/usePageFlip'
 import { useAuthStore } from '@/stores/auth'
 import { tierKey, useLevelStore } from '@/stores/levels'
 import { useThemeStore } from '@/stores/theme'
@@ -15,6 +16,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 const themeStore = useThemeStore()
 const levelStore = useLevelStore()
 const authStore = useAuthStore()
+const { flipped, togglePageFlip } = usePageFlip()
 
 const logoUrl = useBrandLogo()
 const showHeroAmbience = computed(() => themeStore.activeTokens?.['fx-hero-particles'] !== '0')
@@ -74,13 +76,24 @@ onUnmounted(() => {
         <NewsHighlightBanner />
       </div>
       <div v-if="showHeroAmbience" class="hero__glow" />
-      <ParticleCanvas v-if="showHeroAmbience" class="hero__particles" :dark-mode="themeStore.resolvedBase === 'dark'" :interactive="!isLoggedIn" />
+      <ParticleCanvas
+        v-if="showHeroAmbience"
+        class="hero__particles"
+        :dark-mode="themeStore.resolvedBase === 'dark'"
+        :interactive="!isLoggedIn"
+      />
 
       <div class="hero__content">
         <div class="hero__identity">
           <div class="hero__logo-block">
             <div class="hero__logo-wrap">
-              <img :src="logoUrl" alt="AccSaber" class="hero__logo" fetchpriority="high" decoding="async" />
+              <img
+                :src="logoUrl"
+                alt="AccSaber"
+                class="hero__logo"
+                fetchpriority="high"
+                decoding="async"
+              />
             </div>
           </div>
           <div class="hero__intro">
@@ -101,53 +114,102 @@ onUnmounted(() => {
           </div>
           <div class="hero__cta-buttons">
             <div class="hero__actions">
-            <RouterLink to="/getting-started" class="hero__get-started">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <polygon points="5 3 19 12 5 21 5 3" />
-              </svg>
-              Get Started
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <line x1="5" y1="12" x2="19" y2="12" />
-                <polyline points="12 5 19 12 12 19" />
-              </svg>
-            </RouterLink>
-            <a
-              href="https://github.com/not-dexter/accsaber-reloaded-plugin/releases"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="hero__plugin"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-              Download Plugin
-              <span class="hero__plugin-tag">PC</span>
-            </a>
-          </div>
-          <div class="hero__community">
-            <a :href="DISCORD_URL" target="_blank" rel="noopener noreferrer" class="hero__discord">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path
-                  d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
-              </svg>
-              Join Discord
-            </a>
-            <a :href="KOFI_URL" target="_blank" rel="noopener noreferrer" class="hero__kofi">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M17 8h1a4 4 0 0 1 0 8h-1" />
-                <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V8z" />
-                <line x1="6" y1="2" x2="6" y2="4" />
-                <line x1="10" y1="2" x2="10" y2="4" />
-                <line x1="14" y1="2" x2="14" y2="4" />
-              </svg>
-              Support on Ko-fi
-            </a>
-          </div>
+              <RouterLink to="/getting-started" class="hero__get-started">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <polygon points="5 3 19 12 5 21 5 3" />
+                </svg>
+                Get Started
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                  <polyline points="12 5 19 12 12 19" />
+                </svg>
+              </RouterLink>
+              <a
+                href="https://github.com/not-dexter/accsaber-reloaded-plugin/releases"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="hero__plugin"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                Download Plugin
+                <span class="hero__plugin-tag">PC</span>
+              </a>
+            </div>
+            <div class="hero__community">
+              <a
+                :href="DISCORD_URL"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="hero__discord"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"
+                  />
+                </svg>
+                Join Discord
+              </a>
+              <a :href="KOFI_URL" target="_blank" rel="noopener noreferrer" class="hero__kofi">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M17 8h1a4 4 0 0 1 0 8h-1" />
+                  <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V8z" />
+                  <line x1="6" y1="2" x2="6" y2="4" />
+                  <line x1="10" y1="2" x2="10" y2="4" />
+                  <line x1="14" y1="2" x2="14" y2="4" />
+                </svg>
+                Support on Ko-fi
+              </a>
+            </div>
           </div>
         </div>
       </div>
@@ -168,8 +230,17 @@ onUnmounted(() => {
       </div>
 
       <div v-if="!isLoggedIn" class="hero__scroll-hint" aria-hidden="true">
-        <svg class="hero__scroll-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-          stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <svg
+          class="hero__scroll-arrow"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
           <polyline points="7 13 12 18 17 13" />
           <polyline points="7 6 12 11 17 6" />
         </svg>
@@ -180,8 +251,8 @@ onUnmounted(() => {
       <h2 class="section__title">The XP System</h2>
       <p class="xp-section__intro">
         While <strong>AP</strong> rewards the <em>quality</em> of your play,
-        <strong>XP</strong> rewards <em>participation</em>. Play more ranked maps, earn milestones, improve your scores.
-        Quality still matters, but the biggest factor is showing up.
+        <strong>XP</strong> rewards <em>participation</em>. Play more ranked maps, earn milestones,
+        improve your scores. Quality still matters, but the biggest factor is showing up.
       </p>
 
       <div v-if="levelsLoading" class="xp-skeleton">
@@ -193,19 +264,37 @@ onUnmounted(() => {
           <template v-for="copy in 2" :key="copy">
             <template v-for="(tier, i) in levels" :key="`${copy}-${tier.level}`">
               <div class="xp-item xp-tier">
-                <div class="xp-tier__node" :style="{
-                  background: `var(--tier-${tierKey(tier.title)})`,
-                  boxShadow: `0 0 10px var(--tier-${tierKey(tier.title)})`,
-                }" />
-                <span class="xp-tier__title" :style="{ color: `var(--tier-${tierKey(tier.title)})` }">
+                <div
+                  class="xp-tier__node"
+                  :style="{
+                    background: `var(--tier-${tierKey(tier.title)})`,
+                    boxShadow: `0 0 10px var(--tier-${tierKey(tier.title)})`,
+                  }"
+                />
+                <span
+                  class="xp-tier__title"
+                  :style="{ color: `var(--tier-${tierKey(tier.title)})` }"
+                >
                   {{ tier.title }}
                 </span>
                 <span class="xp-tier__range">Lv. {{ levelRange(tier.level, i, levels) }}</span>
               </div>
 
-              <svg v-if="i < levels.length - 1" class="xp-item xp-tier__arrow" viewBox="0 0 40 16" fill="none"
-                aria-hidden="true">
-                <line x1="0" y1="8" x2="32" y2="8" :stroke="`var(--tier-${tierKey(tier.title)})`" stroke-width="2" />
+              <svg
+                v-if="i < levels.length - 1"
+                class="xp-item xp-tier__arrow"
+                viewBox="0 0 40 16"
+                fill="none"
+                aria-hidden="true"
+              >
+                <line
+                  x1="0"
+                  y1="8"
+                  x2="32"
+                  y2="8"
+                  :stroke="`var(--tier-${tierKey(tier.title)})`"
+                  stroke-width="2"
+                />
                 <polygon :points="`40,8 32,3 32,13`" :fill="`var(--tier-${tierKey(tier.title)})`" />
               </svg>
             </template>
@@ -217,18 +306,29 @@ onUnmounted(() => {
     </section>
 
     <footer class="home-footer">
-      <p class="home-footer__text">
-        Logo by Brylanbbab and Interz.
-      </p>
+      <p class="home-footer__text">Logo by Brylanbbab and Interz.</p>
       <nav class="home-footer__links" aria-label="Footer links">
-        <a href="https://github.com/tikugato/accsaber-reloaded-frontend" target="_blank" rel="noopener noreferrer"
-          class="home-footer__link">
+        <a
+          href="https://github.com/tikugato/accsaber-reloaded-frontend"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="home-footer__link"
+        >
           GitHub
         </a>
         <span class="home-footer__sep" aria-hidden="true">·</span>
         <RouterLink to="/score-feed" class="home-footer__link">Score Feed</RouterLink>
         <span class="home-footer__sep" aria-hidden="true">·</span>
         <RouterLink to="/credits" class="home-footer__link">Credits</RouterLink>
+        <span class="home-footer__sep" aria-hidden="true">·</span>
+        <button
+          type="button"
+          class="home-footer__link home-footer__flip"
+          :aria-pressed="flipped"
+          @click="togglePageFlip"
+        >
+          {{ flipped ? 'Right Side Up' : 'Upside Down' }}
+        </button>
       </nav>
     </footer>
   </div>
@@ -276,9 +376,11 @@ onUnmounted(() => {
 .hero__glow {
   position: absolute;
   inset: -32px -64px 0 -64px;
-  background: radial-gradient(ellipse at 50% 0%,
-      color-mix(in srgb, var(--tier-gold) 12%, transparent),
-      transparent 70%);
+  background: radial-gradient(
+    ellipse at 50% 0%,
+    color-mix(in srgb, var(--tier-gold) 12%, transparent),
+    transparent 70%
+  );
   pointer-events: none;
   z-index: 0;
 }
@@ -400,9 +502,11 @@ onUnmounted(() => {
   height: auto;
   transform: none;
   z-index: -1;
-  background: radial-gradient(ellipse at 50% 0%,
-      color-mix(in srgb, var(--tier-gold) 12%, transparent),
-      transparent 70%);
+  background: radial-gradient(
+    ellipse at 50% 0%,
+    color-mix(in srgb, var(--tier-gold) 12%, transparent),
+    transparent 70%
+  );
 }
 
 .hero--compact .hero__content {
@@ -601,7 +705,9 @@ onUnmounted(() => {
 .hero__kofi svg {
   opacity: 0.55;
   flex-shrink: 0;
-  transition: opacity 150ms ease, color 150ms ease;
+  transition:
+    opacity 150ms ease,
+    color 150ms ease;
 }
 
 .hero__kofi:hover {
@@ -669,7 +775,6 @@ onUnmounted(() => {
 }
 
 @keyframes scroll-float {
-
   0%,
   100% {
     transform: translateX(-50%) translateY(0);
@@ -831,6 +936,14 @@ onUnmounted(() => {
   color: var(--text-tertiary);
   text-decoration: none;
   transition: color 150ms ease;
+}
+
+.home-footer__flip {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
 }
 
 .home-footer__link:hover,

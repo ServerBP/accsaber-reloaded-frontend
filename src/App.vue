@@ -4,6 +4,7 @@ import AppNavbar from '@/components/layout/AppNavbar.vue'
 import ThemeBackdrop from '@/components/layout/ThemeBackdrop.vue'
 import { useBrandFavicon } from '@/composables/useBrandLogo'
 import { useNotificationSocket } from '@/composables/useNotificationSocket'
+import { initializePageFlip } from '@/composables/usePageFlip'
 import { useAuthStore } from '@/stores/auth'
 import { useBackendStatusStore } from '@/stores/backendStatus'
 import { useEssenceStore } from '@/stores/essence'
@@ -25,6 +26,7 @@ const essenceStore = useEssenceStore()
 const relationsStore = useRelationsStore()
 const settingsStore = useSettingsStore()
 
+initializePageFlip()
 useBrandFavicon()
 useNotificationSocket()
 
