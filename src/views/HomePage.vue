@@ -6,7 +6,6 @@ import FollowedActivity from '@/components/domain/FollowedActivity.vue'
 import NewsHighlightBanner from '@/components/domain/NewsHighlightBanner.vue'
 import { useBrandLogo } from '@/composables/useBrandLogo'
 import { usePageMeta } from '@/composables/usePageMeta'
-import { usePageFlip } from '@/composables/usePageFlip'
 import { useReducedMotion } from '@/composables/useReducedMotion'
 import { useAuthStore } from '@/stores/auth'
 import { tierKey, useLevelStore } from '@/stores/levels'
@@ -17,7 +16,6 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 const themeStore = useThemeStore()
 const levelStore = useLevelStore()
 const authStore = useAuthStore()
-const { flipped, togglePageFlip } = usePageFlip()
 
 const logoUrl = useBrandLogo()
 const showHeroAmbience = computed(() => themeStore.activeTokens?.['fx-hero-particles'] !== '0')
@@ -381,15 +379,6 @@ onUnmounted(() => {
         <RouterLink to="/score-feed" class="home-footer__link">Score Feed</RouterLink>
         <span class="home-footer__sep" aria-hidden="true">·</span>
         <RouterLink to="/credits" class="home-footer__link">Credits</RouterLink>
-        <span class="home-footer__sep" aria-hidden="true">·</span>
-        <button
-          type="button"
-          class="home-footer__link home-footer__flip"
-          :aria-pressed="flipped"
-          @click="togglePageFlip"
-        >
-          {{ flipped ? 'Right Side Up' : 'Upside Down' }}
-        </button>
       </nav>
     </footer>
   </div>
@@ -997,14 +986,6 @@ onUnmounted(() => {
   color: var(--text-tertiary);
   text-decoration: none;
   transition: color 150ms ease;
-}
-
-.home-footer__flip {
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  cursor: pointer;
 }
 
 .home-footer__link:hover,
