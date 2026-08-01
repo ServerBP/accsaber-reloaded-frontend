@@ -10,7 +10,7 @@ const TTL_MS = 60_000
 
 interface CacheEntry<T> {
   value?: T
-  fetchedAt: number
+  fetchedAt?: number
   promise?: Promise<T>
 }
 
@@ -19,7 +19,13 @@ const detailCache = new Map<string, CacheEntry<PublicNewsResponse>>()
 
 function readFresh<T>(map: Map<string, CacheEntry<T>>, key: string): T | undefined {
   const entry = map.get(key)
-  if (entry?.value && Date.now() - entry.fetchedAt < TTL_MS) return entry.value
+  if (
+    entry?.value !== undefined &&
+    entry.fetchedAt !== undefined &&
+    Date.now() - entry.fetchedAt < TTL_MS
+  ) {
+    return entry.value
+  }
   return undefined
 }
 
